@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: routlis-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: routlis
+      POSTGRES_USER: routlis
+      POSTGRES_PASSWORD: routlis
+    ports:
+      - "5432:5432"
+    volumes:
+      - routlis_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  routlis_postgres_data:

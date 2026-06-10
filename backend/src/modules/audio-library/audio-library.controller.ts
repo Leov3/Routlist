@@ -1,0 +1,123 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Res,
+  UploadedFile,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { createReadStream } from 'fs';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
+import { AudioLibraryService } from './audio-library.service';
+import { BulkAudioAssetsDto } from './dto/bulk-audio-assets.dto';
+import { UpdateAudioAssetDto } from './dto/update-audio-asset.dto';
+
+@ApiTags('audio-assets')
+@ApiCookieAuth('cookie')
+@Controller('audio-assets')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+export class AudioLibraryController {
+  constructor(private readonly audioLibraryService: AudioLibraryService) {}
+
+  @Get()
+  @Permissions('audio:read')
+  list(@CurrentUser() user: AuthenticatedUser) {
+    return this.audioLibraryService.list(user);
+  }
+
+  @Post()
+  @Permissions('audio:create')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.audioLibraryService.create(user, file);
+  }
+
+  @Post('bulk')
+  @Permissions('audio:update')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FilesInterceptor('files'))
+  bulk(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BulkAudioAssetsDto,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    return this.audioLibraryService.bulk(user, dto, files);
+  }
+
+  @Get(':id')
+  @Permissions('audio:read')
+  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.audioLibraryService.findOne(user, id);
+  }
+
+  @Get(':id/stream')
+  @Permissions('audio:read')
+  async stream(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { asset, path } = await this.audioLibraryService.streamPath(user, id);
+    res.setHeader('Content-Type', asset.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${asset.fileName}"`);
+    createReadStream(path).pipe(res);
+  }
+
+  @Get(':id/download')
+  @Permissions('audio:read')
+  async download(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { asset, path } = await this.audioLibraryService.downloadPath(user, id);
+    res.setHeader('Content-Type', asset.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${asset.fileName}"`);
+    createReadStream(path).pipe(res);
+  }
+
+  @Patch(':id')
+  @Permissions('audio:update')
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateAudioAssetDto,
+  ) {
+    return this.audioLibraryService.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  @Permissions('audio:delete')
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.audioLibraryService.remove(user, id);
+  }
+}

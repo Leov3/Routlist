@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.next/
+
+.env
+.env.local
+.env.production
+
+.local-pkgs/
+.local-postgres/
+pgsql-local/
+storage/
+tmp/
+
+*.log
