@@ -135,9 +135,9 @@ Si prefieres que Traefik sea quien "asigne" la exposicion web sin tocar Nginx ni
 
 ### 4. Montar volúmenes persistentes
 
-- `routlis_postgres_data`
-- `routlis_storage`
-- `routlis_traefik_letsencrypt`
+- `routlis_routlis_postgres_data`
+- `routlis_routlis_storage`
+- `routlis_letsencrypt`
 
 ### 5. Ejecutar migraciones y seed
 

@@ -102,11 +102,11 @@ services:
 
 volumes:
   postgres_data:
-    name: routlis_postgres_data
+    name: routlis_routlis_postgres_data
   routlis_storage:
-    name: routlis_storage
+    name: routlis_routlis_storage
   traefik_letsencrypt:
-    name: routlis_traefik_letsencrypt
+    name: routlis_letsencrypt
 
 networks:
   routlis-public:
