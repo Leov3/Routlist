@@ -1,16 +1,43 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: routlis-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: routlis
       POSTGRES_USER: routlis
-      POSTGRES_PASSWORD: routlis
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-routlis}
     volumes:
       - routlis_postgres_data:/var/lib/postgresql/data
 
+  backend:
+    build:
+      context: ./backend
+    container_name: routlis-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.production
+    environment:
+      DATABASE_URL: postgresql://routlis:${POSTGRES_PASSWORD:-routlis}@postgres:5432/routlis?schema=public
+    depends_on:
+      - postgres
+    ports:
+      - "4000:4000"
+    volumes:
+      - routlis_storage:/var/www/routlis/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://31.97.65.9:4000}
+    container_name: routlis-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
 volumes:
   routlis_postgres_data:
+  routlis_storage:
