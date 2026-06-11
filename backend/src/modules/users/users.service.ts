@@ -221,12 +221,12 @@ export class UsersService {
   }
 
   private assertCanAssignRole(currentUser: AuthenticatedUser, role: string) {
-    if (role === 'OWNER') {
-      throw new ForbiddenException('You cannot assign this role');
-    }
-
     if (currentUser.role === 'OWNER') {
       return;
+    }
+
+    if (role === 'OWNER') {
+      throw new ForbiddenException('You cannot assign this role');
     }
 
     if (currentUser.role === 'ADMIN' && ['SUPERVISOR', 'OPERATOR'].includes(role)) {

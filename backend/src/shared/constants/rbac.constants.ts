@@ -3,7 +3,7 @@ export const ROLE_NAMES = ['OWNER', 'ADMIN', 'SUPERVISOR', 'OPERATOR'] as const;
 export type RoleName = (typeof ROLE_NAMES)[number];
 
 export const GLOBAL_ROLE_NAME: RoleName = 'OWNER';
-export const ASSIGNABLE_ROLE_NAMES = ['ADMIN', 'SUPERVISOR', 'OPERATOR'] as const;
+export const ASSIGNABLE_ROLE_NAMES = ['OWNER', 'ADMIN', 'SUPERVISOR', 'OPERATOR'] as const;
 export type AssignableRoleName = (typeof ASSIGNABLE_ROLE_NAMES)[number];
 
 export const PERMISSIONS = [

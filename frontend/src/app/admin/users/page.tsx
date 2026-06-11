@@ -60,7 +60,7 @@ export default function UsersPage() {
 
   const roleOptions =
     currentUser?.role === "OWNER"
-      ? ["ADMIN", "SUPERVISOR", "OPERATOR"]
+      ? ["OWNER", "ADMIN", "SUPERVISOR", "OPERATOR"]
       : ["SUPERVISOR", "OPERATOR"];
 
   const filteredUsers = useMemo(() => {
@@ -154,6 +154,7 @@ export default function UsersPage() {
         </label>
         <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="h-10 rounded-xl border border-outline px-3 text-sm">
           <option value="all">Todos los roles</option>
+          <option value="OWNER">OWNER</option>
           <option value="ADMIN">ADMIN</option>
           <option value="SUPERVISOR">SUPERVISOR</option>
           <option value="OPERATOR">OPERATOR</option>
