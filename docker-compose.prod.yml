@@ -1,0 +1,110 @@
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: routlis-traefik
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    restart: unless-stopped
+    networks:
+      - routlis-public
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: routlis-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-routlis}
+      POSTGRES_USER: ${POSTGRES_USER:-routlis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - routlis-private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-routlis} -d ${POSTGRES_DB:-routlis}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: routlis-backend
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-routlis}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-routlis}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      COOKIE_NAME: ${COOKIE_NAME:-routlis_token}
+      COOKIE_SECURE: "true"
+      FRONTEND_URL: https://${FRONTEND_HOST}
+      STORAGE_DRIVER: local
+      LOCAL_STORAGE_PATH: /var/www/routlis/storage
+      LOCAL_AUDIO_PATH: /var/www/routlis/storage/audio-assets
+      PUBLIC_AUDIO_BASE_URL: https://${API_HOST}/files/audio-assets
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+    volumes:
+      - routlis_storage:/var/www/routlis/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - routlis-private
+      - routlis-public
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.routlis-api.rule=Host(`${API_HOST}`)
+      - traefik.http.routers.routlis-api.entrypoints=websecure
+      - traefik.http.routers.routlis-api.tls=true
+      - traefik.http.routers.routlis-api.tls.certresolver=letsencrypt
+      - traefik.http.services.routlis-api.loadbalancer.server.port=4000
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_HOST}
+        NEXT_PUBLIC_MEDIA_URL: https://${API_HOST}
+    container_name: routlis-frontend
+    environment:
+      NODE_ENV: production
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - routlis-public
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.routlis-web.rule=Host(`${FRONTEND_HOST}`)
+      - traefik.http.routers.routlis-web.entrypoints=websecure
+      - traefik.http.routers.routlis-web.tls=true
+      - traefik.http.routers.routlis-web.tls.certresolver=letsencrypt
+      - traefik.http.services.routlis-web.loadbalancer.server.port=3000
+
+volumes:
+  postgres_data:
+  routlis_storage:
+  traefik_letsencrypt:
+
+networks:
+  routlis-public:
+  routlis-private:

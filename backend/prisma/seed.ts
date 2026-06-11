@@ -18,32 +18,39 @@ async function main() {
   const seedPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin123*';
   const passwordHash = await bcrypt.hash(seedPassword, 12);
 
-  // Local/dev reset: remove existing demo data so the seed is deterministic.
-  await prisma.$transaction([
-    prisma.audioButtonFavorite.deleteMany({}),
-    prisma.playbackEvent.deleteMany({}),
-    prisma.audioButton.deleteMany({}),
-    prisma.audioAsset.deleteMany({}),
-    prisma.audioCategory.deleteMany({}),
-    prisma.organizationMember.deleteMany({}),
-    prisma.userBoardPreference.deleteMany({}),
-    prisma.user.deleteMany({}),
-    prisma.rolePermission.deleteMany({}),
-    prisma.role.deleteMany({}),
-    prisma.permission.deleteMany({}),
-    prisma.organization.deleteMany({}),
-  ]);
+  const shouldReset = process.env.RESET_SEED_DATA === 'true';
 
-  const organization = await prisma.organization.create({
-    data: {
+  if (shouldReset) {
+    await prisma.$transaction([
+      prisma.audioButtonFavorite.deleteMany({}),
+      prisma.playbackEvent.deleteMany({}),
+      prisma.audioButton.deleteMany({}),
+      prisma.audioAsset.deleteMany({}),
+      prisma.audioCategory.deleteMany({}),
+      prisma.organizationMember.deleteMany({}),
+      prisma.userBoardPreference.deleteMany({}),
+      prisma.user.deleteMany({}),
+      prisma.rolePermission.deleteMany({}),
+      prisma.role.deleteMany({}),
+      prisma.permission.deleteMany({}),
+      prisma.organization.deleteMany({}),
+    ]);
+  }
+
+  const organization = await prisma.organization.upsert({
+    where: { id: 'demo-organization' },
+    update: { name: 'Routlis Demo Organization', status: 'ACTIVE' },
+    create: {
       id: 'demo-organization',
       name: 'Routlis Demo Organization',
       status: 'ACTIVE',
     },
   });
 
-  await prisma.organization.create({
-    data: {
+  await prisma.organization.upsert({
+    where: { id: 'demo-organization-2' },
+    update: { name: 'Routlis Sandbox Organization', status: 'ACTIVE' },
+    create: {
       id: 'demo-organization-2',
       name: 'Routlis Sandbox Organization',
       status: 'ACTIVE',
