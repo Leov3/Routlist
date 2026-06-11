@@ -1,6 +1,6 @@
 export default () => ({
   port: parseInt(process.env.PORT ?? '4000', 10),
-  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+  frontendUrl: (process.env.FRONTEND_URL ?? 'http://localhost:3000').replace(/\/$/, ''),
   auth: {
     jwtSecret: process.env.JWT_SECRET ?? 'change-me',
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1d',

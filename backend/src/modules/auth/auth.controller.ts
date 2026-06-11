@@ -34,7 +34,7 @@ export class AuthController {
     res.cookie(cookieName, result.accessToken, {
       httpOnly: true,
       secure: this.configService.get<boolean>('auth.cookieSecure'),
-      sameSite: 'lax',
+      sameSite: 'none',
       path: '/',
     });
 
@@ -83,7 +83,7 @@ export class AuthController {
     res.cookie(cookieName, result.accessToken, {
       httpOnly: true,
       secure: this.configService.get<boolean>('auth.cookieSecure'),
-      sameSite: 'lax',
+      sameSite: 'none',
       path: '/',
     });
 
