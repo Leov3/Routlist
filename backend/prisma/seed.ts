@@ -15,6 +15,9 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  const seedPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin123*';
+  const passwordHash = await bcrypt.hash(seedPassword, 12);
+
   const organization = await prisma.organization.upsert({
     where: { id: 'demo-organization' },
     update: { name: 'Routlis Demo Organization', status: 'ACTIVE' },
@@ -77,44 +80,74 @@ async function main() {
   const ownerRole = await prisma.role.findUniqueOrThrow({
     where: { name: 'OWNER' },
   });
-  const passwordHash = await bcrypt.hash(
-    process.env.SEED_ADMIN_PASSWORD ?? 'Admin123*',
-    12,
-  );
+  const adminRole = await prisma.role.findUniqueOrThrow({
+    where: { name: 'ADMIN' },
+  });
+  const supervisorRole = await prisma.role.findUniqueOrThrow({
+    where: { name: 'SUPERVISOR' },
+  });
+  const operatorRole = await prisma.role.findUniqueOrThrow({
+    where: { name: 'OPERATOR' },
+  });
 
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@routlis.local' },
-    update: {
-      fullName: 'Routlis Owner',
-      passwordHash,
-      status: 'ACTIVE',
-    },
-    create: {
+  const seededUsers = [
+    {
       email: 'admin@routlis.local',
       fullName: 'Routlis Owner',
-      passwordHash,
-      status: 'ACTIVE',
+      roleId: ownerRole.id,
     },
-  });
+    {
+      email: 'admin2@routlis.local',
+      fullName: 'Routlis Admin',
+      roleId: adminRole.id,
+    },
+    {
+      email: 'supervisor@routlis.local',
+      fullName: 'Routlis Supervisor',
+      roleId: supervisorRole.id,
+    },
+    {
+      email: 'operator@routlis.local',
+      fullName: 'Routlis Operator',
+      roleId: operatorRole.id,
+    },
+  ];
 
-  await prisma.organizationMember.upsert({
-    where: {
-      organizationId_userId: {
-        organizationId: organization.id,
-        userId: admin.id,
+  for (const seedUser of seededUsers) {
+    const user = await prisma.user.upsert({
+      where: { email: seedUser.email },
+      update: {
+        fullName: seedUser.fullName,
+        passwordHash,
+        status: 'ACTIVE',
       },
-    },
-    update: {
-      roleId: ownerRole.id,
-      status: 'ACTIVE',
-    },
-    create: {
-      organizationId: organization.id,
-      userId: admin.id,
-      roleId: ownerRole.id,
-      status: 'ACTIVE',
-    },
-  });
+      create: {
+        email: seedUser.email,
+        fullName: seedUser.fullName,
+        passwordHash,
+        status: 'ACTIVE',
+      },
+    });
+
+    await prisma.organizationMember.upsert({
+      where: {
+        organizationId_userId: {
+          organizationId: organization.id,
+          userId: user.id,
+        },
+      },
+      update: {
+        roleId: seedUser.roleId,
+        status: 'ACTIVE',
+      },
+      create: {
+        organizationId: organization.id,
+        userId: user.id,
+        roleId: seedUser.roleId,
+        status: 'ACTIVE',
+      },
+    });
+  }
 
   const categories = ['Saludos', 'Validación', 'Información', 'Objeciones', 'Cierre'];
 
@@ -142,7 +175,10 @@ async function main() {
 
   console.log('Seed completed');
   console.log('Admin email: admin@routlis.local');
-  console.log('Admin password: Admin123*');
+  console.log(`Seed password: ${seedPassword}`);
+  console.log(
+    'Demo users: admin@routlis.local, admin2@routlis.local, supervisor@routlis.local, operator@routlis.local',
+  );
 }
 
 main()
