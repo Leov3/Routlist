@@ -1,0 +1,13 @@
+node_modules
+.next
+dist
+coverage
+.git
+.github
+tmp
+storage
+logs
+*.log
+Dockerfile
+docker-compose*.yml
+documentos
