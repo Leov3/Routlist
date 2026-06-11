@@ -12,6 +12,23 @@ Routlis llega a su primera version estable de producto. Esta release deja listos
 - almacenamiento de audios
 - despliegue estable en VPS/Easypanel
 
+### Cuentas de prueba
+
+Estas cuentas quedan creadas por el seed para probar permisos:
+
+| Email | Rol |
+| --- | --- |
+| `admin@routlis.local` | `OWNER` |
+| `admin2@routlis.local` | `ADMIN` |
+| `supervisor@routlis.local` | `SUPERVISOR` |
+| `operator@routlis.local` | `OPERATOR` |
+
+Password de seed:
+
+```txt
+Admin123*
+```
+
 ## Estado actual
 
 Código base implementado:
