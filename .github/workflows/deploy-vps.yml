@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      run_seed:
+        description: Run prisma seed after deploy
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: routlis-vps-deploy
@@ -29,4 +36,9 @@ jobs:
 
       - name: Sync repository to VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "set -euo pipefail && cd '${{ secrets.VPS_APP_DIR }}' && git fetch origin main && git reset --hard origin/main && docker compose -f docker-compose.prod.yml up -d --build && docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:deploy && docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:seed"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "set -euo pipefail && cd '${{ secrets.VPS_APP_DIR }}' && git fetch origin main && git reset --hard origin/main && docker compose -f docker-compose.prod.yml up -d --build && docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:deploy"
+
+      - name: Bootstrap seed on demand
+        if: github.event_name == 'workflow_dispatch' && inputs.run_seed == true
+        run: |
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "set -euo pipefail && cd '${{ secrets.VPS_APP_DIR }}' && docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:seed"

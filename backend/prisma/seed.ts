@@ -20,6 +20,12 @@ async function main() {
 
   const shouldReset = process.env.RESET_SEED_DATA === 'true';
 
+  if (shouldReset && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'RESET_SEED_DATA is disabled in production to protect existing data',
+    );
+  }
+
   if (shouldReset) {
     await prisma.$transaction([
       prisma.audioButtonFavorite.deleteMany({}),

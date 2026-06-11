@@ -145,6 +145,8 @@ En ese caso se debe ajustar Nginx para enrutar `/api` al backend.
 
 ## Instalar dependencias y compilar
 
+En produccion, el seed debe ejecutarse solo en el bootstrap inicial o de forma manual controlada, no en cada redeploy.
+
 Backend:
 
 ```bash
@@ -412,9 +414,14 @@ NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:deploy
-docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:seed
 curl -k https://api.routlis.tudominio.com/health
 curl -k -I https://routlis.tudominio.com/admin/storage
+```
+
+Bootstrap manual opcional:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:seed
 ```
 
 ### Verificaciones mínimas antes de dar por bueno un deploy

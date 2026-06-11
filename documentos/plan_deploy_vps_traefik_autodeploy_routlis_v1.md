@@ -135,13 +135,14 @@ Si prefieres que Traefik sea quien "asigne" la exposicion web sin tocar Nginx ni
 
 ### 4. Montar volúmenes persistentes
 
-- `postgres_data`
+- `routlis_postgres_data`
 - `routlis_storage`
+- `routlis_traefik_letsencrypt`
 
 ### 5. Ejecutar migraciones y seed
 
-- `npm run prisma:migrate`
-- `npm run prisma:seed`
+- En cada deploy normal: `npm run prisma:migrate`
+- Solo para bootstrap inicial o reseed manual: `npm run prisma:seed`
 
 ### 6. Validar funcionamiento
 
@@ -164,7 +165,8 @@ Flujo:
 ```bash
 cd /opt/routlis/app
 git pull origin main
-docker compose up -d --build
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:deploy
 ```
 
 Ventajas:
@@ -172,6 +174,12 @@ Ventajas:
 - Simple.
 - Controlable.
 - No depende de herramientas externas.
+
+Bootstrap manual:
+
+- Ejecutar el mismo workflow con `workflow_dispatch`.
+- Activar `run_seed=true` solo si quieres volver a cargar los datos demo del seed.
+- El seed queda fuera del flujo automatico de `push` a `main`.
 
 ### Opcion alternativa: webhook propio
 
@@ -188,6 +196,7 @@ Esta opcion es util si despues quieres cero dependencia de GitHub Actions.
 - Las cookies deben ir con `secure=true`.
 - Traefik debe ser el unico punto de entrada web.
 - La base de datos no debe exponerse por internet.
+- El seed no debe ejecutarse en cada deploy automatico.
 
 ## Criterio de exito
 

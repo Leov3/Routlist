@@ -29,6 +29,8 @@ Password de seed:
 Admin123*
 ```
 
+En produccion, el seed queda reservado para un bootstrap manual del VPS; los `push` a `main` actualizan codigo y migraciones, pero no vuelven a sembrar datos demo.
+
 ## Estado actual
 
 Código base implementado:
