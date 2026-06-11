@@ -80,7 +80,7 @@ export class AudioLibraryController {
   }
 
   @Get(':id/stream')
-  @Permissions('audio:read')
+  @Permissions('board:use')
   async stream(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -93,7 +93,7 @@ export class AudioLibraryController {
   }
 
   @Get(':id/download')
-  @Permissions('audio:read')
+  @Permissions('board:use')
   async download(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

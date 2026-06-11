@@ -2,6 +2,8 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "/api";
 
+const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL ?? API_URL;
+
 type ApiOptions = RequestInit & {
   formData?: boolean;
 };
@@ -17,6 +19,10 @@ export class ApiError extends Error {
 
 export function apiUrl(path: string) {
   return `${API_URL}${path}`;
+}
+
+export function mediaUrl(path: string) {
+  return `${MEDIA_BASE_URL}${path}`;
 }
 
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {

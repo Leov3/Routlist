@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Copy, Download, X } from "lucide-react";
-import { apiUrl } from "@/lib/api";
+import { mediaUrl } from "@/lib/api";
 import type { BoardAudioButton } from "@/types/routlis";
 
 export function AudioButtonDetailsModal({
@@ -69,7 +69,7 @@ export function AudioButtonDetailsModal({
               {button.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={apiUrl(button.imageUrl)}
+                  src={mediaUrl(button.imageUrl)}
                   alt={button.label}
                   className="h-[320px] w-full object-cover"
                 />
@@ -83,7 +83,7 @@ export function AudioButtonDetailsModal({
             <div className="mt-4 flex flex-wrap gap-2">
               {button.imageDownloadUrl ? (
                 <a
-                  href={apiUrl(button.imageDownloadUrl)}
+                  href={mediaUrl(button.imageDownloadUrl)}
                   className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container px-4 py-2 text-sm text-on-surface transition-colors hover:bg-surface-container-high"
                 >
                   <Download className="h-4 w-4" />
@@ -92,7 +92,7 @@ export function AudioButtonDetailsModal({
               ) : null}
               {button.audioAsset.audioDownloadUrl ? (
                 <a
-                  href={apiUrl(button.audioAsset.audioDownloadUrl)}
+                  href={mediaUrl(button.audioAsset.audioDownloadUrl)}
                   className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:brightness-110"
                 >
                   <Download className="h-4 w-4" />

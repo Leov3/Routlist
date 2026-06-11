@@ -17,6 +17,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "db:seed": "npm run prisma:seed",
+    "db:reset": "prisma migrate reset --force --skip-generate",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

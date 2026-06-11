@@ -140,7 +140,7 @@ export class AudioButtonsController {
   }
 
   @Get(':id/image')
-  @Permissions('button:read')
+  @Permissions('board:use')
   async image(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -153,7 +153,7 @@ export class AudioButtonsController {
   }
 
   @Get(':id/image/download')
-  @Permissions('button:read')
+  @Permissions('board:use')
   async downloadImage(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

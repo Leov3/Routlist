@@ -1,7 +1,7 @@
 "use client";
 
 import { MoreVertical, Pause, Play, Star } from "lucide-react";
-import { apiUrl } from "@/lib/api";
+import { mediaUrl } from "@/lib/api";
 import type { BoardAudioButton, BoardDensity } from "@/types/routlis";
 
 export function AudioButton({
@@ -61,7 +61,7 @@ export function AudioButton({
           {button.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={apiUrl(button.imageUrl)}
+              src={mediaUrl(button.imageUrl)}
               alt={button.label}
               className="h-full w-full object-cover"
             />

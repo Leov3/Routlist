@@ -30,11 +30,12 @@ export class AuthController {
   async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(loginDto);
     const cookieName = this.configService.getOrThrow<string>('auth.cookieName');
+    const secure = this.configService.get<boolean>('auth.cookieSecure');
 
     res.cookie(cookieName, result.accessToken, {
       httpOnly: true,
-      secure: this.configService.get<boolean>('auth.cookieSecure'),
-      sameSite: 'none',
+      secure,
+      sameSite: secure ? 'none' : 'lax',
       path: '/',
     });
 
@@ -79,11 +80,12 @@ export class AuthController {
       dto.organizationId,
     );
     const cookieName = this.configService.getOrThrow<string>('auth.cookieName');
+    const secure = this.configService.get<boolean>('auth.cookieSecure');
 
     res.cookie(cookieName, result.accessToken, {
       httpOnly: true,
-      secure: this.configService.get<boolean>('auth.cookieSecure'),
-      sameSite: 'none',
+      secure,
+      sameSite: secure ? 'none' : 'lax',
       path: '/',
     });
 
