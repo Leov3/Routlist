@@ -1,10 +1,12 @@
 # Reporte de estado del proyecto - Routlis 1.0 AudioBoard
 
-Fecha de corte: 2026-06-10
+Fecha de corte: 2026-06-11
 
 ## Resumen ejecutivo
 
 Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend y el flujo principal de la botonera ya estan implementados y compilando correctamente. La interfaz de `/board` evoluciono para soportar dos modos de operacion y la experiencia general ya refleja la identidad visual del proyecto.
+
+El despliegue de produccion ya no depende de Easypanel. Routlis quedó publicado con un Traefik propio en el VPS, redes de Swarm dedicadas y un flujo de actualizacion que parte desde `main`.
 
 ## Estado tecnico actual
 
@@ -24,7 +26,7 @@ Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend 
 - Normalizacion de audio aplicada en el flujo de almacenamiento local.
 - Endpoints de duplicado, reordenamiento e importacion en lote disponibles.
 - Administración global de organizaciones disponible para `OWNER`.
-- Despliegue en VPS/Easypanel verificado con login funcional y healthcheck público.
+- Despliegue en VPS verificado con login funcional, healthcheck público y Traefik propio.
 
 ### Frontend
 
@@ -39,7 +41,7 @@ Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend 
 - Selector de densidad y volumen persistente por usuario.
 - Reproduccion con fade in / fade out y atajos de teclado.
 - Vista rapida de historial reciente en la botonera.
-- Despliegue en VPS/Easypanel verificado con proxy `/api` y rutas admin completas.
+- Despliegue en VPS verificado con proxy `/api`, rutas admin completas y Traefik propio.
 
 ## Estado funcional de `/board`
 
@@ -82,13 +84,14 @@ Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend 
 - `https://facebook-routlis-backend.273nrg.easypanel.host/health` responde `200`.
 - `POST /api/auth/login` y `GET /api/auth/me` verificados en el frontend de producción.
 - `https://facebook-routlis-frontend.273nrg.easypanel.host/admin/storage` responde `200`.
+- Easypanel y sus stacks auxiliares fueron retirados del VPS para dejar el entorno limpio.
 
 ## Pendientes recomendados
 
 - Seguir refinando la experiencia visual de la botonera si se agregan mas filas o categorias.
 - Evaluar si hace falta drag and drop visual para reordenar botones y categorias en la interfaz.
 - Evaluar si conviene agregar acciones mas visibles para importacion en lote y normalizacion avanzada en el admin.
-- Mantener actualizada la guia de despliegue VPS/Easypanel con cualquier cambio en dominios, rutas o variables.
+- Mantener actualizada la guia de despliegue VPS con cualquier cambio en dominios, rutas o variables.
 
 ## Documentacion relacionada
 

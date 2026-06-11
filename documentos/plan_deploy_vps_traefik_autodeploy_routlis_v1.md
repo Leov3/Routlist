@@ -1,8 +1,8 @@
-# Plan de despliegue en VPS con Traefik y auto-deploy desde `main`
+# Plan de despliegue en VPS con Traefik propio y auto-deploy desde `main`
 
 ## Objetivo
 
-Desplegar Routlis en el VPS sin Easypanel, con acceso publico por web a traves de Traefik, y con actualizacion automatica cuando haya commits en la rama `main`.
+Desplegar Routlis en el VPS sin Easypanel, con acceso publico por web a traves de Traefik propio, y con actualizacion automatica cuando haya commits en la rama `main`.
 
 ## Arquitectura propuesta
 
@@ -19,7 +19,7 @@ Desplegar Routlis en el VPS sin Easypanel, con acceso publico por web a traves d
 3. El VPS hace `git pull` o recibe el build.
 4. Se reconstruyen imagenes Docker.
 5. Se reinician los contenedores.
-6. Traefik sigue exponiendo los dominios publicos.
+6. Traefik sigue exponiendo los dominios publicos sin depender de Easypanel.
 
 ## Recomendacion tecnica
 
@@ -112,6 +112,7 @@ NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
 - Instalar Docker y Docker Compose.
 - Abrir puertos 80 y 443.
 - Configurar DNS de los subdominios.
+- Dejar Easypanel fuera de la ruta publica de Routlis.
 
 ### 2. Crear `docker-compose.yml`
 
@@ -198,6 +199,7 @@ El deploy se considera listo cuando:
 - Las imagenes cargan.
 - `/admin/storage` funciona.
 - Un push a `main` actualiza automaticamente el VPS.
+- El despliegue publico no depende de Easypanel.
 
 ## Siguiente paso sugerido
 
