@@ -10,6 +10,8 @@ dist/
 .local-postgres/
 pgsql-local/
 storage/
+!frontend/src/app/admin/storage/
+!frontend/src/app/admin/storage/**
 !backend/src/modules/storage/
 !backend/src/modules/storage/**
 tmp/
