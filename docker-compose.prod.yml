@@ -72,6 +72,7 @@ services:
       - routlis-public
     labels:
       - traefik.enable=true
+      - traefik.docker.network=app_routlis-public
       - traefik.http.routers.routlis-api.rule=Host(`${API_HOST}`)
       - traefik.http.routers.routlis-api.entrypoints=websecure
       - traefik.http.routers.routlis-api.tls=true
@@ -95,6 +96,7 @@ services:
       - routlis-public
     labels:
       - traefik.enable=true
+      - traefik.docker.network=app_routlis-public
       - traefik.http.routers.routlis-web.rule=Host(`${FRONTEND_HOST}`)
       - traefik.http.routers.routlis-web.entrypoints=websecure
       - traefik.http.routers.routlis-web.tls=true
