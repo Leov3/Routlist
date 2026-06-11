@@ -1,4 +1,4 @@
-# Reporte de estado del proyecto - Routlis V1 AudioBoard
+# Reporte de estado del proyecto - Routlis 1.0 AudioBoard
 
 Fecha de corte: 2026-06-10
 
@@ -24,6 +24,7 @@ Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend 
 - Normalizacion de audio aplicada en el flujo de almacenamiento local.
 - Endpoints de duplicado, reordenamiento e importacion en lote disponibles.
 - Administración global de organizaciones disponible para `OWNER`.
+- Despliegue en VPS/Easypanel verificado con login funcional y healthcheck público.
 
 ### Frontend
 
@@ -38,6 +39,7 @@ Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend 
 - Selector de densidad y volumen persistente por usuario.
 - Reproduccion con fade in / fade out y atajos de teclado.
 - Vista rapida de historial reciente en la botonera.
+- Despliegue en VPS/Easypanel verificado con proxy `/api` y rutas admin completas.
 
 ## Estado funcional de `/board`
 
@@ -77,13 +79,16 @@ Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend 
 - Inicio y cierre de playback event verificados.
 - Consulta de historial verificada.
 - Cambio de organización activa como `OWNER` verificado.
+- `https://facebook-routlis-backend.273nrg.easypanel.host/health` responde `200`.
+- `POST /api/auth/login` y `GET /api/auth/me` verificados en el frontend de producción.
+- `https://facebook-routlis-frontend.273nrg.easypanel.host/admin/storage` responde `200`.
 
 ## Pendientes recomendados
 
 - Seguir refinando la experiencia visual de la botonera si se agregan mas filas o categorias.
 - Evaluar si hace falta drag and drop visual para reordenar botones y categorias en la interfaz.
 - Evaluar si conviene agregar acciones mas visibles para importacion en lote y normalizacion avanzada en el admin.
-- Completar la guia de despliegue VPS si se va a pasar a produccion.
+- Mantener actualizada la guia de despliegue VPS/Easypanel con cualquier cambio en dominios, rutas o variables.
 
 ## Documentacion relacionada
 

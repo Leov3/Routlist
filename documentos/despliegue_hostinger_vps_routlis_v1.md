@@ -339,3 +339,91 @@ Restaurar backup:
 ```bash
 psql -U routlis -h 127.0.0.1 routlis < routlis_backup.sql
 ```
+
+## Despliegue real en Easypanel / VPS
+
+Este proyecto ya fue probado en un VPS con Easypanel y Traefik. Estas son las reglas que evitaron los errores que aparecieron durante el despliegue:
+
+- El backend debe desplegarse como servicio Docker separado del frontend.
+- El frontend también debe desplegarse como servicio independiente.
+- El dominio público del frontend debe ser el punto de entrada del navegador.
+- El backend debe quedar expuesto por su propio dominio de Traefik.
+- No conviene depender de cookies cruzadas entre dominios distintos si se puede evitar.
+
+### Lo que funcionó mejor
+
+- Usar `frontend` como origen principal del navegador.
+- Hacer que el frontend llame al backend por proxy interno con `/api`.
+- Mantener el backend con JWT en cookie `HttpOnly`.
+- Configurar `SameSite=None` en producción cuando el login cruza dominios.
+- Usar `Secure=true` en HTTPS real.
+- Normalizar `FRONTEND_URL` sin slash final.
+
+### Ruta y nombres que se verificaron
+
+- Backend público: `https://facebook-routlis-backend.273nrg.easypanel.host`
+- Frontend público: `https://facebook-routlis-frontend.273nrg.easypanel.host`
+- Proxy frontend: `/api/*` -> backend público
+
+### Variables que terminaron siendo importantes
+
+Backend:
+
+```env
+DATABASE_URL=postgres://...
+JWT_SECRET=...
+FRONTEND_URL=https://facebook-routlis-frontend.273nrg.easypanel.host
+PORT=4000
+NODE_ENV=production
+```
+
+Frontend:
+
+```env
+BACKEND_URL=https://facebook-routlis-backend.273nrg.easypanel.host
+PORT=3000
+NODE_ENV=production
+```
+
+### Ajustes de código que se tuvieron que hacer
+
+- `backend/src/modules/auth/auth.controller.ts`
+  - cookies de login y cambio de organización con `SameSite=None`
+- `backend/src/config/configuration.ts`
+  - `FRONTEND_URL` sin slash final
+- `frontend/src/lib/api.ts`
+  - uso de `"/api"` como base URL
+- `frontend/next.config.ts`
+  - rewrite de `/api/:path*` hacia el backend
+- `frontend/Dockerfile`
+  - build arg `BACKEND_URL`
+
+### Errores que aparecieron y cómo se resolvieron
+
+- `login` se quedaba en “validando”:
+  - se corrigió la sesión cross-site y luego se evitó el cruce de dominio con el proxy `/api`
+- `404` en `/admin/storage`:
+  - la copia de Easypanel no tenía esa ruta en el árbol del frontend
+  - se agregó el archivo y se reconstruyó la imagen
+- el backend y el frontend estaban vivos pero no coordinados:
+  - se verificó con `curl` que el backend respondía `200`
+  - se verificó que `POST /api/auth/login` y `GET /api/auth/me` funcionaran
+
+### Comandos útiles para futuros despliegues
+
+```bash
+docker service update --force facebook_routlis_backend
+docker service update --force facebook_routlis_frontend
+docker service ps facebook_routlis_backend
+docker service ps facebook_routlis_frontend
+curl -k https://facebook-routlis-backend.273nrg.easypanel.host/health
+curl -k -I https://facebook-routlis-frontend.273nrg.easypanel.host/admin/storage
+```
+
+### Verificaciones mínimas antes de dar por bueno un deploy
+
+1. `GET /health` en backend responde `200`.
+2. `POST /api/auth/login` responde `200` desde el frontend.
+3. `GET /api/auth/me` responde `200` con la cookie de sesión.
+4. `/admin/storage` responde `200`.
+5. El panel entra sin quedarse bloqueado en “validando acceso”.

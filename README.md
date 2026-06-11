@@ -1,6 +1,16 @@
-# Routlis V1 AudioBoard
+# Routlis 1.0 AudioBoard
 
 Aplicación modular para gestionar y reproducir audios pregrabados desde una botonera operativa.
+
+## Release 1.0
+
+Routlis llega a su primera version estable de producto. Esta release deja listos:
+
+- login y autenticacion
+- panel principal `/board`
+- panel admin modular
+- almacenamiento de audios
+- despliegue estable en VPS/Easypanel
 
 ## Estado actual
 
