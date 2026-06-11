@@ -49,6 +49,6 @@ async function bootstrap() {
     customSiteTitle: 'Routlis API Docs',
   });
 
-  await app.listen(configService.get<number>('port') ?? 4000);
+  await app.listen(configService.get<number>('port') ?? 4000, '0.0.0.0');
 }
 bootstrap();
