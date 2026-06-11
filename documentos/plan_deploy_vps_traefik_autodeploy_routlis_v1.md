@@ -62,6 +62,7 @@ Nota:
 - Expone internamente `4000`.
 - Usa `DATABASE_URL` hacia `postgres`.
 - Usa `FRONTEND_URL` hacia el dominio publico del frontend.
+- Usa `CORS_ORIGINS` para permitir el dominio publico del frontend y evitar bloqueos de login.
 - Usa `COOKIE_SECURE=true` en produccion.
 
 ### PostgreSQL
@@ -80,6 +81,7 @@ JWT_EXPIRES_IN=1d
 COOKIE_NAME=routlis_token
 COOKIE_SECURE=true
 FRONTEND_URL=https://routlis.tudominio.com
+CORS_ORIGINS=https://routlis.tudominio.com
 PORT=4000
 STORAGE_DRIVER=local
 LOCAL_STORAGE_PATH=/var/www/routlis/storage

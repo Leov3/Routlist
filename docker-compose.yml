@@ -26,6 +26,7 @@ services:
       LOCAL_AUDIO_PATH: ${LOCAL_AUDIO_PATH:-/var/www/routlis/storage/audio-assets}
       PUBLIC_AUDIO_BASE_URL: ${PUBLIC_AUDIO_BASE_URL:-http://localhost:4000/files/audio-assets}
       FRONTEND_URL: http://localhost:3001
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001}
       PORT: ${PORT:-4000}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin123*}
     depends_on:

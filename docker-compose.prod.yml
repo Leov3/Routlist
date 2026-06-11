@@ -55,6 +55,7 @@ services:
       COOKIE_NAME: ${COOKIE_NAME:-routlis_token}
       COOKIE_SECURE: "true"
       FRONTEND_URL: https://${FRONTEND_HOST}
+      CORS_ORIGINS: https://${FRONTEND_HOST}
       STORAGE_DRIVER: local
       LOCAL_STORAGE_PATH: /var/www/routlis/storage
       LOCAL_AUDIO_PATH: /var/www/routlis/storage/audio-assets

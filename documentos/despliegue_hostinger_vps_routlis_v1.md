@@ -133,15 +133,10 @@ Ejemplo:
 
 ```env
 NEXT_PUBLIC_API_URL=https://api.tu-dominio.com
+NEXT_PUBLIC_MEDIA_URL=https://api.tu-dominio.com
 ```
 
-Si frontend y backend usan el mismo dominio con proxy por ruta, se puede usar:
-
-```env
-NEXT_PUBLIC_API_URL=https://tu-dominio.com/api
-```
-
-En ese caso se debe ajustar Nginx para enrutar `/api` al backend.
+Si frontend y backend usan dominios distintos, la recomendacion es mantener ambos valores apuntando al backend publico. No hace falta un rewrite duro a `/api` y, de hecho, conviene evitarlo para no romper audio, imagenes y login.
 
 ## Instalar dependencias y compilar
 
@@ -370,6 +365,7 @@ Backend:
 DATABASE_URL=postgres://...
 JWT_SECRET=...
 FRONTEND_URL=https://routlis.tudominio.com
+CORS_ORIGINS=https://routlis.tudominio.com
 PORT=4000
 NODE_ENV=production
 COOKIE_SECURE=true
@@ -393,6 +389,8 @@ NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
   - URLs absolutas configurables para API y media
 - `frontend/next.config.ts`
   - sin rewrite duro al backend
+- `backend/src/main.ts`
+  - CORS por allowlist, no por una sola URL exacta
 - `frontend/Dockerfile`
   - valores por defecto locales para API y media
 
