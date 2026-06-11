@@ -1,4 +1,6 @@
-const API_URL = "/api";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  "https://facebook-routlis-backend.273nrg.easypanel.host";
 
 type ApiOptions = RequestInit & {
   formData?: boolean;
