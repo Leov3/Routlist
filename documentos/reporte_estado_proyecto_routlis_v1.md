@@ -6,7 +6,7 @@ Fecha de corte: 2026-06-11
 
 Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend y el flujo principal de la botonera ya estan implementados y compilando correctamente. La interfaz de `/board` evoluciono para soportar dos modos de operacion y la experiencia general ya refleja la identidad visual del proyecto.
 
-El despliegue de produccion ya no depende de Easypanel. Routlis quedó publicado con un Traefik propio en el VPS, redes de Swarm dedicadas y un flujo de actualizacion que parte desde `main`.
+El despliegue de produccion quedó publicado con un Traefik propio en el VPS y un flujo de actualizacion que parte desde `main`.
 
 ## Estado tecnico actual
 
@@ -41,7 +41,7 @@ El despliegue de produccion ya no depende de Easypanel. Routlis quedó publicado
 - Selector de densidad y volumen persistente por usuario.
 - Reproduccion con fade in / fade out y atajos de teclado.
 - Vista rapida de historial reciente en la botonera.
-- Despliegue en VPS verificado con proxy `/api`, rutas admin completas y Traefik propio.
+- Despliegue en VPS verificado con dominios públicos, rutas admin completas y Traefik propio.
 
 ## Estado funcional de `/board`
 
@@ -81,10 +81,10 @@ El despliegue de produccion ya no depende de Easypanel. Routlis quedó publicado
 - Inicio y cierre de playback event verificados.
 - Consulta de historial verificada.
 - Cambio de organización activa como `OWNER` verificado.
-- `https://facebook-routlis-backend.273nrg.easypanel.host/health` responde `200`.
-- `POST /api/auth/login` y `GET /api/auth/me` verificados en el frontend de producción.
-- `https://facebook-routlis-frontend.273nrg.easypanel.host/admin/storage` responde `200`.
-- Easypanel y sus stacks auxiliares fueron retirados del VPS para dejar el entorno limpio.
+- `https://api.routlis.tudominio.com/health` responde `200`.
+- `POST /auth/login` y `GET /auth/me` verificados contra el API publico desde el frontend de produccion.
+- `https://routlis.tudominio.com/admin/storage` responde `200`.
+- La infraestructura anterior fue retirada del VPS para dejar el entorno limpio.
 
 ## Pendientes recomendados
 

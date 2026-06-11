@@ -10,7 +10,7 @@ Routlis llega a su primera version estable de producto. Esta release deja listos
 - panel principal `/board`
 - panel admin modular
 - almacenamiento de audios
-- despliegue estable en VPS/Easypanel
+- despliegue estable en VPS con Traefik propio
 
 ### Cuentas de prueba
 
@@ -152,6 +152,8 @@ Frontend:
 ```txt
 http://localhost:3000
 ```
+
+Si levantas `docker compose`, el frontend se expone en `http://localhost:3001` para no chocar con `next dev`.
 
 ## Documentacion relacionada
 

@@ -340,30 +340,25 @@ Restaurar backup:
 psql -U routlis -h 127.0.0.1 routlis < routlis_backup.sql
 ```
 
-## Despliegue real en Easypanel / VPS
+## Despliegue real en VPS con Traefik propio
 
-Este proyecto ya fue probado en un VPS con Easypanel y Traefik. Estas son las reglas que evitaron los errores que aparecieron durante el despliegue:
+Este proyecto ya fue probado en un VPS con Docker Compose y Traefik propio. Estas son las reglas que evitaron los errores que aparecieron durante el despliegue:
 
 - El backend debe desplegarse como servicio Docker separado del frontend.
 - El frontend también debe desplegarse como servicio independiente.
 - El dominio público del frontend debe ser el punto de entrada del navegador.
 - El backend debe quedar expuesto por su propio dominio de Traefik.
-- No conviene depender de cookies cruzadas entre dominios distintos si se puede evitar.
+- El frontend debe usar `NEXT_PUBLIC_API_URL` y `NEXT_PUBLIC_MEDIA_URL` como fuente de verdad, sin depender de un rewrite duro a un host viejo.
+- El login sigue usando JWT en cookie `HttpOnly`.
+- `COOKIE_SECURE=true` solo en HTTPS real.
+- `FRONTEND_URL` debe ir sin slash final.
 
 ### Lo que funcionó mejor
 
-- Usar `frontend` como origen principal del navegador.
-- Hacer que el frontend llame al backend por proxy interno con `/api`.
-- Mantener el backend con JWT en cookie `HttpOnly`.
-- Configurar `SameSite=None` en producción cuando el login cruza dominios.
-- Usar `Secure=true` en HTTPS real.
-- Normalizar `FRONTEND_URL` sin slash final.
-
-### Ruta y nombres que se verificaron
-
-- Backend público: `https://facebook-routlis-backend.273nrg.easypanel.host`
-- Frontend público: `https://facebook-routlis-frontend.273nrg.easypanel.host`
-- Proxy frontend: `/api/*` -> backend público
+- Usar `routlis.tudominio.com` como frontend y `api.routlis.tudominio.com` como backend.
+- Hacer que el frontend llame al API publico por URL absoluta.
+- Mantener Traefik como unico punto de entrada web.
+- Montar el storage local en un volumen persistente compartido por el backend.
 
 ### Variables que terminaron siendo importantes
 
@@ -372,58 +367,60 @@ Backend:
 ```env
 DATABASE_URL=postgres://...
 JWT_SECRET=...
-FRONTEND_URL=https://facebook-routlis-frontend.273nrg.easypanel.host
+FRONTEND_URL=https://routlis.tudominio.com
 PORT=4000
 NODE_ENV=production
+COOKIE_SECURE=true
+PUBLIC_AUDIO_BASE_URL=https://api.routlis.tudominio.com/files/audio-assets
 ```
 
 Frontend:
 
 ```env
-BACKEND_URL=https://facebook-routlis-backend.273nrg.easypanel.host
-PORT=3000
-NODE_ENV=production
+NEXT_PUBLIC_API_URL=https://api.routlis.tudominio.com
+NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
 ```
 
 ### Ajustes de código que se tuvieron que hacer
 
 - `backend/src/modules/auth/auth.controller.ts`
-  - cookies de login y cambio de organización con `SameSite=None`
+  - cookies de login y cambio de organización con `SameSite` compatible con produccion
 - `backend/src/config/configuration.ts`
   - `FRONTEND_URL` sin slash final
 - `frontend/src/lib/api.ts`
-  - uso de `"/api"` como base URL
+  - URLs absolutas configurables para API y media
 - `frontend/next.config.ts`
-  - rewrite de `/api/:path*` hacia el backend
+  - sin rewrite duro al backend
 - `frontend/Dockerfile`
-  - build arg `BACKEND_URL`
+  - valores por defecto locales para API y media
 
 ### Errores que aparecieron y cómo se resolvieron
 
 - `login` se quedaba en “validando”:
-  - se corrigió la sesión cross-site y luego se evitó el cruce de dominio con el proxy `/api`
+  - se corrigió la sesión y se verificó que el frontend llamara al API correcto
 - `404` en `/admin/storage`:
-  - la copia de Easypanel no tenía esa ruta en el árbol del frontend
-  - se agregó el archivo y se reconstruyó la imagen
+  - la ruta existía en el código, pero el deploy viejo no estaba alineado con el frontend actual
+  - se reconstruyó la imagen con el árbol correcto
+- imágenes y audios no cargaban:
+  - se corrigieron las URLs publicas y la base de media
 - el backend y el frontend estaban vivos pero no coordinados:
-  - se verificó con `curl` que el backend respondía `200`
-  - se verificó que `POST /api/auth/login` y `GET /api/auth/me` funcionaran
+  - se verificó con `curl` que el backend respondiera `200`
+  - se verificó que `POST /auth/login` y `GET /auth/me` funcionaran contra el API publico
 
 ### Comandos útiles para futuros despliegues
 
 ```bash
-docker service update --force facebook_routlis_backend
-docker service update --force facebook_routlis_frontend
-docker service ps facebook_routlis_backend
-docker service ps facebook_routlis_frontend
-curl -k https://facebook-routlis-backend.273nrg.easypanel.host/health
-curl -k -I https://facebook-routlis-frontend.273nrg.easypanel.host/admin/storage
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:deploy
+docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:seed
+curl -k https://api.routlis.tudominio.com/health
+curl -k -I https://routlis.tudominio.com/admin/storage
 ```
 
 ### Verificaciones mínimas antes de dar por bueno un deploy
 
 1. `GET /health` en backend responde `200`.
-2. `POST /api/auth/login` responde `200` desde el frontend.
-3. `GET /api/auth/me` responde `200` con la cookie de sesión.
+2. `POST /auth/login` responde `200` desde el frontend.
+3. `GET /auth/me` responde `200` con la cookie de sesión.
 4. `/admin/storage` responde `200`.
 5. El panel entra sin quedarse bloqueado en “validando acceso”.

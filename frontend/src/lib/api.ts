@@ -1,8 +1,16 @@
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  "/api";
+const DEFAULT_API_URL = "http://localhost:4000";
 
-const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL ?? API_URL;
+function normalizeBaseUrl(value: string) {
+  return value.replace(/\/+$/, "");
+}
+
+const API_URL = normalizeBaseUrl(
+  process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL,
+);
+
+const MEDIA_BASE_URL = normalizeBaseUrl(
+  process.env.NEXT_PUBLIC_MEDIA_URL || API_URL,
+);
 
 type ApiOptions = RequestInit & {
   formData?: boolean;
