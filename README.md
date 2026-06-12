@@ -35,6 +35,7 @@ Admin123*
 En produccion, el seed queda reservado para un bootstrap manual del VPS; los `push` a `principal` actualizan codigo y migraciones, pero no vuelven a sembrar datos demo.
 Los deploys normales solo reconstruyen imagenes, reinician contenedores y aplican migraciones evolutivas.
 No deben usar `down -v`, ni recrear los volumenes de PostgreSQL o storage.
+La configuracion del VPS vive fuera del directorio sincronizado del codigo para que un redeploy no borre `.env`.
 
 ## Estado actual
 
