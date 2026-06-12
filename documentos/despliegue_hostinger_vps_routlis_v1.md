@@ -1,5 +1,7 @@
 # Despliegue Hostinger VPS - Routlis V1 AudioBoard
 
+> Nota: este documento conserva el flujo historico con PM2 y Nginx. La ruta actual recomendada para produccion esta en `documentos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md`.
+
 ## Estado previo
 
 El proyecto ya cuenta con:
@@ -410,8 +412,8 @@ NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
 ### Comandos útiles para futuros despliegues
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:deploy
+docker compose -f docker-compose.prod.yml -p routlis up -d --build
+docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:deploy
 curl -k https://api.routlis.tudominio.com/health
 curl -k -I https://routlis.tudominio.com/admin/storage
 ```
@@ -419,7 +421,7 @@ curl -k -I https://routlis.tudominio.com/admin/storage
 Bootstrap manual opcional:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:seed
+docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:seed
 ```
 
 ### Verificaciones mínimas antes de dar por bueno un deploy

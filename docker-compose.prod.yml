@@ -70,9 +70,15 @@ services:
     networks:
       - routlis-private
       - routlis-public
+    healthcheck:
+      test:
+        ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     labels:
       - traefik.enable=true
-      - traefik.docker.network=app_routlis-public
+      - traefik.docker.network=routlis_public
       - traefik.http.routers.routlis-api.rule=Host(`${API_HOST}`)
       - traefik.http.routers.routlis-api.entrypoints=websecure
       - traefik.http.routers.routlis-api.tls=true
@@ -90,13 +96,13 @@ services:
       NODE_ENV: production
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - routlis-public
     labels:
       - traefik.enable=true
-      - traefik.docker.network=app_routlis-public
+      - traefik.docker.network=routlis_public
       - traefik.http.routers.routlis-web.rule=Host(`${FRONTEND_HOST}`)
       - traefik.http.routers.routlis-web.entrypoints=websecure
       - traefik.http.routers.routlis-web.tls=true
@@ -105,12 +111,14 @@ services:
 
 volumes:
   postgres_data:
-    name: routlis_routlis_postgres_data
+    name: routlis_postgres_data
   routlis_storage:
-    name: routlis_routlis_storage
+    name: routlis_storage
   traefik_letsencrypt:
     name: routlis_letsencrypt
 
 networks:
   routlis-public:
+    name: routlis_public
   routlis-private:
+    name: routlis_private

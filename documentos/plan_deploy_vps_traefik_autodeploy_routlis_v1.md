@@ -2,11 +2,11 @@
 
 ## Objetivo
 
-Desplegar Routlis en el VPS sin Easypanel, con acceso publico por web a traves de Traefik propio, y con actualizacion automatica cuando haya commits en la rama `main`.
+Desplegar Routlis en el VPS con una ruta estable basada en Docker Compose, ya sea con Traefik propio o con Easypanel, y con actualizacion automatica cuando haya commits en la rama `main`.
 
 ## Arquitectura propuesta
 
-- `traefik`: proxy inverso publico con TLS.
+- `traefik`: proxy inverso publico con TLS cuando se usa la variante directa.
 - `frontend`: Next.js.
 - `backend`: NestJS.
 - `postgres`: base de datos.
@@ -19,7 +19,7 @@ Desplegar Routlis en el VPS sin Easypanel, con acceso publico por web a traves d
 3. El VPS hace `git pull` o recibe el build.
 4. Se reconstruyen imagenes Docker.
 5. Se reinician los contenedores.
-6. Traefik sigue exponiendo los dominios publicos sin depender de Easypanel.
+6. Traefik sigue exponiendo los dominios publicos sin depender de Easypanel, o Easypanel publica los servicios con su router propio.
 
 ## Recomendacion tecnica
 
@@ -29,7 +29,7 @@ La forma mas simple y estable es:
 - Traefik como unico punto de entrada.
 - GitHub Actions para hacer deploy por SSH al hacer push a `main`.
 
-Esta opcion evita depender de Easypanel y mantiene el control total del stack.
+Esta opcion evita depender de herramientas externas cuando quieres control total del stack, pero el proyecto tambien queda listo para Easypanel.
 
 ## Dominios sugeridos
 
@@ -101,8 +101,8 @@ NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
 
 ```txt
 /opt/routlis/
-  docker-compose.yml
   .env
+  docker-compose.yml
   storage/
   app/
 ```
@@ -115,13 +115,16 @@ NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
 - Abrir puertos 80 y 443.
 - Configurar DNS de los subdominios.
 - Dejar Easypanel fuera de la ruta publica de Routlis.
+- Clonar el repo o copiar el proyecto en `/opt/routlis/app`.
+- Crear `/opt/routlis/.env` a partir de `.env.example`.
 
-### 2. Crear `docker-compose.yml`
+### 2. Crear el compose correcto para el entorno
 
 - `traefik`
 - `frontend`
 - `backend`
 - `postgres`
+- `docker-compose.easypanel.yml` para el VPS con Easypanel
 
 ### 3. Configurar labels de Traefik
 
@@ -137,14 +140,46 @@ Si prefieres que Traefik sea quien "asigne" la exposicion web sin tocar Nginx ni
 
 ### 4. Montar volúmenes persistentes
 
-- `routlis_routlis_postgres_data`
-- `routlis_routlis_storage`
+- `routlis_postgres_data`
+- `routlis_storage`
 - `routlis_letsencrypt`
 
 ### 5. Ejecutar migraciones y seed
 
-- En cada deploy normal: `npm run prisma:migrate`
-- Solo para bootstrap inicial o reseed manual: `npm run prisma:seed`
+- Comando de arranque inicial:
+
+```bash
+cd /opt/routlis/app
+bash scripts/deploy-vps.sh deploy
+```
+
+- Si el VPS usa Easypanel:
+
+```bash
+cd /opt/routlis/app
+COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh deploy
+```
+
+- Solo para bootstrap inicial o reseed manual:
+
+```bash
+bash scripts/deploy-vps.sh seed
+```
+
+- En Easypanel:
+
+```bash
+COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh seed
+```
+
+- En cada deploy normal:
+
+```bash
+cd /opt/routlis/app
+git fetch origin main
+git reset --hard origin/main
+bash scripts/deploy-vps.sh deploy
+```
 
 ### 6. Validar funcionamiento
 
@@ -166,9 +201,18 @@ Flujo:
 
 ```bash
 cd /opt/routlis/app
-git pull origin main
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec -T backend npm run prisma:deploy
+git fetch origin main
+git reset --hard origin/main
+bash scripts/deploy-vps.sh deploy
+```
+
+Si el VPS usa Easypanel:
+
+```bash
+cd /opt/routlis/app
+git fetch origin main
+git reset --hard origin/main
+COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh deploy
 ```
 
 Ventajas:
@@ -187,7 +231,9 @@ Bootstrap manual:
 
 1. GitHub envía un webhook al VPS.
 2. Un servicio liviano escucha el evento.
-3. Ejecuta `git pull` y `docker compose up -d --build`.
+3. Ejecuta `git fetch origin main && git reset --hard origin/main && bash scripts/deploy-vps.sh deploy`.
+
+Si usas Easypanel, antepon `COMPOSE_PROFILE=easypanel`.
 
 Esta opcion es util si despues quieres cero dependencia de GitHub Actions.
 
@@ -215,3 +261,11 @@ El deploy se considera listo cuando:
 ## Siguiente paso sugerido
 
 Implementar primero el `docker-compose.yml` de produccion con Traefik, y despues añadir el workflow de GitHub Actions para auto-deploy.
+
+## Variables y secretos
+
+La lista exacta para GitHub, VPS y Easypanel esta en:
+
+```txt
+documentos/variables_github_easypanel_routlis_v1.md
+```

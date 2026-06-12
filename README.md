@@ -10,7 +10,7 @@ Routlis llega a su primera version estable de producto. Esta release deja listos
 - panel principal `/board`
 - panel admin modular
 - almacenamiento de audios
-- despliegue estable en VPS con Traefik propio
+- despliegue estable en VPS con Easypanel o con Traefik propio
 
 ### Cuentas de prueba
 
@@ -93,37 +93,43 @@ Prueba funcional frontend realizada:
 - `/admin/buttons` muestra la interfaz compacta actual.
 - `OWNER` ve almacenamiento en el sidebar y en `/admin`; otros roles no.
 
-Entorno local instalado:
+Entorno local recomendado:
 
-- PostgreSQL 17 portable en `pgsql-local/`.
-- Datos locales en `.local-postgres/`.
-- Scripts de arranque en `scripts/`.
+- Docker Engine + Compose Plugin.
+- PostgreSQL, backend y frontend en contenedores.
+- Volumen persistente para la base de datos y el storage.
+- El flujo principal ahora es `docker compose` en la raiz del proyecto.
 
 ## Arranque local
 
-PostgreSQL portable:
+Levantar todo el stack:
 
 ```bash
-./scripts/pg-local-start.sh
+docker compose up -d --build
 ```
 
-Backend:
+Aplicar migraciones de Prisma:
 
 ```bash
-cd backend
-npm install
-npm run prisma:generate
-npm run prisma:migrate -- --name init
-npm run prisma:seed
-npm run start:dev
+docker compose exec backend npm run prisma:deploy
 ```
 
-Frontend, en otra terminal:
+Si quieres cargar los datos demo del seed:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+docker compose exec backend npm run prisma:seed
+```
+
+Detener el stack:
+
+```bash
+docker compose down
+```
+
+Si quieres borrar tambien los volumenes y dejar la base de datos limpia:
+
+```bash
+docker compose down -v
 ```
 
 Credenciales seed:
@@ -152,10 +158,73 @@ http://localhost:4000/docs-json
 Frontend:
 
 ```txt
-http://localhost:3000
+http://localhost:3001
 ```
 
-Si levantas `docker compose`, el frontend se expone en `http://localhost:3001` para no chocar con `next dev`.
+Si levantas `frontend` con `npm run dev`, usa `http://localhost:3000`.
+
+## Despliegue en VPS
+
+Si vas a mover la app a un VPS con Docker Compose y Traefik, este es el flujo corto recomendado:
+
+1. Copia el proyecto en `/opt/routlis/app` o clona el repositorio ahi.
+2. Crea `/opt/routlis/.env` a partir de `.env.example` con `POSTGRES_PASSWORD`, `JWT_SECRET`, `LETSENCRYPT_EMAIL`, `FRONTEND_HOST`, `API_HOST` y `SEED_ADMIN_PASSWORD`.
+3. Levanta el stack de produccion:
+
+```bash
+docker compose -f docker-compose.prod.yml -p routlis up -d --build
+```
+
+4. Aplica migraciones:
+
+```bash
+docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:deploy
+```
+
+5. Solo en el bootstrap inicial o si quieres resembrar datos demo:
+
+```bash
+docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:seed
+```
+
+6. Verifica salud y acceso publico:
+
+```bash
+curl -fsS https://api.tudominio.com/health
+curl -I https://tu-dominio.com/login
+```
+
+Para un redeploy normal desde `main`:
+
+```bash
+cd /opt/routlis/app
+git pull origin main
+bash scripts/deploy-vps.sh deploy
+```
+
+Si solo quieres sembrar datos demo en el bootstrap inicial:
+
+```bash
+bash scripts/deploy-vps.sh seed
+```
+
+El seed no debe ejecutarse en cada despliegue automatico.
+
+### VPS con Easypanel
+
+Si vas a usar Easypanel en el VPS, usa el compose dedicado:
+
+```bash
+COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh deploy
+```
+
+Bootstrap del seed:
+
+```bash
+COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh seed
+```
+
+En Easypanel, apunta los dominios publicos al frontend y backend, y usa `/opt/routlis/.env` a partir de [deploy/easypanel.env.example](/home/leonardo/Documentos/Proyectos/ROUTLIS/deploy/easypanel.env.example).
 
 ## Documentacion relacionada
 
@@ -164,13 +233,10 @@ Si levantas `docker compose`, el frontend se expone en `http://localhost:3001` p
 - `frontend/AGENTS.md`
 - `documentos/plan_desarrollo_modular_routlis_v1.md`
 - `documentos/reporte_estado_proyecto_routlis_v1.md`
+- `documentos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md`
 - `documentos/despliegue_hostinger_vps_routlis_v1.md`
-
-Detener PostgreSQL portable:
-
-```bash
-./scripts/pg-local-stop.sh
-```
+- `documentos/variables_github_easypanel_routlis_v1.md`
+- `documentos/checklist_despliegue_10_min_routlis_v1.md`
 
 ## Documento modular
 
