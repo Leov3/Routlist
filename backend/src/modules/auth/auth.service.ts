@@ -72,7 +72,13 @@ export class AuthService {
       throw new ForbiddenException('Only OWNER can switch organizations');
     }
 
-    return this.issueSession(currentUser.id, organizationId);
+    return this.issueSession(currentUser.id, organizationId, {
+      organizationId,
+      role: {
+        name: GLOBAL_ROLE_NAME,
+        permissions: [...PERMISSIONS].map((key) => ({ permission: { key } })),
+      },
+    });
   }
 
   private async issueSession(
