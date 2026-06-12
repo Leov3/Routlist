@@ -42,6 +42,12 @@ jobs:
           scp /tmp/routlis.tar.gz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/routlis.tar.gz"
           ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p '${{ secrets.VPS_APP_DIR }}' && find '${{ secrets.VPS_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
 
+      - name: Ensure VPS env file exists
+        run: |
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /opt/routlis && install -m 600 /dev/null '${{ env.VPS_ENV_FILE }}' && cat > '${{ env.VPS_ENV_FILE }}' <<'EOF'
+${{ secrets.VPS_ENV_CONTENT }}
+EOF"
+
       - name: Preflight on VPS
         run: |
           ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"
