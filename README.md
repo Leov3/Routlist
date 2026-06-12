@@ -176,7 +176,8 @@ Si vas a mover la app a un VPS con Docker Compose y un proxy externo, este es el
 
 1. Copia el proyecto en `/opt/routlis/app` o clona el repositorio ahi.
 2. Crea `/opt/routlis/.env` a partir de `deploy/vps.env.example` con `POSTGRES_PASSWORD`, `JWT_SECRET`, `LETSENCRYPT_EMAIL`, `FRONTEND_HOST`, `API_HOST` y `SEED_ADMIN_PASSWORD`.
-3. Levanta el stack de produccion:
+3. Configura el workflow con `VPS_ENV_FILE=/opt/routlis/.env` para que el deploy use la configuracion externa y no la borre al sincronizar el codigo.
+4. Levanta el stack de produccion:
 
 ```bash
 docker compose -f docker-compose.prod.yml -p routlis up -d --build
@@ -206,13 +207,13 @@ Para un redeploy normal desde `principal`:
 ```bash
 cd /opt/routlis/app
 git pull origin principal
-bash scripts/deploy-vps.sh deploy
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh deploy
 ```
 
 Si solo quieres sembrar datos demo en el bootstrap inicial:
 
 ```bash
-bash scripts/deploy-vps.sh seed
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh seed
 ```
 
 El seed no debe ejecutarse en cada despliegue automatico.
@@ -264,25 +265,26 @@ docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run pri
 ```
 
 Si rearmas el VPS desde cero, crea `/opt/routlis/.env` con los valores de produccion y luego levanta el stack.
+El codigo vive en `/opt/routlis/app` y la configuracion sensible vive fuera de esa carpeta para que un redeploy no la borre.
 
 Antes de desplegar, valida que existan los volumenes persistentes:
 
 ```bash
-bash scripts/deploy-vps.sh preflight
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh preflight
 ```
 
 Flujo seguro recomendado:
 
 ```bash
-bash scripts/deploy-vps.sh backup
-bash scripts/deploy-vps.sh deploy
-bash scripts/deploy-vps.sh verify
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh backup
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh deploy
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh verify
 ```
 
 Si algo falla despues del despliegue, puedes volver al ultimo backup disponible:
 
 ```bash
-bash scripts/deploy-vps.sh rollback
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh rollback
 ```
 
 ## Documentacion relacionada

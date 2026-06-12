@@ -51,6 +51,7 @@ Estos datos no deben perderse por commits, pull, build o redeploy normal:
 - El VPS usa Docker Compose.
 - La base de datos va en volumen persistente.
 - El storage de audios e imágenes va en volumen persistente.
+- La configuracion sensible vive en `/opt/routlis/.env`, fuera de `/opt/routlis/app`.
 - El proxy externo expone el frontend y la API.
 - El deploy normal debe:
   - reconstruir imágenes
@@ -91,9 +92,9 @@ npm -C frontend run build
 ```
 
 ```bash
-bash scripts/deploy-vps.sh preflight
-bash scripts/deploy-vps.sh deploy
-bash scripts/deploy-vps.sh verify
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh preflight
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh deploy
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh verify
 ```
 
 ## 9. Resultado esperado
@@ -105,4 +106,3 @@ Si todo está bien:
 - los botones existentes siguen visibles
 - los audios siguen accesibles
 - las imágenes siguen asociadas a sus botones
-

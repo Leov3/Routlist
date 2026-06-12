@@ -19,6 +19,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      VPS_ENV_FILE: /opt/routlis/.env
 
     steps:
       - name: Checkout
@@ -38,21 +40,21 @@ jobs:
         run: |
           tar -czf /tmp/routlis.tar.gz --exclude=.git --exclude=node_modules --exclude=.next --exclude=dist .
           scp /tmp/routlis.tar.gz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/routlis.tar.gz"
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "rm -rf '${{ secrets.VPS_APP_DIR }}' && mkdir -p '${{ secrets.VPS_APP_DIR }}' && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p '${{ secrets.VPS_APP_DIR }}' && find '${{ secrets.VPS_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
 
       - name: Preflight on VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && bash scripts/deploy-vps.sh preflight"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='$VPS_ENV_FILE' bash scripts/deploy-vps.sh preflight"
 
       - name: Deploy app on VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && bash scripts/deploy-vps.sh deploy"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='$VPS_ENV_FILE' bash scripts/deploy-vps.sh deploy"
 
       - name: Verify deploy on VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && bash scripts/deploy-vps.sh verify"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='$VPS_ENV_FILE' bash scripts/deploy-vps.sh verify"
 
       - name: Bootstrap seed on demand
         if: github.event_name == 'workflow_dispatch' && inputs.run_seed == true
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && bash scripts/deploy-vps.sh seed"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='$VPS_ENV_FILE' bash scripts/deploy-vps.sh seed"

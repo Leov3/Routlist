@@ -13,6 +13,7 @@ SKIP_BACKUP="${SKIP_BACKUP:-0}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing env file: $ENV_FILE" >&2
+  echo "Set ENV_FILE to the VPS config path, for example /opt/routlis/.env, or create a local .env for development." >&2
   exit 1
 fi
 
