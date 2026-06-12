@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.prod.yml}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-routlis}"
-ENV_FILE="${ENV_FILE:-$PROJECT_DIR/../.env}"
+ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env}"
 POSTGRES_VOLUME="${POSTGRES_VOLUME:-routlis_postgres_data}"
 STORAGE_VOLUME="${STORAGE_VOLUME:-routlis_storage}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/routlis/backups}"
