@@ -117,44 +117,21 @@ export default function AdminDashboardPage() {
     if (showSpinner) setRefreshing(true);
 
     const startedAt = performance.now();
-    const healthResult = await api<{ status: string; database: string; timestamp: string }>(
-      "/health",
-    )
-      .then((result) => ({
-        backend: result.status === "ok" ? ("ok" as const) : ("down" as const),
-        database:
-          result.database === "ok" ? ("ok" as const) : ("down" as const),
-        checkedAt: result.timestamp,
-      }))
-      .catch(() => ({
-        backend: "down" as const,
-        database: "down" as const,
-        checkedAt: new Date().toISOString(),
-      }));
-
-    const currentUser = await getCurrentUser();
+    const [healthResult, currentUser] = await Promise.all([
+      api<{ status: string; database: string; timestamp: string }>("/health")
+        .then((result) => ({
+          backend: result.status === "ok" ? ("ok" as const) : ("down" as const),
+          database: result.database === "ok" ? ("ok" as const) : ("down" as const),
+          checkedAt: result.timestamp,
+        }))
+        .catch(() => ({
+          backend: "down" as const,
+          database: "down" as const,
+          checkedAt: new Date().toISOString(),
+        })),
+      getCurrentUser(),
+    ]);
     setUser(currentUser);
-
-    const [audios, categories, buttons, users, history, storageResult] =
-      await Promise.allSettled([
-        api<AudioAsset[]>("/audio-assets"),
-        api<AudioCategory[]>("/audio-categories"),
-        api<AudioButton[]>("/audio-buttons"),
-        api<UserRow[]>("/users"),
-        api<PlaybackEvent[]>("/audit/playback-events"),
-        currentUser.role === "OWNER"
-          ? api<StorageHealth>("/health/storage")
-          : Promise.resolve(null),
-      ]);
-
-    setData({
-      audios: audios.status === "fulfilled" ? audios.value : [],
-      categories: categories.status === "fulfilled" ? categories.value : [],
-      buttons: buttons.status === "fulfilled" ? buttons.value : [],
-      users: users.status === "fulfilled" ? users.value : [],
-      history: history.status === "fulfilled" ? history.value : [],
-    });
-    setStorage(storageResult.status === "fulfilled" ? storageResult.value : null);
 
     setHealth({
       frontend: "ok",
@@ -165,11 +142,31 @@ export default function AdminDashboardPage() {
     });
     setLoading(false);
     setRefreshing(false);
+
+    void Promise.allSettled([
+      api<AudioAsset[]>("/audio-assets"),
+      api<AudioCategory[]>("/audio-categories"),
+      api<AudioButton[]>("/audio-buttons"),
+      api<UserRow[]>("/users"),
+      api<PlaybackEvent[]>("/audit/playback-events"),
+      currentUser.role === "OWNER"
+        ? api<StorageHealth>("/health/storage")
+        : Promise.resolve(null),
+    ]).then(([audios, categories, buttons, users, history, storageResult]) => {
+      setData({
+        audios: audios.status === "fulfilled" ? audios.value : [],
+        categories: categories.status === "fulfilled" ? categories.value : [],
+        buttons: buttons.status === "fulfilled" ? buttons.value : [],
+        users: users.status === "fulfilled" ? users.value : [],
+        history: history.status === "fulfilled" ? history.value : [],
+      });
+      setStorage(storageResult.status === "fulfilled" ? storageResult.value : null);
+    });
   }
 
   useEffect(() => {
     void loadDashboard();
-    const interval = window.setInterval(() => void loadDashboard(), 10000);
+    const interval = window.setInterval(() => void loadDashboard(), 30000);
     return () => window.clearInterval(interval);
   }, []);
 

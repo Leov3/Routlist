@@ -40,11 +40,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const ownerMember = await this.prisma.organizationMember.findFirst({
+    const member = await this.prisma.organizationMember.findFirst({
       where: {
         userId: user.id,
         status: 'ACTIVE',
-        role: { name: GLOBAL_ROLE_NAME },
         organization: { status: 'ACTIVE' },
       },
       include: {
@@ -58,30 +57,11 @@ export class AuthService {
       },
     });
 
-    const member =
-      ownerMember ??
-      (await this.prisma.organizationMember.findFirst({
-        where: {
-          userId: user.id,
-          status: 'ACTIVE',
-          organization: { status: 'ACTIVE' },
-        },
-        include: {
-          role: {
-            include: {
-              permissions: {
-                include: { permission: true },
-              },
-            },
-          },
-        },
-      }));
-
     if (!member) {
       throw new UnauthorizedException('User has no active organization');
     }
 
-    return this.issueSession(user.id, member.organizationId);
+    return this.issueSession(user.id, member.organizationId, member);
   }
 
   async switchOrganization(
@@ -98,6 +78,13 @@ export class AuthService {
   private async issueSession(
     userId: string,
     organizationId: string,
+    organizationMember?: {
+      organizationId: string;
+      role: {
+        name: string;
+        permissions: { permission: { key: string } }[];
+      };
+    },
   ): Promise<SessionResult> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -107,20 +94,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid session');
     }
 
-    const globalOwner = await this.prisma.organizationMember.findFirst({
-      where: {
-        userId,
-        status: 'ACTIVE',
-        role: { name: GLOBAL_ROLE_NAME },
-        organization: { status: 'ACTIVE' },
-        user: { status: 'ACTIVE' },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (globalOwner) {
+    if (organizationMember?.role.name === GLOBAL_ROLE_NAME) {
       const organization = await this.prisma.organization.findFirst({
         where: {
           id: organizationId,
@@ -141,24 +115,26 @@ export class AuthService {
       );
     }
 
-    const member = await this.prisma.organizationMember.findFirst({
-      where: {
-        organizationId,
-        userId,
-        status: 'ACTIVE',
-        organization: { status: 'ACTIVE' },
-        user: { status: 'ACTIVE' },
-      },
-      include: {
-        role: {
-          include: {
-            permissions: {
-              include: { permission: true },
+    const member =
+      organizationMember ??
+      (await this.prisma.organizationMember.findFirst({
+        where: {
+          organizationId,
+          userId,
+          status: 'ACTIVE',
+          organization: { status: 'ACTIVE' },
+          user: { status: 'ACTIVE' },
+        },
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: { permission: true },
+              },
             },
           },
         },
-      },
-    });
+      }));
 
     if (!member) {
       throw new UnauthorizedException('Invalid session');
