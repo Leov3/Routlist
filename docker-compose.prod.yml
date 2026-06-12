@@ -3,7 +3,7 @@ services:
     image: traefik:v3.1
     container_name: routlis-traefik
     environment:
-      DOCKER_API_VERSION: "1.41"
+      DOCKER_API_VERSION: "1.40"
     command:
       - --api.dashboard=true
       - --providers.docker=true
