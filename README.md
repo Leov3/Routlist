@@ -33,6 +33,8 @@ Admin123*
 ```
 
 En produccion, el seed queda reservado para un bootstrap manual del VPS; los `push` a `principal` actualizan codigo y migraciones, pero no vuelven a sembrar datos demo.
+Los deploys normales solo reconstruyen imagenes, reinician contenedores y aplican migraciones evolutivas.
+No deben usar `down -v`, ni recrear los volumenes de PostgreSQL o storage.
 
 ## Estado actual
 
@@ -218,6 +220,23 @@ El seed no debe ejecutarse en cada despliegue automatico.
 ### VPS con proxy externo
 
 El VPS actual usa Nginx Proxy Manager fuera del compose de la app. La aplicación solo necesita levantar `postgres`, `backend` y `frontend`, y el proxy externo apunta a los puertos internos de esos contenedores.
+
+## Persistencia que no debe perderse en deploys
+
+Estos datos deben sobrevivir a commits, pulls, builds y redeploys normales:
+
+- usuarios y roles
+- organizaciones y membresias
+- preferencias del usuario
+- categorias
+- audios subidos
+- botones creados por usuarios
+- imagenes asociadas a botones
+- favoritos
+- historial de reproduccion
+- configuraciones operativas del panel
+
+Lo unico que debe cambiar en un deploy normal es el codigo. Si una tarea requiere borrar datos, debe hacerse de forma manual y deliberada, nunca por el flujo de despliegue.
 
 Arranque de produccion:
 
