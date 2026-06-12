@@ -44,9 +44,12 @@ jobs:
 
       - name: Ensure VPS env file exists
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /opt/routlis && install -m 600 /dev/null '${{ env.VPS_ENV_FILE }}' && cat > '${{ env.VPS_ENV_FILE }}' <<'EOF'
+          cat > /tmp/routlis.env <<'EOF'
 ${{ secrets.VPS_ENV_CONTENT }}
-EOF"
+EOF
+          scp /tmp/routlis.env "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ env.VPS_ENV_FILE }}"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "chmod 600 '${{ env.VPS_ENV_FILE }}' && chown '${{ secrets.VPS_USER }}':'${{ secrets.VPS_USER }}' '${{ env.VPS_ENV_FILE }}'"
+          rm -f /tmp/routlis.env
 
       - name: Preflight on VPS
         run: |
