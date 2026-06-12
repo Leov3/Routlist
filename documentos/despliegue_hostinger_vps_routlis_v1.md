@@ -341,6 +341,8 @@ psql -U routlis -h 127.0.0.1 routlis < routlis_backup.sql
 
 ## Despliegue real en VPS con Traefik propio
 
+> Esta seccion es historica. La ruta activa actual usa `principal`, Docker Compose y Nginx Proxy Manager.
+
 Este proyecto ya fue probado en un VPS con Docker Compose y Traefik propio. Estas son las reglas que evitaron los errores que aparecieron durante el despliegue:
 
 - El backend debe desplegarse como servicio Docker separado del frontend.

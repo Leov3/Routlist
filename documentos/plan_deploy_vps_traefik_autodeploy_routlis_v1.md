@@ -1,6 +1,8 @@
 # Plan historico de despliegue en VPS con Traefik propio y auto-deploy desde `main`
 
 > Documento historico. La ruta actual de Routlis v1.1 usa la rama `principal`, Docker Compose y un proxy externo con Nginx Proxy Manager.
+>
+> Todo lo que menciona `main`, Traefik o Easypanel aqui pertenece al flujo historico y no al flujo activo.
 
 ## Objetivo
 
@@ -16,7 +18,7 @@ Desplegar Routlis en el VPS con una ruta historica basada en Docker Compose, Tra
 
 ## Flujo historico
 
-1. Haces merge o push a `main`.
+1. Haces merge o push a `main` en el flujo historico.
 2. GitHub dispara el despliegue automatizado.
 3. El VPS hace `git pull` o recibe el build.
 4. Se reconstruyen imagenes Docker.
@@ -29,7 +31,7 @@ La forma mas simple y estable es:
 
 - VPS con Docker y Docker Compose.
 - Traefik como unico punto de entrada.
-- GitHub Actions para hacer deploy por SSH al hacer push a `main`.
+- GitHub Actions para hacer deploy por SSH al hacer push a `main` en el flujo historico.
 
 Esta opcion evita depender de herramientas externas cuando quieres control total del stack, pero el proyecto tambien queda listo para Easypanel.
 
@@ -126,7 +128,7 @@ NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
 - `frontend`
 - `backend`
 - `postgres`
-- `docker-compose.easypanel.yml` para el VPS con Easypanel
+- `docker-compose.easypanel.yml` para el VPS con Easypanel, solo como referencia historica
 
 ### 3. Configurar labels de Traefik
 
@@ -168,13 +170,13 @@ COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh deploy
 bash scripts/deploy-vps.sh seed
 ```
 
-- En Easypanel:
+- En Easypanel, solo en el flujo historico:
 
 ```bash
 COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh seed
 ```
 
-- En cada deploy normal:
+- En cada deploy normal del flujo historico:
 
 ```bash
 cd /opt/routlis/app
@@ -197,9 +199,9 @@ bash scripts/deploy-vps.sh deploy
 
 Flujo:
 
-1. Push a `main`.
+1. Push a `main` en el flujo historico.
 2. GitHub Actions conecta por SSH al VPS.
-3. Ejecuta:
+3. Ejecuta en el flujo historico:
 
 ```bash
 cd /opt/routlis/app
@@ -244,7 +246,7 @@ Esta opcion es util si despues quieres cero dependencia de GitHub Actions.
 - No usar `localhost` en produccion para API o medios.
 - En produccion, frontend y backend deben apuntar a dominios publicos.
 - Las cookies deben ir con `secure=true`.
-- Traefik debe ser el unico punto de entrada web.
+- Traefik debe ser el unico punto de entrada web en el flujo historico.
 - La base de datos no debe exponerse por internet.
 - El seed no debe ejecutarse en cada deploy automatico.
 
@@ -257,7 +259,7 @@ El deploy se considera listo cuando:
 - Los audios reproducen.
 - Las imagenes cargan.
 - `/admin/storage` funciona.
-- Un push a `main` actualiza automaticamente el VPS.
+- Un push a `main` actualiza automaticamente el VPS en el flujo historico.
 - El despliegue publico no depende de Easypanel.
 
 ## Siguiente paso sugerido
