@@ -2,7 +2,7 @@
 
 > Documento actualizado al estado v1.1. Las referencias a Traefik propio y a la rama `main` pertenecen a un flujo historico.
 >
-> Este reporte refleja el estado del proyecto, pero la guia operativa activa es `documentos/checklist_estado_estable_v1_1.md`.
+> Este reporte refleja el estado del proyecto, pero la guia operativa activa es `documentos/activos/checklist_estado_estable_v1_1.md`.
 
 Fecha de corte: 2026-06-11
 
@@ -102,5 +102,5 @@ El despliegue de produccion queda alineado con `principal`, Docker Compose y un 
 - `README.md`
 - `backend/README.md`
 - `frontend/README.md`
-- `documentos/plan_desarrollo_modular_routlis_v1.md`
-- `documentos/despliegue_hostinger_vps_routlis_v1.md`
+- `documentos/historicos/plan_desarrollo_modular_routlis_v1.md`
+- `documentos/historicos/despliegue_hostinger_vps_routlis_v1.md`

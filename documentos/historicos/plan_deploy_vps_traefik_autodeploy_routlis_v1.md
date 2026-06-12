@@ -273,5 +273,5 @@ Implementar primero el `docker-compose.yml` de produccion con Traefik, y despues
 La lista exacta para GitHub, VPS y Easypanel esta en:
 
 ```txt
-documentos/variables_github_easypanel_routlis_v1.md
+documentos/historicos/variables_github_easypanel_routlis_v1.md
 ```

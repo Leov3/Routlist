@@ -62,6 +62,6 @@ Dejar Routlis listo para:
 
 ## 7. Referencias
 
-- [`documentos/variables_github_easypanel_routlis_v1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/variables_github_easypanel_routlis_v1.md)
-- [`documentos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md)
+- [`documentos/historicos/variables_github_easypanel_routlis_v1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/historicos/variables_github_easypanel_routlis_v1.md)
+- [`documentos/historicos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/historicos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md)
 - [`README.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/README.md)

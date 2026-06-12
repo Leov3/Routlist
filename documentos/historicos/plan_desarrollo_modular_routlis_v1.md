@@ -1,6 +1,6 @@
 # Plan de desarrollo modular - Routlis V1 AudioBoard
 
-> Documento historico de planificacion. La ruta activa actual de Routlis v1.1 queda documentada en el README y en `documentos/checklist_estado_estable_v1_1.md`.
+> Documento historico de planificacion. La ruta activa actual de Routlis v1.1 queda documentada en el README y en `documentos/activos/checklist_estado_estable_v1_1.md`.
 
 ## Resumen
 
@@ -481,7 +481,7 @@ Despliegue Hostinger VPS
 Documento:
 
 ```txt
-documentos/despliegue_hostinger_vps_routlis_v1.md
+documentos/historicos/despliegue_hostinger_vps_routlis_v1.md
 ```
 
 Razon: la V1 ya tiene codigo base, build, base de datos local y prueba operativa backend. Falta ejecutar los pasos en el VPS real con dominio, HTTPS y variables de produccion.
