@@ -109,6 +109,10 @@ deploy() {
 }
 
 seed() {
+  if [[ "${ALLOW_PROD_SEED:-0}" != "1" && "${NODE_ENV:-}" == "production" ]]; then
+    echo "Seed is blocked in production unless ALLOW_PROD_SEED=1 is set explicitly" >&2
+    exit 1
+  fi
   docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" exec -T backend npm run prisma:seed
 }
 

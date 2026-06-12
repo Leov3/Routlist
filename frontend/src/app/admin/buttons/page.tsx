@@ -49,26 +49,32 @@ export default function ButtonsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function load() {
-    try {
-      const [buttonData, categoryData, audioData] = await Promise.all([
-        api<AudioButton[]>("/audio-buttons"),
-        api<AudioCategory[]>("/audio-categories"),
-        api<AudioAsset[]>("/audio-assets"),
-      ]);
-      const activeCategories = categoryData.filter((category) => category.isActive);
-      const activeAudios = audioData.filter((audio) => audio.isActive);
-      setButtons(buttonData);
+    const [buttonsResult, categoriesResult, audiosResult] = await Promise.allSettled([
+      api<AudioButton[]>("/audio-buttons"),
+      api<AudioCategory[]>("/audio-categories"),
+      api<AudioAsset[]>("/audio-assets"),
+    ]);
+
+    if (buttonsResult.status === "fulfilled") {
+      setButtons(buttonsResult.value);
+    }
+
+    if (categoriesResult.status === "fulfilled") {
+      const activeCategories = categoriesResult.value.filter((category) => category.isActive);
       setCategories(activeCategories);
-      setAudios(activeAudios);
       setForm((current) => ({
         ...current,
         categoryId: current.categoryId || activeCategories[0]?.id || "",
+      }));
+    }
+
+    if (audiosResult.status === "fulfilled") {
+      const activeAudios = audiosResult.value.filter((audio) => audio.isActive);
+      setAudios(activeAudios);
+      setForm((current) => ({
+        ...current,
         audioAssetId: current.audioAssetId || activeAudios[0]?.id || "",
       }));
-    } catch {
-      setButtons([]);
-      setCategories([]);
-      setAudios([]);
     }
   }
 
@@ -217,33 +223,6 @@ export default function ButtonsPage() {
     }
   }
 
-  async function setActive(id: string, isActive: boolean) {
-    setErrorMessage(null);
-    const payload = new FormData();
-    payload.append("isActive", String(isActive));
-
-    try {
-      await api(`/audio-buttons/${id}`, {
-        method: "PATCH",
-        body: payload,
-        formData: true,
-      });
-      await load();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar el estado.");
-    }
-  }
-
-  async function remove(id: string) {
-    setErrorMessage(null);
-    try {
-      await api(`/audio-buttons/${id}`, { method: "DELETE" });
-      await load();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No se pudo eliminar el botón.");
-    }
-  }
-
   async function duplicate(id: string) {
     setErrorMessage(null);
     try {
@@ -251,6 +230,31 @@ export default function ButtonsPage() {
       await load();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo duplicar el botón.");
+    }
+  }
+
+  async function setActive(id: string, isActive: boolean) {
+    setErrorMessage(null);
+    try {
+      await api(`/audio-buttons/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive }),
+      });
+      await load();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar el estado del botón.");
+    }
+  }
+
+  async function remove(id: string) {
+    setErrorMessage(null);
+    try {
+      await api(`/audio-buttons/${id}`, {
+        method: "DELETE",
+      });
+      await load();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo eliminar el botón.");
     }
   }
 

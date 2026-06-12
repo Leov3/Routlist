@@ -117,7 +117,9 @@ export default function CategoriesPage() {
   }
 
   async function remove(id: string) {
-    await api(`/audio-categories/${id}`, { method: "DELETE" });
+    await api(`/audio-categories/${id}`, {
+      method: "DELETE",
+    });
     await load();
   }
 

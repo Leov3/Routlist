@@ -18,7 +18,15 @@ async function main() {
   const seedPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin123*';
   const passwordHash = await bcrypt.hash(seedPassword, 12);
 
-  const shouldReset = process.env.RESET_SEED_DATA === 'true';
+  const shouldReset =
+    process.env.RESET_SEED_DATA === 'true' &&
+    process.env.ALLOW_SEED_RESET === 'true';
+
+  if (process.env.RESET_SEED_DATA === 'true' && !shouldReset) {
+    console.warn(
+      'RESET_SEED_DATA ignored because ALLOW_SEED_RESET is not enabled',
+    );
+  }
 
   if (shouldReset && process.env.NODE_ENV === 'production') {
     throw new Error(

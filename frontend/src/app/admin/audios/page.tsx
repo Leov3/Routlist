@@ -93,12 +93,17 @@ export default function AudiosPage() {
   }
 
   async function setActive(id: string, isActive: boolean) {
-    await api(`/audio-assets/${id}`, { method: "PATCH", body: JSON.stringify({ isActive }) });
+    await api(`/audio-assets/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
     await load();
   }
 
   async function remove(id: string) {
-    await api(`/audio-assets/${id}`, { method: "DELETE" });
+    await api(`/audio-assets/${id}`, {
+      method: "DELETE",
+    });
     await load();
   }
 
