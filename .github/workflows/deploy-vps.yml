@@ -44,17 +44,17 @@ jobs:
 
       - name: Preflight on VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='$VPS_ENV_FILE' bash scripts/deploy-vps.sh preflight"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"
 
       - name: Deploy app on VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='$VPS_ENV_FILE' bash scripts/deploy-vps.sh deploy"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"
 
       - name: Verify deploy on VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='$VPS_ENV_FILE' bash scripts/deploy-vps.sh verify"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"
 
       - name: Bootstrap seed on demand
         if: github.event_name == 'workflow_dispatch' && inputs.run_seed == true
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='$VPS_ENV_FILE' bash scripts/deploy-vps.sh seed"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"
