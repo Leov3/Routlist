@@ -36,6 +36,8 @@ En produccion, el seed queda reservado para un bootstrap manual del VPS; los `pu
 Los deploys normales solo reconstruyen imagenes, reinician contenedores y aplican migraciones evolutivas.
 No deben usar `down -v`, ni recrear los volumenes de PostgreSQL o storage.
 La configuracion del VPS vive fuera del directorio sincronizado del codigo para que un redeploy no borre `.env`.
+La rama `dev` queda solo para pruebas y no dispara deploy al VPS.
+Solo `principal` activa el flujo automatico de despliegue.
 
 ## Estado actual
 
@@ -218,6 +220,11 @@ ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh seed
 ```
 
 El seed no debe ejecutarse en cada despliegue automatico.
+
+Flujo de ramas:
+
+- `dev`: desarrollo y pruebas locales.
+- `principal`: rama estable que despliega automaticamente al VPS.
 
 ### VPS con proxy externo
 
