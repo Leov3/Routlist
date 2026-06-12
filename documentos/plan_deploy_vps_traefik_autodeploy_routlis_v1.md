@@ -4,7 +4,7 @@
 
 ## Objetivo
 
-Desplegar Routlis en el VPS con una ruta estable basada en Docker Compose, ya sea con Traefik propio o con Easypanel, y con actualizacion automatica cuando haya commits en la rama `main`.
+Desplegar Routlis en el VPS con una ruta historica basada en Docker Compose, Traefik propio o Easypanel, y con actualizacion automatica cuando haya commits en la rama `main`.
 
 ## Arquitectura propuesta
 
@@ -14,7 +14,7 @@ Desplegar Routlis en el VPS con una ruta estable basada en Docker Compose, ya se
 - `postgres`: base de datos.
 - `storage`: volumen persistente para audios e imagenes.
 
-## Flujo objetivo
+## Flujo historico
 
 1. Haces merge o push a `main`.
 2. GitHub dispara el despliegue automatizado.
@@ -23,7 +23,7 @@ Desplegar Routlis en el VPS con una ruta estable basada en Docker Compose, ya se
 5. Se reinician los contenedores.
 6. Traefik sigue exponiendo los dominios publicos sin depender de Easypanel, o Easypanel publica los servicios con su router propio.
 
-## Recomendacion tecnica
+## Recomendacion historica
 
 La forma mas simple y estable es:
 

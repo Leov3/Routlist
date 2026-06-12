@@ -4,7 +4,7 @@
 
 ## Objetivo
 
-Dejar a Routlis listo para:
+Dejar a Routlis listo para la ruta historica de despliegue y dejar claramente separada la ruta activa de v1.1:
 
 - desarrollo local
 - despliegue automatico desde GitHub
