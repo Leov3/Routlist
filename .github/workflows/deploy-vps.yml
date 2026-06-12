@@ -3,7 +3,7 @@ name: Deploy to VPS
 on:
   push:
     branches:
-      - main
+      - principal
   workflow_dispatch:
     inputs:
       run_seed:

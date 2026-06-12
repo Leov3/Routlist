@@ -1,25 +1,26 @@
 # Checklist de despliegue en 10 minutos
 
+> Checklist historico. La ruta activa de Routlis v1.1 usa la rama `principal`, Docker Compose y un proxy externo con Nginx Proxy Manager.
+
 ## Objetivo
 
 Dejar Routlis listo para:
 
 - GitHub Actions
-- VPS con Easypanel o Docker Compose directo
+- VPS con Docker Compose directo
 - arranque local sin fricción
 
 ## 1. GitHub
 
 - [ ] Crear los secretos `VPS_HOST`, `VPS_USER`, `VPS_APP_DIR`, `VPS_SSH_PRIVATE_KEY`, `VPS_COMPOSE_PROFILE`.
 - [ ] Verificar que `VPS_APP_DIR` apunte al clon real del repo en el VPS.
-- [ ] Usar `VPS_COMPOSE_PROFILE=prod` si el VPS va con Traefik propio o `VPS_COMPOSE_PROFILE=easypanel` si va con Easypanel.
-- [ ] Confirmar que la rama protegida o automatizada es `main`.
+- [ ] Confirmar que la rama protegida o automatizada es `principal`.
 
 ## 2. VPS
 
 - [ ] Crear `/opt/routlis`.
 - [ ] Clonar o copiar el repositorio en `/opt/routlis/app`.
-- [ ] Crear `/opt/routlis/.env` a partir de [`deploy/easypanel.env.example`](/home/leonardo/Documentos/Proyectos/ROUTLIS/deploy/easypanel.env.example) o del bloque Traefik en [`documentos/variables_github_easypanel_routlis_v1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/variables_github_easypanel_routlis_v1.md).
+- [ ] Crear `/opt/routlis/.env` a partir de [`deploy/vps.env.example`](/home/leonardo/Documentos/Proyectos/ROUTLIS/deploy/vps.env.example).
 - [ ] Completar `POSTGRES_PASSWORD`.
 - [ ] Completar `JWT_SECRET`.
 - [ ] Confirmar `FRONTEND_URL` y `CORS_ORIGINS`.
@@ -35,18 +36,12 @@ Dejar Routlis listo para:
 
 ## 4. Produccion
 
-### Si usas Traefik propio
+### Si usas la ruta activa
 
 - [ ] Definir `LETSENCRYPT_EMAIL`.
 - [ ] Definir `FRONTEND_HOST`.
 - [ ] Definir `API_HOST`.
-- [ ] Usar `COMPOSE_PROFILE=prod bash scripts/deploy-vps.sh deploy`.
-
-### Si usas Easypanel
-
-- [ ] Usar `COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh deploy`.
-- [ ] Confirmar que Easypanel publica el frontend y el backend con sus dominios.
-- [ ] Confirmar que la redirección y las rutas publicas funcionan.
+- [ ] Usar `bash scripts/deploy-vps.sh deploy`.
 
 ## 5. Bootstrap inicial
 
@@ -68,4 +63,3 @@ Dejar Routlis listo para:
 - [`documentos/variables_github_easypanel_routlis_v1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/variables_github_easypanel_routlis_v1.md)
 - [`documentos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md)
 - [`README.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/README.md)
-

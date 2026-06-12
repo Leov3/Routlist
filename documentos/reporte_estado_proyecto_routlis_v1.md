@@ -1,4 +1,6 @@
-# Reporte de estado del proyecto - Routlis 1.0 AudioBoard
+# Reporte de estado del proyecto - Routlis 1.1 AudioBoard
+
+> Documento actualizado al estado v1.1. Las referencias a Traefik propio y a la rama `main` pertenecen a un flujo historico.
 
 Fecha de corte: 2026-06-11
 
@@ -6,7 +8,7 @@ Fecha de corte: 2026-06-11
 
 Routlis V1 se encuentra en un estado funcional sólido. El backend, el frontend y el flujo principal de la botonera ya estan implementados y compilando correctamente. La interfaz de `/board` evoluciono para soportar dos modos de operacion y la experiencia general ya refleja la identidad visual del proyecto.
 
-El despliegue de produccion quedó publicado con un Traefik propio en el VPS y un flujo de actualizacion que parte desde `main`. En ese flujo, el deploy automatico aplica migraciones y conserva datos persistentes; el seed queda reservado para bootstrap manual.
+El despliegue de produccion queda alineado con `principal`, Docker Compose y un proxy externo. En ese flujo, el deploy automatico aplica migraciones, conserva datos persistentes y reserva el seed para bootstrap manual.
 
 ## Estado tecnico actual
 

@@ -32,7 +32,7 @@ Password de seed:
 Admin123*
 ```
 
-En produccion, el seed queda reservado para un bootstrap manual del VPS; los `push` a `main` actualizan codigo y migraciones, pero no vuelven a sembrar datos demo.
+En produccion, el seed queda reservado para un bootstrap manual del VPS; los `push` a `principal` actualizan codigo y migraciones, pero no vuelven a sembrar datos demo.
 
 ## Estado actual
 
@@ -199,11 +199,11 @@ curl -fsS https://api.tudominio.com/health
 curl -I https://tu-dominio.com/login
 ```
 
-Para un redeploy normal desde `main`:
+Para un redeploy normal desde `principal`:
 
 ```bash
 cd /opt/routlis/app
-git pull origin main
+git pull origin principal
 bash scripts/deploy-vps.sh deploy
 ```
 

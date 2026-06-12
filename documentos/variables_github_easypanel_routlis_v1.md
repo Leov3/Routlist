@@ -1,4 +1,6 @@
-# Variables y secretos para GitHub, VPS y Easypanel
+# Variables y secretos para GitHub, VPS y despliegue historico
+
+> Documento historico. La ruta activa de Routlis v1.1 usa la rama `principal`, Docker Compose y un proxy externo con Nginx Proxy Manager.
 
 ## Objetivo
 
@@ -6,7 +8,7 @@ Dejar a Routlis listo para:
 
 - desarrollo local
 - despliegue automatico desde GitHub
-- VPS con Easypanel o con Docker Compose directo
+- VPS con Docker Compose directo
 
 ## 1. Variables locales
 
@@ -61,7 +63,7 @@ VPS_SSH_PRIVATE_KEY=clave_privada_ssh_completa
 VPS_COMPOSE_PROFILE=prod
 ```
 
-Si vas a usar Easypanel en el VPS:
+Si vas a usar el flujo historico con Easypanel:
 
 ```txt
 VPS_COMPOSE_PROFILE=easypanel
@@ -75,7 +77,7 @@ Archivo recomendado:
 /opt/routlis/.env
 ```
 
-Si vas con Easypanel:
+Si vas con el flujo historico con Easypanel:
 
 ```bash
 cp deploy/easypanel.env.example /opt/routlis/.env
@@ -102,7 +104,7 @@ NEXT_PUBLIC_MEDIA_URL=https://api.routlis.tudominio.com
 SEED_ADMIN_PASSWORD=Admin123*
 ```
 
-Si vas con Traefik propio:
+Si vas con el flujo historico con Traefik propio:
 
 ```env
 POSTGRES_DB=routlis
@@ -139,7 +141,7 @@ VPS_SSH_PRIVATE_KEY
 VPS_COMPOSE_PROFILE
 ```
 
-### VPS / Easypanel
+### VPS / flujo historico
 
 ```txt
 POSTGRES_DB

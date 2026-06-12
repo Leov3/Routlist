@@ -1,4 +1,6 @@
-# Plan de despliegue en VPS con Traefik propio y auto-deploy desde `main`
+# Plan historico de despliegue en VPS con Traefik propio y auto-deploy desde `main`
+
+> Documento historico. La ruta actual de Routlis v1.1 usa la rama `principal`, Docker Compose y un proxy externo con Nginx Proxy Manager.
 
 ## Objetivo
 
