@@ -231,6 +231,8 @@ La guia operativa actualizada para la version v1.1 esta en:
 
 - [`documentos/activos/checklist_estado_estable_v1_1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/activos/checklist_estado_estable_v1_1.md)
 
+Ultima prueba de despliegue automatizado: commit de validacion en `principal`.
+
 ## Persistencia que no debe perderse en deploys
 
 Estos datos deben sobrevivir a commits, pulls, builds y redeploys normales:
