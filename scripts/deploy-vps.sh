@@ -6,11 +6,7 @@ COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.prod.yml}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-routlis}"
 ENV_FILE="${ENV_FILE:-$PROJECT_DIR/../.env}"
 COMPOSE_PROFILE="${COMPOSE_PROFILE:-prod}"
-if [[ "$COMPOSE_PROFILE" == "easypanel" ]]; then
-  COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.easypanel.yml}"
-else
-  COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.prod.yml}"
-fi
+COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.prod.yml}"
 COMMAND="${1:-deploy}"
 
 if [[ ! -f "$ENV_FILE" ]]; then

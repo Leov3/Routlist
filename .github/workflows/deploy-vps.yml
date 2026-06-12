@@ -35,9 +35,9 @@ jobs:
 
       - name: Sync and deploy app on VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && git fetch origin main && git reset --hard origin/main && COMPOSE_PROFILE=${{ secrets.VPS_COMPOSE_PROFILE }} bash scripts/deploy-vps.sh deploy"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && git fetch origin main && git reset --hard origin/main && COMPOSE_PROFILE=${VPS_COMPOSE_PROFILE:-prod} bash scripts/deploy-vps.sh deploy"
 
       - name: Bootstrap seed on demand
         if: github.event_name == 'workflow_dispatch' && inputs.run_seed == true
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && COMPOSE_PROFILE=${{ secrets.VPS_COMPOSE_PROFILE }} bash scripts/deploy-vps.sh seed"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && COMPOSE_PROFILE=${VPS_COMPOSE_PROFILE:-prod} bash scripts/deploy-vps.sh seed"
