@@ -5,7 +5,11 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.prod.yml}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-routlis}"
 ENV_FILE="${ENV_FILE:-$PROJECT_DIR/../.env}"
+POSTGRES_VOLUME="${POSTGRES_VOLUME:-routlis_postgres_data}"
+STORAGE_VOLUME="${STORAGE_VOLUME:-routlis_storage}"
+BACKUP_DIR="${BACKUP_DIR:-/opt/routlis/backups}"
 COMMAND="${1:-deploy}"
+SKIP_BACKUP="${SKIP_BACKUP:-0}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing env file: $ENV_FILE" >&2
@@ -17,9 +21,91 @@ set -a
 source "$ENV_FILE"
 set +a
 
+inspect_volume() {
+  local volume_name="$1"
+  if docker volume inspect "$volume_name" >/dev/null 2>&1; then
+    docker volume inspect "$volume_name" --format '{{.Name}} -> {{.Mountpoint}}'
+  else
+    echo "Missing Docker volume: $volume_name" >&2
+    return 1
+  fi
+}
+
+preflight() {
+  inspect_volume "$POSTGRES_VOLUME"
+  inspect_volume "$STORAGE_VOLUME"
+}
+
+backup() {
+  mkdir -p "$BACKUP_DIR"
+
+  local stamp
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  local backup_root="$BACKUP_DIR/$stamp"
+  mkdir -p "$backup_root"
+
+  local db_name="${POSTGRES_DB:-routlis}"
+  local db_user="${POSTGRES_USER:-routlis}"
+
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" exec -T postgres \
+    pg_dump -U "$db_user" -d "$db_name" -Fc > "$backup_root/postgres.dump"
+
+  local storage_mountpoint
+  storage_mountpoint="$(docker volume inspect "$STORAGE_VOLUME" --format '{{.Mountpoint}}')"
+  tar -czf "$backup_root/storage.tar.gz" -C "$storage_mountpoint" .
+
+  printf '%s\n' "$backup_root"
+}
+
+verify_deploy() {
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" ps --status running >/dev/null
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" exec -T backend node -e \
+    "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+}
+
+rollback() {
+  local backup_root="${1:-}"
+  mkdir -p "$BACKUP_DIR"
+  if [[ -z "$backup_root" ]]; then
+    backup_root="$(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
+  fi
+
+  if [[ -z "$backup_root" || ! -d "$backup_root" ]]; then
+    echo "No backup found to rollback from" >&2
+    exit 1
+  fi
+
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" down
+
+  local storage_mountpoint
+  storage_mountpoint="$(docker volume inspect "$STORAGE_VOLUME" --format '{{.Mountpoint}}')"
+
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d postgres
+  sleep 5
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" exec -T postgres \
+    pg_restore -U "${POSTGRES_USER:-routlis}" -d "${POSTGRES_DB:-routlis}" --clean --if-exists < "$backup_root/postgres.dump"
+
+  rm -rf "$storage_mountpoint"/*
+  tar -xzf "$backup_root/storage.tar.gz" -C "$storage_mountpoint"
+
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d --build backend frontend
+}
+
 deploy() {
+  preflight
+  local backup_root
+  if [[ "$SKIP_BACKUP" == "1" ]]; then
+    backup_root="${BACKUP_ROOT:-}"
+  else
+    backup_root="$(backup)"
+  fi
   docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d --build
   docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" exec -T backend npm run prisma:deploy
+  verify_deploy || {
+    echo "Deploy verification failed, rolling back from $backup_root" >&2
+    rollback "$backup_root"
+    exit 1
+  }
 }
 
 seed() {
@@ -33,8 +119,20 @@ case "$COMMAND" in
   seed)
     seed
     ;;
+  preflight)
+    preflight
+    ;;
+  backup)
+    backup
+    ;;
+  verify)
+    verify_deploy
+    ;;
+  rollback)
+    rollback "${2:-}"
+    ;;
   *)
-    echo "Usage: $(basename "$0") [deploy|seed]" >&2
+    echo "Usage: $(basename "$0") [deploy|seed|preflight|backup|verify|rollback [backup_dir]]" >&2
     exit 1
     ;;
 esac

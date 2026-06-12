@@ -1,16 +1,19 @@
-# Routlis 1.0 AudioBoard
+# Routlis 1.1 AudioBoard
 
 Aplicación modular para gestionar y reproducir audios pregrabados desde una botonera operativa.
 
-## Release 1.0
+## Release 1.1
 
-Routlis llega a su primera version estable de producto. Esta release deja listos:
+Routlis 1.1 alinea el flujo local y el VPS para que el deploy sea reproducible, seguro y sin perdida de datos persistentes.
+
+Esta release deja listos:
 
 - login y autenticacion
 - panel principal `/board`
 - panel admin modular
 - almacenamiento de audios
-- despliegue estable en VPS con Easypanel o con Traefik propio
+- despliegue estable en VPS con Docker Compose y un proxy externo
+- backup, verificacion y rollback basicos en el deploy
 
 ### Cuentas de prueba
 
@@ -132,6 +135,8 @@ Si quieres borrar tambien los volumenes y dejar la base de datos limpia:
 docker compose down -v
 ```
 
+En despliegue de produccion no uses `down -v`, porque borra la base de datos y el storage persistente.
+
 Credenciales seed:
 
 ```txt
@@ -165,7 +170,7 @@ Si levantas `frontend` con `npm run dev`, usa `http://localhost:3000`.
 
 ## Despliegue en VPS
 
-Si vas a mover la app a un VPS con Docker Compose y Traefik, este es el flujo corto recomendado:
+Si vas a mover la app a un VPS con Docker Compose y un proxy externo, este es el flujo corto recomendado:
 
 1. Copia el proyecto en `/opt/routlis/app` o clona el repositorio ahi.
 2. Crea `/opt/routlis/.env` a partir de `deploy/vps.env.example` con `POSTGRES_PASSWORD`, `JWT_SECRET`, `LETSENCRYPT_EMAIL`, `FRONTEND_HOST`, `API_HOST` y `SEED_ADMIN_PASSWORD`.
@@ -210,21 +215,43 @@ bash scripts/deploy-vps.sh seed
 
 El seed no debe ejecutarse en cada despliegue automatico.
 
-### VPS con Easypanel
+### VPS con proxy externo
 
-Si vas a usar Easypanel en el VPS, usa el compose dedicado:
+El VPS actual usa Nginx Proxy Manager fuera del compose de la app. La aplicación solo necesita levantar `postgres`, `backend` y `frontend`, y el proxy externo apunta a los puertos internos de esos contenedores.
+
+Arranque de produccion:
 
 ```bash
-COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh deploy
+docker compose -f docker-compose.prod.yml -p routlis up -d --build
 ```
 
 Bootstrap del seed:
 
 ```bash
-COMPOSE_PROFILE=easypanel bash scripts/deploy-vps.sh seed
+docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:seed
 ```
 
-En Easypanel, apunta los dominios publicos al frontend y backend, y usa `/opt/routlis/.env` a partir de [deploy/easypanel.env.example](/home/leonardo/Documentos/Proyectos/ROUTLIS/deploy/easypanel.env.example).
+Si rearmas el VPS desde cero, crea `/opt/routlis/.env` con los valores de produccion y luego levanta el stack.
+
+Antes de desplegar, valida que existan los volumenes persistentes:
+
+```bash
+bash scripts/deploy-vps.sh preflight
+```
+
+Flujo seguro recomendado:
+
+```bash
+bash scripts/deploy-vps.sh backup
+bash scripts/deploy-vps.sh deploy
+bash scripts/deploy-vps.sh verify
+```
+
+Si algo falla despues del despliegue, puedes volver al ultimo backup disponible:
+
+```bash
+bash scripts/deploy-vps.sh rollback
+```
 
 ## Documentacion relacionada
 
@@ -235,6 +262,7 @@ En Easypanel, apunta los dominios publicos al frontend y backend, y usa `/opt/ro
 - `documentos/reporte_estado_proyecto_routlis_v1.md`
 - `documentos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md`
 - `documentos/despliegue_hostinger_vps_routlis_v1.md`
+- `documentos/checklist_persistencia_deploy_routlis.md`
 - `documentos/variables_github_easypanel_routlis_v1.md`
 - `documentos/checklist_despliegue_10_min_routlis_v1.md`
 
