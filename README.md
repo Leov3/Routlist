@@ -225,6 +225,12 @@ El VPS actual usa un proxy externo fuera del compose de la app. La aplicación s
 
 La pantalla de login consulta estadísticas públicas como ayuda visual. Si ese endpoint falla temporalmente, el acceso no debe bloquearse: el formulario de autenticación sigue siendo la fuente real de entrada al panel.
 
+## Checklist estable
+
+La guia operativa actualizada para la version v1.1 esta en:
+
+- [`documentos/checklist_estado_estable_v1_1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/checklist_estado_estable_v1_1.md)
+
 ## Persistencia que no debe perderse en deploys
 
 Estos datos deben sobrevivir a commits, pulls, builds y redeploys normales:
