@@ -31,19 +31,6 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
-      - name: Prepare SSH config
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          cat > ~/.ssh/config <<'EOF'
-Host *
-  StrictHostKeyChecking accept-new
-  UserKnownHostsFile ~/.ssh/known_hosts
-  ServerAliveInterval 30
-  ServerAliveCountMax 2
-EOF
-          chmod 600 ~/.ssh/config
-
       - name: Sync project files to VPS
         run: |
           tar -czf /tmp/routlis.tar.gz --exclude=.git --exclude=node_modules --exclude=.next --exclude=dist .
@@ -56,8 +43,8 @@ EOF
             port="${host##*:}"
             host="${host%:*}"
           fi
-          scp -P "$port" /tmp/routlis.tar.gz "${{ secrets.VPS_USER }}@$host:/tmp/routlis.tar.gz"
-          ssh -p "$port" "${{ secrets.VPS_USER }}@$host" "mkdir -p '${{ secrets.VPS_APP_DIR }}' && find '${{ secrets.VPS_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
+          scp -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.tar.gz "${{ secrets.VPS_USER }}@$host:/tmp/routlis.tar.gz"
+          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "mkdir -p '${{ secrets.VPS_APP_DIR }}' && find '${{ secrets.VPS_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
 
       - name: Ensure VPS env file exists
         run: |
@@ -71,8 +58,8 @@ EOF
             port="${host##*:}"
             host="${host%:*}"
           fi
-          scp -P "$port" /tmp/routlis.env "${{ secrets.VPS_USER }}@$host:${{ env.VPS_ENV_FILE }}"
-          ssh -p "$port" "${{ secrets.VPS_USER }}@$host" "chmod 600 '${{ env.VPS_ENV_FILE }}' && chown '${{ secrets.VPS_USER }}':'${{ secrets.VPS_USER }}' '${{ env.VPS_ENV_FILE }}'"
+          scp -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.env "${{ secrets.VPS_USER }}@$host:${{ env.VPS_ENV_FILE }}"
+          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "chmod 600 '${{ env.VPS_ENV_FILE }}' && chown '${{ secrets.VPS_USER }}':'${{ secrets.VPS_USER }}' '${{ env.VPS_ENV_FILE }}'"
           rm -f /tmp/routlis.env
 
       - name: Preflight on VPS
@@ -86,7 +73,7 @@ EOF
             port="${host##*:}"
             host="${host%:*}"
           fi
-          ssh -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"
+          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"
 
       - name: Deploy app on VPS
         run: |
@@ -99,7 +86,7 @@ EOF
             port="${host##*:}"
             host="${host%:*}"
           fi
-          ssh -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"
+          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"
 
       - name: Verify deploy on VPS
         run: |
@@ -112,7 +99,7 @@ EOF
             port="${host##*:}"
             host="${host%:*}"
           fi
-          ssh -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"
+          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"
 
       - name: Bootstrap seed on demand
         if: github.event_name == 'workflow_dispatch' && inputs.run_seed == true
@@ -125,4 +112,4 @@ EOF
             port="${host##*:}"
             host="${host%:*}"
           fi
-          ssh -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"
+          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"
