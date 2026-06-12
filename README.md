@@ -219,7 +219,11 @@ El seed no debe ejecutarse en cada despliegue automatico.
 
 ### VPS con proxy externo
 
-El VPS actual usa Nginx Proxy Manager fuera del compose de la app. La aplicación solo necesita levantar `postgres`, `backend` y `frontend`, y el proxy externo apunta a los puertos internos de esos contenedores.
+El VPS actual usa un proxy externo fuera del compose de la app. La aplicación solo necesita levantar `postgres`, `backend` y `frontend`, y el proxy externo apunta a los puertos internos de esos contenedores.
+
+### Estado estable del login
+
+La pantalla de login consulta estadísticas públicas como ayuda visual. Si ese endpoint falla temporalmente, el acceso no debe bloquearse: el formulario de autenticación sigue siendo la fuente real de entrada al panel.
 
 ## Persistencia que no debe perderse en deploys
 
