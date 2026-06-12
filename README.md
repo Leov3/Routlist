@@ -229,7 +229,7 @@ La pantalla de login consulta estadísticas públicas como ayuda visual. Si ese 
 
 La guia operativa actualizada para la version v1.1 esta en:
 
-- [`documentos/checklist_estado_estable_v1_1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/checklist_estado_estable_v1_1.md)
+- [`documentos/activos/checklist_estado_estable_v1_1.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/documentos/activos/checklist_estado_estable_v1_1.md)
 
 ## Persistencia que no debe perderse en deploys
 
@@ -287,30 +287,30 @@ bash scripts/deploy-vps.sh rollback
 - `backend/README.md`
 - `frontend/README.md`
 - `frontend/AGENTS.md`
-- `documentos/plan_desarrollo_modular_routlis_v1.md`
-- `documentos/reporte_estado_proyecto_routlis_v1.md`
-- `documentos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md`
-- `documentos/despliegue_hostinger_vps_routlis_v1.md`
-- `documentos/checklist_persistencia_deploy_routlis.md`
-- `documentos/variables_github_easypanel_routlis_v1.md`
-- `documentos/checklist_despliegue_10_min_routlis_v1.md`
+- `documentos/historicos/plan_desarrollo_modular_routlis_v1.md`
+- `documentos/historicos/reporte_estado_proyecto_routlis_v1.md`
+- `documentos/historicos/plan_deploy_vps_traefik_autodeploy_routlis_v1.md`
+- `documentos/historicos/despliegue_hostinger_vps_routlis_v1.md`
+- `documentos/historicos/checklist_persistencia_deploy_routlis.md`
+- `documentos/historicos/variables_github_easypanel_routlis_v1.md`
+- `documentos/historicos/checklist_despliegue_10_min_routlis_v1.md`
 
 ## Documento modular
 
 La hoja de ruta viva esta en:
 
 ```txt
-documentos/plan_desarrollo_modular_routlis_v1.md
+documentos/historicos/plan_desarrollo_modular_routlis_v1.md
 ```
 
 El reporte de estado actual esta en:
 
 ```txt
-documentos/reporte_estado_proyecto_routlis_v1.md
+documentos/historicos/reporte_estado_proyecto_routlis_v1.md
 ```
 
 La guia de despliegue inicial esta en:
 
 ```txt
-documentos/despliegue_hostinger_vps_routlis_v1.md
+documentos/historicos/despliegue_hostinger_vps_routlis_v1.md
 ```
