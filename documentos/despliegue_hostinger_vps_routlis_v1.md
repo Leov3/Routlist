@@ -1,6 +1,8 @@
 # Despliegue Hostinger VPS - Routlis V1 AudioBoard
 
 > Nota: este documento conserva el flujo historico con PM2 y Nginx. La ruta actual de Routlis v1.1 usa `principal`, Docker Compose y Nginx Proxy Manager.
+>
+> Usa este documento solo como referencia historica.
 
 ## Estado previo
 

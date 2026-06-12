@@ -1,6 +1,8 @@
 # Variables y secretos para GitHub, VPS y despliegue historico
 
 > Documento historico. La ruta activa de Routlis v1.1 usa la rama `principal`, Docker Compose y un proxy externo con Nginx Proxy Manager.
+>
+> Usa este documento solo como referencia historica.
 
 ## Objetivo
 

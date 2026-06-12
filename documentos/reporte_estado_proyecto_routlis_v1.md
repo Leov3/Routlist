@@ -1,6 +1,8 @@
 # Reporte de estado del proyecto - Routlis 1.1 AudioBoard
 
 > Documento actualizado al estado v1.1. Las referencias a Traefik propio y a la rama `main` pertenecen a un flujo historico.
+>
+> Este reporte refleja el estado del proyecto, pero la guia operativa activa es `documentos/checklist_estado_estable_v1_1.md`.
 
 Fecha de corte: 2026-06-11
 

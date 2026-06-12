@@ -1,5 +1,7 @@
 # Checklist de persistencia para deploys de Routlis
 
+> Documento operativo complementario. La referencia principal y consolidada del estado estable es `documentos/checklist_estado_estable_v1_1.md`.
+
 Este checklist valida que un despliegue nuevo no borre:
 
 - usuarios

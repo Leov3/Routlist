@@ -1,5 +1,7 @@
 # Plan de desarrollo modular - Routlis V1 AudioBoard
 
+> Documento historico de planificacion. La ruta activa actual de Routlis v1.1 queda documentada en el README y en `documentos/checklist_estado_estable_v1_1.md`.
+
 ## Resumen
 
 Routlis V1 se desarrollara en **13 modulos principales**, numerados del 0 al 12.

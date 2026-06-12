@@ -3,6 +3,8 @@
 > Documento historico. La ruta actual de Routlis v1.1 usa la rama `principal`, Docker Compose y un proxy externo con Nginx Proxy Manager.
 >
 > Todo lo que menciona `main`, Traefik o Easypanel aqui pertenece al flujo historico y no al flujo activo.
+>
+> Usa este documento solo como referencia historica.
 
 ## Objetivo
 
