@@ -5,8 +5,6 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.prod.yml}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-routlis}"
 ENV_FILE="${ENV_FILE:-$PROJECT_DIR/../.env}"
-COMPOSE_PROFILE="${COMPOSE_PROFILE:-prod}"
-COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.prod.yml}"
 COMMAND="${1:-deploy}"
 
 if [[ ! -f "$ENV_FILE" ]]; then

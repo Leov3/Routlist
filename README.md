@@ -168,7 +168,7 @@ Si levantas `frontend` con `npm run dev`, usa `http://localhost:3000`.
 Si vas a mover la app a un VPS con Docker Compose y Traefik, este es el flujo corto recomendado:
 
 1. Copia el proyecto en `/opt/routlis/app` o clona el repositorio ahi.
-2. Crea `/opt/routlis/.env` a partir de `.env.example` con `POSTGRES_PASSWORD`, `JWT_SECRET`, `LETSENCRYPT_EMAIL`, `FRONTEND_HOST`, `API_HOST` y `SEED_ADMIN_PASSWORD`.
+2. Crea `/opt/routlis/.env` a partir de `deploy/vps.env.example` con `POSTGRES_PASSWORD`, `JWT_SECRET`, `LETSENCRYPT_EMAIL`, `FRONTEND_HOST`, `API_HOST` y `SEED_ADMIN_PASSWORD`.
 3. Levanta el stack de produccion:
 
 ```bash

@@ -19,10 +19,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      VPS_COMPOSE_PROFILE: ${{ secrets.VPS_COMPOSE_PROFILE || 'prod' }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -33,11 +34,17 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Sync and deploy app on VPS
+      - name: Sync project files to VPS
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && git fetch origin main && git reset --hard origin/main && COMPOSE_PROFILE=${VPS_COMPOSE_PROFILE:-prod} bash scripts/deploy-vps.sh deploy"
+          tar -czf /tmp/routlis.tar.gz --exclude=.git --exclude=node_modules --exclude=.next --exclude=dist .
+          scp /tmp/routlis.tar.gz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/routlis.tar.gz"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "rm -rf '${{ secrets.VPS_APP_DIR }}' && mkdir -p '${{ secrets.VPS_APP_DIR }}' && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
+
+      - name: Deploy app on VPS
+        run: |
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && bash scripts/deploy-vps.sh deploy"
 
       - name: Bootstrap seed on demand
         if: github.event_name == 'workflow_dispatch' && inputs.run_seed == true
         run: |
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && COMPOSE_PROFILE=${VPS_COMPOSE_PROFILE:-prod} bash scripts/deploy-vps.sh seed"
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd '${{ secrets.VPS_APP_DIR }}' && bash scripts/deploy-vps.sh seed"
