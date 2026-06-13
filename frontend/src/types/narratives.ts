@@ -14,6 +14,43 @@ export type NarrativeNodeType =
   | "DECISION"
   | "END";
 
+export type DecisionOption = {
+  id: string;
+  label: string;
+  description?: string;
+};
+
+export type BuilderNodeStatus = "valid" | "warning" | "error" | "info";
+
+export type BuilderNodeBadge = {
+  label: string;
+  tone: BuilderNodeStatus;
+};
+
+export type NarrativeBuilderNodeData = {
+  nodeType: NarrativeNodeType;
+  title?: string;
+  label?: string;
+  body?: string;
+  question?: string;
+  instruction?: string;
+  audioAssetId?: string;
+  audioButtonId?: string;
+  description?: string;
+  required?: boolean;
+  allowReplay?: boolean;
+  operatorNotes?: string;
+  notes?: string;
+  pauseType?: string;
+  durationSeconds?: string | number;
+  manual?: boolean;
+  options?: string | string[] | DecisionOption[];
+  builderSummary?: string;
+  builderStatus?: BuilderNodeStatus;
+  builderStatusLabel?: string;
+  builderBadges?: BuilderNodeBadge[];
+};
+
 export type NarrativeRunEventType =
   | "NODE_STARTED"
   | "NODE_COMPLETED"
