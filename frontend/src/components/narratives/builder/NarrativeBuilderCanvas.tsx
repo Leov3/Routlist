@@ -319,18 +319,30 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     setLoading(true);
     setMessage(null);
 
-    try {
-      const [result, audiosRes, buttonsRes] = await Promise.all([
-        api<NarrativeBuilderState>(`/narratives/${narrativeId}/builder`),
-        api<any>("/audio-assets").catch(() => []),
-        api<any>("/audio-buttons").catch(() => []),
-      ]);
-      
-      setBuilder(result);
-      setAudios(Array.isArray(audiosRes) ? audiosRes : ((audiosRes as any).data || (audiosRes as any).items || []));
-      setButtons(Array.isArray(buttonsRes) ? buttonsRes : ((buttonsRes as any).data || (buttonsRes as any).items || []));
-      
-      const graph = graphFromVersions(result.draftVersion ?? result.publishedVersion);
+try {
+        const [result, audiosRes, buttonsRes] = await Promise.all([
+          api<NarrativeBuilderState>(`/narratives/${narrativeId}/builder`),
+          api<any>("/audio-assets").catch(() => []),
+          api<any>("/audio-buttons").catch(() => []),
+        ]);
+
+        setBuilder(result);
+        setAudios(
+          Array.isArray(audiosRes)
+            ? audiosRes.map((a: { id: string; originalName: string }) => ({ id: a.id, name: a.originalName }))
+            : ((audiosRes as any).data
+              ? (audiosRes as any).data.map((a: { id: string; originalName: string }) => ({ id: a.id, name: a.originalName }))
+              : ((audiosRes as any).items
+                ? (audiosRes as any).items.map((a: { id: string; originalName: string }) => ({ id: a.id, name: a.originalName }))
+                : [])),
+        );
+        setButtons(
+          Array.isArray(buttonsRes)
+            ? buttonsRes
+            : ((buttonsRes as any).data || (buttonsRes as any).items || []),
+        );
+
+        const graph = graphFromVersions(result.draftVersion ?? result.publishedVersion);
 
       setNodes(
         graph.nodes.map((node) => ({
