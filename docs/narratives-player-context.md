@@ -202,3 +202,12 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - Esto separa nodos apiñados sin modificar el grafo publicado ni afectar el builder.
 - Build validado:
   - `npm --prefix frontend run build`
+
+## Instruction Annotation Semantics
+- `INSTRUCTION` se interpreta como nota operativa flotante.
+- No cuenta como paso de progreso.
+- No bloquea ni queda bloqueada como ruta principal.
+- Las aristas hacia/desde `INSTRUCTION` se muestran como anotaciones punteadas.
+- Para grafos legacy `A -> INSTRUCTION -> B`, el player calcula bypass virtual `A -> B`.
+- Si una ejecución antigua queda parada sobre `INSTRUCTION`, `Siguiente` avanza al siguiente nodo de flujo conectado.
+- No se modifica el grafo publicado ni se borran conexiones legacy.

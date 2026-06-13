@@ -232,3 +232,38 @@ Pendientes:
 - Ninguno dentro del alcance del hito.
 Próximo hito:
 - Cierre de fase actual
+
+## Hito 8
+
+Fecha: 2026-06-13
+Rama: `dev`
+Commit: Pendiente
+Push: Pendiente
+Resumen:
+- `INSTRUCTION` se reclasifica como anotación operativa, no como paso de ejecución.
+- La paleta separa `INSTRUCTION` en la sección `Anotaciones`.
+- El nodo `INSTRUCTION` se renderiza como post-it/nota operativa.
+- Las aristas hacia/desde `INSTRUCTION` se muestran punteadas y se tratan como asociaciones visuales.
+- Auto-layout ubica instrucciones al costado del flujo.
+- La validación frontend/backend excluye `INSTRUCTION` de alcanzabilidad, ciclos y entrada/salida obligatoria.
+- Grafos legacy `A -> INSTRUCTION -> B` usan bypass virtual para validación y ejecución.
+Archivos modificados:
+- `backend/src/modules/narratives/narrative-graph.ts`
+- `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-builder-context.md`
+- `docs/narratives-builder-implementation-log.md`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+Checks ejecutados:
+- `npm --prefix frontend run build`
+- `npm --prefix backend run build`
+Resultado de checks:
+- `frontend build`: OK
+- `backend build`: OK
+Riesgos:
+- `edge.kind` aún no existe en el modelo persistido; la semántica de anotación se infiere por conexión con `INSTRUCTION`.
+Pendientes:
+- Si se necesita persistencia explícita, agregar `edge.kind: "flow" | "annotation"` en una fase posterior sin migración destructiva.
+Próximo hito:
+- Validación manual en Docker local con grafos legacy y nuevas notas desconectadas.

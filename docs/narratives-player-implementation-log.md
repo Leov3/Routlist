@@ -542,10 +542,10 @@ Rama:
 dev
 
 Commit:
-Pendiente
+78ac902
 
 Push:
-Pendiente
+origin/dev
 
 Resumen:
 Se separan los nodos del player canvas a una estructura real de `nodeTypes` por tipo en `frontend/src/components/narratives/player/nodes/`. `NarrativePlayer.tsx` deja de contener el markup visual principal de los nodos y pasa a registrar los widgets especializados.
@@ -578,10 +578,10 @@ Rama:
 dev
 
 Commit:
-Pendiente
+ee297c3
 
 Push:
-Pendiente
+origin/dev
 
 Resumen:
 Se ajusta el viewport de React Flow para evitar que los widgets nuevos se vean como miniaturas. Se configuran límites de zoom, viewport inicial y `fitView` con `maxZoom` diferenciado para narrativas pequeñas.
@@ -639,3 +639,37 @@ Riesgos:
 
 Pendientes:
 - Validar visualmente en Docker local con narrativas cortas y ramificadas.
+
+## Hito 15
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Se alinea el player con la nueva semántica compartida de `INSTRUCTION` como anotación operativa. El progreso excluye instrucciones, las aristas de instrucción se muestran como anotaciones punteadas y la ejecución calcula bypass virtual para grafos legacy `A -> INSTRUCTION -> B`.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- Build frontend correcto.
+
+Riesgos:
+- Runs antiguos que hayan quedado exactamente en una instrucción dependen de que exista una salida desde esa instrucción hacia un nodo de flujo.
+
+Pendientes:
+- Validación manual de una ejecución legacy con instrucción intermedia.

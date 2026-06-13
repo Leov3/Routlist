@@ -149,6 +149,39 @@ function findOutgoingEdges(nodeId: string, edges: NarrativeGraphEdge[]) {
   return edges.filter((edge) => edge.source === nodeId);
 }
 
+function isAnnotationNodeType(type?: NarrativeNodeType) {
+  return type === "INSTRUCTION";
+}
+
+function isFlowNodeType(type?: NarrativeNodeType) {
+  return Boolean(type && !isAnnotationNodeType(type));
+}
+
+function getExecutionEdges(nodes: NodeMeta[], edges: NarrativeGraphEdge[]) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+  const annotationEdge = (edge: NarrativeGraphEdge) =>
+    isAnnotationNodeType(nodeById.get(edge.source)?.type as NarrativeNodeType | undefined) ||
+    isAnnotationNodeType(nodeById.get(edge.target)?.type as NarrativeNodeType | undefined);
+
+  const directFlowEdges = edges.filter((edge) => !annotationEdge(edge));
+  const bypassEdges = nodes
+    .filter((node) => isAnnotationNodeType(node.type as NarrativeNodeType))
+    .flatMap((node) => {
+      const incoming = edges.filter((edge) => edge.target === node.id && isFlowNodeType(nodeById.get(edge.source)?.type as NarrativeNodeType | undefined));
+      const outgoing = edges.filter((edge) => edge.source === node.id && isFlowNodeType(nodeById.get(edge.target)?.type as NarrativeNodeType | undefined));
+      return incoming.flatMap((input) =>
+        outgoing.map((output) => ({
+          id: `annotation-bypass:${input.id}:${output.id}`,
+          source: input.source,
+          target: output.target,
+          label: input.label,
+        })),
+      );
+    });
+
+  return [...directFlowEdges, ...bypassEdges];
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
@@ -220,6 +253,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     () => new Map(nodes.map((node) => [node.id, node] as const)),
     [nodes],
   );
+  const executionEdges = useMemo(() => getExecutionEdges(nodes, edges), [edges, nodes]);
 
   const currentNode = run?.currentNodeId ? nodeMap.get(run.currentNodeId) : undefined;
   const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : undefined;
@@ -374,13 +408,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     const ids = new Set<string>();
     if (!currentNode) return ids;
     ids.add(currentNode.id);
-    for (const edge of edges) {
+    for (const edge of executionEdges) {
       if (edge.source === currentNode.id) {
         ids.add(edge.target);
       }
     }
     return ids;
-  }, [currentNode, edges]);
+  }, [currentNode, executionEdges]);
 
   const nodeStates = useMemo(() => {
     const states = new Map<string, PlayerNodeState>();
@@ -393,10 +427,11 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         (type === "AUDIO" && !data.audioAssetId) ||
         (type === "AUDIO_BUTTON" && !data.audioButtonId) ||
         (type === "SCRIPT_TEXT" && !data.body) ||
-        (type === "INSTRUCTION" && !data.instruction) ||
-        (type === "DECISION" && findOutgoingEdges(node.id, edges).length === 0);
+        (type === "DECISION" && findOutgoingEdges(node.id, executionEdges).length === 0);
 
-      if (hasError) {
+      if (type === "INSTRUCTION") {
+        state = "available";
+      } else if (hasError) {
         state = "error";
       } else if (run?.currentNodeId === node.id) {
         state = "current";
@@ -413,16 +448,16 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       states.set(node.id, state);
     }
     return states;
-  }, [availableIds, completedIds, edges, nodes, run?.currentNodeId, selectedDecisionTargets, skippedIds]);
+  }, [availableIds, completedIds, executionEdges, nodes, run?.currentNodeId, selectedDecisionTargets, skippedIds]);
 
   const currentStatus = currentNode ? nodeStates.get(currentNode.id) ?? "locked" : "locked";
   const actionNodeState = actionNode ? nodeStates.get(actionNode.id) ?? "locked" : "locked";
   const actionNodeIsCurrent = actionNode?.id === currentNode?.id;
   const actionNodeIsInteractive = actionNodeIsCurrent && run?.status === "RUNNING";
-  const outgoing = currentNode ? findOutgoingEdges(currentNode.id, edges) : [];
+  const outgoing = currentNode ? findOutgoingEdges(currentNode.id, executionEdges) : [];
   const actionDecisionLabels = readDecisionLabels(actionNode?.data?.options);
   const actionNodeDecisionChoices = actionNode?.type === "DECISION"
-    ? findOutgoingEdges(actionNode.id, edges).map((edge, index) => ({
+    ? findOutgoingEdges(actionNode.id, executionEdges).map((edge, index) => ({
         label: edge.label?.trim() || actionDecisionLabels[index] || "Opción",
         targetNodeId: edge.target,
       }))
@@ -442,7 +477,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       if (!node) break;
       result.push(node);
       visited.add(currentId);
-      const next = edges.find((edge) => edge.source === currentId);
+      const next = executionEdges.find((edge) => edge.source === currentId);
       currentId = next?.target;
     }
 
@@ -453,7 +488,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
 
     return result;
-  }, [edges, nodes]);
+  }, [executionEdges, nodes]);
 
   const flowNodes = useMemo<Node<PlayerFlowNodeData>[]>(() => {
     return nodes.map((node, index) => ({
@@ -476,17 +511,22 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         audioButtonDetail: node.data?.audioButtonId ? audioButtonDetailsById[String(node.data.audioButtonId)] ?? null : null,
         isRequired: node.data?.required !== false,
         decisionChoices: node.type === "DECISION"
-          ? findOutgoingEdges(node.id, edges).map((edge, choiceIndex) => ({
+          ? findOutgoingEdges(node.id, executionEdges).map((edge, choiceIndex) => ({
               label: edge.label?.trim() || readDecisionLabels(node.data?.options)[choiceIndex] || "Opción",
               targetNodeId: edge.target,
             }))
           : undefined,
       },
     }));
-  }, [audioButtonDetailsById, edges, nodeStates, nodes, playerNodePosition]);
+  }, [audioButtonDetailsById, executionEdges, nodeStates, nodes, playerNodePosition]);
 
   const flowEdges = useMemo<Edge[]>(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+    const annotationEdge = (edge: NarrativeGraphEdge) =>
+      isAnnotationNodeType(nodeById.get(edge.source)?.type as NarrativeNodeType | undefined) ||
+      isAnnotationNodeType(nodeById.get(edge.target)?.type as NarrativeNodeType | undefined);
     const edgeState = (edge: NarrativeGraphEdge): PlayerEdgeState => {
+      if (annotationEdge(edge)) return "pending";
       const selectedTarget = selectedDecisionTargets.get(edge.source);
       if (selectedTarget) {
         return selectedTarget === edge.target ? "active" : "not-taken";
@@ -498,32 +538,38 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       return "pending";
     };
 
-    return edges.map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      label: edge.label ?? undefined,
-      labelShowBg: Boolean(edge.label),
-      labelBgPadding: [8, 4],
-      labelBgBorderRadius: 999,
-      labelBgStyle: {
-        fill: "rgba(15, 23, 42, 0.88)",
-        stroke: "rgba(148, 163, 184, 0.18)",
-        strokeWidth: 1,
-      },
-      animated: edgeState(edge) === "active",
-      selectable: false,
-      style:
-        edgeState(edge) === "traversed"
-          ? { stroke: "rgba(16, 185, 129, 0.85)", strokeWidth: 2.4 }
-          : edgeState(edge) === "active"
-            ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.8 }
-            : edgeState(edge) === "not-taken"
-              ? { stroke: "rgba(244, 114, 182, 0.4)", strokeWidth: 1.6, strokeDasharray: "6 4" }
-              : { stroke: "rgba(148, 163, 184, 0.28)", strokeWidth: 1.4 },
-      labelStyle: { fill: "rgb(203, 213, 225)", fontSize: 10, fontWeight: 700 },
-    }));
-  }, [completedIds, edges, run?.currentNodeId, selectedDecisionTargets]);
+    return edges.map((edge) => {
+      const isAnnotation = annotationEdge(edge);
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        label: edge.label ?? (isAnnotation ? "Nota" : undefined),
+        labelShowBg: Boolean(edge.label || isAnnotation),
+        labelBgPadding: [8, 4],
+        labelBgBorderRadius: 999,
+        labelBgStyle: isAnnotation
+          ? { fill: "rgba(42, 29, 13, 0.9)", stroke: "rgba(245, 158, 11, 0.3)", strokeWidth: 1 }
+          : {
+              fill: "rgba(15, 23, 42, 0.88)",
+              stroke: "rgba(148, 163, 184, 0.18)",
+              strokeWidth: 1,
+            },
+        animated: !isAnnotation && edgeState(edge) === "active",
+        selectable: false,
+        style: isAnnotation
+          ? { stroke: "rgba(245, 158, 11, 0.65)", strokeWidth: 1.5, strokeDasharray: "6 6" }
+          : edgeState(edge) === "traversed"
+            ? { stroke: "rgba(16, 185, 129, 0.85)", strokeWidth: 2.4 }
+            : edgeState(edge) === "active"
+              ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.8 }
+              : edgeState(edge) === "not-taken"
+                ? { stroke: "rgba(244, 114, 182, 0.4)", strokeWidth: 1.6, strokeDasharray: "6 4" }
+                : { stroke: "rgba(148, 163, 184, 0.28)", strokeWidth: 1.4 },
+        labelStyle: { fill: isAnnotation ? "rgb(251, 191, 36)" : "rgb(203, 213, 225)", fontSize: 10, fontWeight: 700 },
+      };
+    });
+  }, [completedIds, edges, nodes, run?.currentNodeId, selectedDecisionTargets]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -659,6 +705,17 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
   async function completeCurrentNode(skip = false) {
     if (!run || !currentNode) return;
+
+    if (currentNode.type === "INSTRUCTION") {
+      const nextFlowEdge = edges.find((edge) => {
+        const target = nodeMap.get(edge.target);
+        return edge.source === currentNode.id && isFlowNodeType(target?.type as NarrativeNodeType | undefined);
+      });
+      if (nextFlowEdge) {
+        await syncCurrentNode(nextFlowEdge.target, "NODE_COMPLETED", { annotationBypassed: true });
+        return;
+      }
+    }
 
     if (currentNode.type === "END") {
       await finishRun();
@@ -841,11 +898,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const isRequiredNode = actionNode?.data?.required !== false;
   const canReplay = actionNode?.data?.allowReplay !== false;
   const actionableNodes = useMemo(
-    () => nodes.filter((node) => node.type !== "START").length,
+    () => nodes.filter((node) => node.type !== "START" && node.type !== "INSTRUCTION").length,
     [nodes],
   );
   const progressedNodes = useMemo(
-    () => nodes.filter((node) => completedIds.has(node.id) || skippedIds.has(node.id)).length + (currentNode && currentNode.type !== "START" ? 1 : 0),
+    () =>
+      nodes.filter((node) => node.type !== "INSTRUCTION" && (completedIds.has(node.id) || skippedIds.has(node.id))).length +
+      (currentNode && currentNode.type !== "START" && currentNode.type !== "INSTRUCTION" ? 1 : 0),
     [completedIds, currentNode, nodes, skippedIds],
   );
   const elapsedLabel = useMemo(() => {

@@ -82,11 +82,61 @@ const NODE_PALETTE: NodePaletteItem[] = [
   { type: "AUDIO", label: "Audio", description: "Reproduce un audio existente.", accent: "from-violet-500 to-fuchsia-500" },
   { type: "AUDIO_BUTTON", label: "Botón de Audio", description: "Reproduce audio asociado a un botón.", accent: "from-indigo-500 to-blue-500" },
   { type: "SCRIPT_TEXT", label: "Texto / Guion", description: "Texto para leer al aire.", accent: "from-sky-500 to-cyan-500" },
-  { type: "INSTRUCTION", label: "Instrucción", description: "Paso operativo interno.", accent: "from-amber-500 to-orange-500" },
   { type: "PAUSE", label: "Pausa", description: "Esperar o pausar manualmente.", accent: "from-slate-500 to-slate-700" },
   { type: "DECISION", label: "Decisión", description: "Ramificación con opciones.", accent: "from-pink-500 to-rose-500" },
   { type: "END", label: "Fin", description: "Cierre del flujo.", accent: "from-red-500 to-rose-500" },
 ];
+
+const ANNOTATION_PALETTE: NodePaletteItem[] = [
+  { type: "INSTRUCTION", label: "Nota operativa", description: "Anotación: no cuenta como paso ni bloquea el flujo.", accent: "from-amber-400 to-yellow-600" },
+];
+
+function isAnnotationNodeType(type: NarrativeNodeType) {
+  return type === "INSTRUCTION";
+}
+
+function isFlowNodeType(type: NarrativeNodeType) {
+  return !isAnnotationNodeType(type);
+}
+
+function getNodeType(node?: Pick<Node<FlowNodeData>, "type" | "data"> | null) {
+  return (node?.data?.nodeType ?? node?.type) as NarrativeNodeType | undefined;
+}
+
+function isAnnotationNode(node?: Pick<Node<FlowNodeData>, "type" | "data"> | null) {
+  const type = getNodeType(node);
+  return type ? isAnnotationNodeType(type) : false;
+}
+
+function isAnnotationEdge(edge: Pick<Edge, "source" | "target">, nodeById: Map<string, Node<FlowNodeData>>) {
+  return isAnnotationNode(nodeById.get(edge.source)) || isAnnotationNode(nodeById.get(edge.target));
+}
+
+function getExecutionEdges(nodes: Node<FlowNodeData>[], edges: Edge[]) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+  const directFlowEdges = edges.filter((edge) => !isAnnotationEdge(edge, nodeById));
+  const virtualBypassEdges = nodes
+    .filter((node) => isAnnotationNode(node))
+    .flatMap((node) => {
+      const incoming = edges.filter((edge) => {
+        const sourceType = getNodeType(nodeById.get(edge.source));
+        return edge.target === node.id && Boolean(sourceType && isFlowNodeType(sourceType));
+      });
+      const outgoing = edges.filter((edge) => {
+        const targetType = getNodeType(nodeById.get(edge.target));
+        return edge.source === node.id && Boolean(targetType && isFlowNodeType(targetType));
+      });
+      return incoming.flatMap((input) =>
+        outgoing.map((output) => ({
+          id: `annotation-bypass:${input.id}:${output.id}`,
+          source: input.source,
+          target: output.target,
+          label: input.label,
+        } as Edge)),
+      );
+    });
+  return [...directFlowEdges, ...virtualBypassEdges];
+}
 
 const DEFAULT_NODE_DATA: Record<NarrativeNodeType, Record<string, unknown>> = {
   START: { label: "Inicio" },
@@ -173,16 +223,21 @@ function autoLayout(nodes: Node<FlowNodeData>[], edges: Edge[]) {
   g.setGraph({ rankdir: "TB", ranksep: 100, nodesep: 50 });
   g.setDefaultEdgeLabel(() => ({}));
 
-  nodes.forEach((node) => {
+  const flowNodes = nodes.filter((node) => !isAnnotationNode(node));
+  const annotationNodes = nodes.filter((node) => isAnnotationNode(node));
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+  const flowEdges = getExecutionEdges(nodes, edges);
+
+  flowNodes.forEach((node) => {
     g.setNode(node.id, { width: 240, height: 100 });
   });
-  edges.forEach((edge) => {
+  flowEdges.forEach((edge) => {
     g.setEdge(edge.source, edge.target);
   });
 
   dagre.layout(g);
 
-  return nodes.map((node) => {
+  const positionedFlowNodes = flowNodes.map((node) => {
     const pos = g.node(node.id);
     return {
       ...node,
@@ -192,6 +247,24 @@ function autoLayout(nodes: Node<FlowNodeData>[], edges: Edge[]) {
       },
     };
   });
+  const positionedById = new Map(positionedFlowNodes.map((node) => [node.id, node] as const));
+  const positionedAnnotations = annotationNodes.map((node, index) => {
+    const connectedFlowEdge = edges.find((edge) => {
+      if (edge.source === node.id) return !isAnnotationNode(nodeById.get(edge.target));
+      if (edge.target === node.id) return !isAnnotationNode(nodeById.get(edge.source));
+      return false;
+    });
+    const anchorId = connectedFlowEdge?.source === node.id ? connectedFlowEdge.target : connectedFlowEdge?.source;
+    const anchor = anchorId ? positionedById.get(anchorId) : null;
+    return {
+      ...node,
+      position: anchor
+        ? { x: anchor.position.x + 320, y: anchor.position.y + 24 }
+        : { x: 420, y: 120 + index * 190 },
+    };
+  });
+
+  return [...positionedFlowNodes, ...positionedAnnotations];
 }
 
 function nodeSummary(node: Node<FlowNodeData>) {
@@ -408,6 +481,44 @@ function NarrativeFlowNode({ data, selected, type }: NodeProps) {
   const summary =
     flowData.builderSummary ?? nodeSummary({ data: flowData, type: nodeType } as Node<FlowNodeData>);
   const badges = flowData.builderBadges ?? [];
+
+  if (nodeType === "INSTRUCTION") {
+    return (
+      <div
+        className={`relative min-w-[260px] max-w-[320px] rotate-[-0.6deg] rounded-bl-[34px] rounded-br-xl rounded-tl-xl rounded-tr-[34px] border-2 border-amber-300/35 bg-gradient-to-br from-amber-300/25 via-[#2a1d0d] to-[#15100a] px-4 py-4 text-amber-50 shadow-elevation-2 ${
+          selected ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-surface" : ""
+        }`}
+      >
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="!h-3 !w-3 !border-2 !border-surface !bg-amber-300"
+        />
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!h-3 !w-3 !border-2 !border-surface !bg-amber-300"
+        />
+        <div className="flex items-start gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-amber-300/20 text-xs font-black uppercase tracking-[0.2em] text-amber-200">
+            NT
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">Instrucción</p>
+              <span className="rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-100">
+                Nota
+              </span>
+              <span className={`h-2 w-2 rounded-full ${statusDotClassName(flowData.builderStatus)}`} />
+            </div>
+            <p className="mt-2 line-clamp-4 text-sm font-semibold leading-relaxed text-amber-50">{summary}</p>
+            <p className="mt-3 text-[11px] font-semibold text-amber-100/70">No cuenta como paso ni bloquea publicación.</p>
+          </div>
+        </div>
+        <span className="absolute bottom-3 right-3 h-7 w-7 rounded-br-lg border-b-2 border-r-2 border-amber-200/35" />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -763,6 +874,25 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     return { incoming, outgoing };
   }, [edges, nodes]);
 
+  const executionEdges = useMemo(() => getExecutionEdges(nodes, edges), [edges, nodes]);
+
+  const executionGraphMetrics = useMemo(() => {
+    const incoming = new Map<string, number>();
+    const outgoing = new Map<string, number>();
+
+    for (const node of nodes) {
+      incoming.set(node.id, 0);
+      outgoing.set(node.id, 0);
+    }
+
+    for (const edge of executionEdges) {
+      incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+      outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
+    }
+
+    return { incoming, outgoing };
+  }, [executionEdges, nodes]);
+
   const localValidationIssues = useMemo<BuilderValidationIssue[]>(() => {
     const issues: BuilderValidationIssue[] = [];
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -792,8 +922,12 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     for (const node of nodes) {
       const nodeType = (node.data?.nodeType ?? node.type) as NarrativeNodeType;
       const nodeLabel = getNodeDisplayName(node);
-      const incomingCount = graphMetrics.incoming.get(node.id) ?? 0;
-      const outgoingCount = graphMetrics.outgoing.get(node.id) ?? 0;
+      const incomingCount = isAnnotationNodeType(nodeType)
+        ? graphMetrics.incoming.get(node.id) ?? 0
+        : executionGraphMetrics.incoming.get(node.id) ?? 0;
+      const outgoingCount = isAnnotationNodeType(nodeType)
+        ? graphMetrics.outgoing.get(node.id) ?? 0
+        : executionGraphMetrics.outgoing.get(node.id) ?? 0;
 
       if (nodeType === "START") {
         if (incomingCount > 0) {
@@ -935,6 +1069,17 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
             source: "local",
           });
         }
+        if ((graphMetrics.incoming.get(node.id) ?? 0) > 0 && (graphMetrics.outgoing.get(node.id) ?? 0) > 0) {
+          issues.push({
+            id: `instruction-bypass-${node.id}`,
+            level: "warning",
+            message: `La instrucción "${nodeLabel}" se tratará como nota; la ejecución hará bypass de esta anotación.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "instruction-bypass",
+            source: "local",
+          });
+        }
       }
 
       if (nodeType === "PAUSE") {
@@ -966,7 +1111,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
       if (nodeType === "DECISION") {
         const question = String(node.data?.question ?? "").trim();
         const options = normalizeDecisionOptions(node.data?.options);
-        const outgoingEdges = findDecisionOutgoingEdges(node.id, edges);
+        const outgoingEdges = findDecisionOutgoingEdges(node.id, executionEdges);
         const labels = options.map((option) => option.label.toLowerCase());
         const emptyLabels = options.filter((option) => !option.label.trim());
         const routeCoverage = decisionRouteCoverage(options, outgoingEdges);
@@ -1087,7 +1232,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         visited.add(nodeId);
         visiting.add(nodeId);
 
-        for (const edge of edges.filter((item) => item.source === nodeId)) {
+        for (const edge of executionEdges.filter((item) => item.source === nodeId)) {
           walk(edge.target);
         }
 
@@ -1111,7 +1256,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         });
       }
 
-      for (const node of nodes) {
+      for (const node of nodes.filter((item) => isFlowNodeType((item.data?.nodeType ?? item.type) as NarrativeNodeType))) {
         if (!visited.has(node.id)) {
           issues.push({
             id: `graph-unreachable-${node.id}`,
@@ -1127,7 +1272,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     }
 
     return issues;
-  }, [audioMap, buttonMap, edges, graphMetrics.incoming, graphMetrics.outgoing, nodes]);
+  }, [audioMap, buttonMap, edges, executionEdges, executionGraphMetrics.incoming, executionGraphMetrics.outgoing, graphMetrics.incoming, graphMetrics.outgoing, nodes]);
 
   const backendValidationIssues = useMemo(() => {
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
@@ -1272,8 +1417,12 @@ try {
     () =>
       nodes.map((node) => {
         const nodeType = (node.data?.nodeType ?? node.type) as NarrativeNodeType;
-        const outgoingCount = graphMetrics.outgoing.get(node.id) ?? 0;
-        const incomingCount = graphMetrics.incoming.get(node.id) ?? 0;
+        const outgoingCount = isAnnotationNodeType(nodeType)
+          ? graphMetrics.outgoing.get(node.id) ?? 0
+          : executionGraphMetrics.outgoing.get(node.id) ?? 0;
+        const incomingCount = isAnnotationNodeType(nodeType)
+          ? graphMetrics.incoming.get(node.id) ?? 0
+          : executionGraphMetrics.incoming.get(node.id) ?? 0;
         const badges: BuilderBadge[] = [];
         let summary = nodeSummary(node);
         let status: FlowNodeData["builderStatus"] = "valid";
@@ -1382,7 +1531,7 @@ try {
           case "DECISION": {
             const question = String(node.data?.question ?? "").trim();
             const options = normalizeDecisionOptions(node.data?.options);
-            const routeCoverage = decisionRouteCoverage(options, findDecisionOutgoingEdges(node.id, edges));
+            const routeCoverage = decisionRouteCoverage(options, findDecisionOutgoingEdges(node.id, executionEdges));
             summary = question
               ? `${question} · ${options.length} opción${options.length === 1 ? "" : "es"} · ${routeCoverage.matchedOptionIds.size}/${options.length} rutas`
               : "Define la pregunta y sus rutas";
@@ -1422,8 +1571,37 @@ try {
           } as FlowNodeData,
         };
       }),
-    [audioMap, buttonMap, edges, graphMetrics.incoming, graphMetrics.outgoing, nodes],
+    [audioMap, buttonMap, edges, executionEdges, executionGraphMetrics.incoming, executionGraphMetrics.outgoing, graphMetrics.incoming, graphMetrics.outgoing, nodes],
   );
+
+  const displayEdges = useMemo(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+    return edges.map((edge) => {
+      if (!isAnnotationEdge(edge, nodeById)) return edge;
+      return {
+        ...edge,
+        type: "straight",
+        animated: false,
+        label: edge.label ?? "Nota",
+        style: {
+          ...(edge.style ?? {}),
+          stroke: "rgba(245, 158, 11, 0.75)",
+          strokeWidth: 1.8,
+          strokeDasharray: "6 6",
+        },
+        labelStyle: {
+          ...(edge.labelStyle ?? {}),
+          fill: "rgb(251, 191, 36)",
+          fontWeight: 700,
+        },
+        labelBgStyle: {
+          fill: "rgba(42, 29, 13, 0.92)",
+          stroke: "rgba(245, 158, 11, 0.28)",
+          strokeWidth: 1,
+        },
+      };
+    });
+  }, [edges, nodes]);
 
   function addNode(type: NarrativeNodeType) {
     const id = makeNodeId(type);
@@ -1605,11 +1783,13 @@ try {
 
   const onConnect = useCallback((connection: Connection) => {
     const sourceNode = nodes.find((node) => node.id === connection.source);
-    let defaultLabel = "Siguiente";
+    const targetNode = nodes.find((node) => node.id === connection.target);
+    const annotationConnection = isAnnotationNode(sourceNode) || isAnnotationNode(targetNode);
+    let defaultLabel = annotationConnection ? "Nota" : "Siguiente";
 
-    if (sourceNode?.data?.nodeType === "DECISION") {
+    if (!annotationConnection && sourceNode?.data?.nodeType === "DECISION") {
       const decisionOptions = normalizeDecisionOptions(sourceNode.data?.options);
-      const outgoingEdges = findDecisionOutgoingEdges(sourceNode.id, edges);
+      const outgoingEdges = findDecisionOutgoingEdges(sourceNode.id, executionEdges);
       const routeCoverage = decisionRouteCoverage(decisionOptions, outgoingEdges);
       defaultLabel =
         routeCoverage.missingOptions[0]?.label ??
@@ -1625,12 +1805,12 @@ try {
           ...connection,
           id: `edge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           label: label || defaultLabel,
-          type: "smoothstep",
+          type: annotationConnection ? "straight" : "smoothstep",
         },
         current,
       ),
     );
-  }, [edges, nodes]);
+  }, [executionEdges, nodes]);
 
   async function saveGraph() {
     setSaving(true);
@@ -2068,9 +2248,13 @@ try {
 
           {editingNode.data?.nodeType === "INSTRUCTION" && (
             <>
+              <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-200">
+                Las instrucciones funcionan como notas operativas. No cuentan como pasos del flujo, pueden estar desconectadas y no bloquean la ejecución.
+              </div>
+
               <ModalSection
-                title="Contenido"
-                description="Instrucción operativa que el operador debe seguir."
+                title="Nota operativa"
+                description="Recordatorio o ayuda contextual para el operador. Se muestra como anotación en el player."
               >
                 <label className="grid gap-1.5">
                   <FieldLabel>Instrucción</FieldLabel>
@@ -2084,7 +2268,7 @@ try {
 
               <ModalSection
                 title="Notas para admin"
-                description="Observaciones internas para revisar o mantener este paso."
+                description="Observaciones internas para revisar o mantener esta anotación."
               >
                 <label className="grid gap-1.5">
                   <FieldLabel>Notas internas</FieldLabel>
@@ -2382,23 +2566,46 @@ if (loading) {
           </h2>
         </div>
 
-        <div className="space-y-1.5">
-          {NODE_PALETTE.map((item) => (
-            <button
-              key={item.type}
-              type="button"
-              onClick={() => addNode(item.type)}
-              className="group flex w-full items-center gap-2.5 rounded-xl border border-outline-variant bg-surface px-2.5 py-2 text-left transition-colors hover:border-primary"
-            >
-              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.accent} text-white shadow-sm`}>
-                <Plus className="h-3.5 w-3.5" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-semibold text-on-surface">{item.label}</span>
-                <span className="block text-[10px] leading-tight text-on-surface-variant truncate">{item.description}</span>
-              </span>
-            </button>
-          ))}
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant">Pasos del flujo</p>
+            {NODE_PALETTE.map((item) => (
+              <button
+                key={item.type}
+                type="button"
+                onClick={() => addNode(item.type)}
+                className="group flex w-full items-center gap-2.5 rounded-xl border border-outline-variant bg-surface px-2.5 py-2 text-left transition-colors hover:border-primary"
+              >
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.accent} text-white shadow-sm`}>
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold text-on-surface">{item.label}</span>
+                  <span className="block text-[10px] leading-tight text-on-surface-variant truncate">{item.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-400">Anotaciones</p>
+            {ANNOTATION_PALETTE.map((item) => (
+              <button
+                key={item.type}
+                type="button"
+                onClick={() => addNode(item.type)}
+                className="group flex w-full items-center gap-2.5 rounded-xl border border-amber-300/25 bg-amber-500/10 px-2.5 py-2 text-left transition-colors hover:border-amber-300/60"
+              >
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.accent} text-white shadow-sm`}>
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold text-on-surface">{item.label}</span>
+                  <span className="block text-[10px] leading-tight text-on-surface-variant">{item.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="rounded-xl border border-outline-variant bg-surface px-3 py-2 mt-4">
@@ -2708,7 +2915,7 @@ if (loading) {
         <div className="flex-1 min-h-0 w-full">
           <ReactFlow
             nodes={flowNodes}
-            edges={edges}
+            edges={displayEdges}
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}

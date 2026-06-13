@@ -296,3 +296,20 @@ Nota: el lint de backend usa `--fix`, así que no se toma como check pasivo est�
 ## Comandos útiles para build
 - `npm --prefix frontend run build`
 - `npm --prefix backend run build`
+
+## Instruction Annotation Semantics
+- `INSTRUCTION` ahora se trata como anotación operativa, no como paso de ejecución.
+- Flow nodes: `START`, `AUDIO`, `AUDIO_BUTTON`, `SCRIPT_TEXT`, `PAUSE`, `DECISION`, `END`.
+- Annotation nodes: `INSTRUCTION`.
+- Builder:
+  - La paleta separa `INSTRUCTION` en `Anotaciones`.
+  - `INSTRUCTION` se renderiza como post-it/nota operativa.
+  - Las conexiones hacia/desde `INSTRUCTION` se renderizan punteadas como asociaciones visuales.
+  - Auto-layout ubica instrucciones al costado del nodo asociado o en zona lateral.
+- Validación:
+  - `INSTRUCTION` no participa en alcanzabilidad, ciclos ni requisitos de entrada/salida.
+  - `INSTRUCTION` desconectada no bloquea publicación.
+  - Si `INSTRUCTION` queda entre dos nodos de flujo, se muestra advertencia de bypass.
+- Compatibilidad:
+  - No se eliminan conexiones legacy.
+  - Grafos `A -> INSTRUCTION -> B` se validan y ejecutan con bypass virtual `A -> B`.
