@@ -380,6 +380,44 @@ Pendientes:
 Próximo hito:
 - Commit/push del bloque y validación manual en navegador.
 
+## UI Polish — Bloque 2
+
+Fecha:
+2026-06-13
+
+Rama:
+feature/narratives-player-ui-polish
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Se rematan estados y aristas con labels dark tipo chip y contraste más consistente con el tema oscuro del player canvas.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- Las aristas dejan de verse como etiquetas blancas técnicas.
+- El flujo guiado se siente más integrado al dark theme.
+
+Riesgos:
+- Queda pendiente revisión visual final con una narrativa larga.
+
+Pendientes:
+- Validación manual final e integración a `dev` si el look está aprobado.
+
+Próximo hito:
+- Merge a `dev` tras validación visual.
+
 Pendientes:
 - Cierre fino y pulido de UX final.
 

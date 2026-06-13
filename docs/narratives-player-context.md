@@ -156,3 +156,4 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
   - dock inferior compacto para leyenda, estado y actividad
   - nodos `START`, `END`, `SCRIPT_TEXT`, `INSTRUCTION`, `AUDIO`, `AUDIO_BUTTON`, `PAUSE` y `DECISION` con mayor expresividad visual
   - botón de tres puntos en nodos para abrir acciones como fallback al clic derecho
+  - labels de aristas como chips dark en lugar de etiquetas blancas

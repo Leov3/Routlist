@@ -740,17 +740,25 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       source: edge.source,
       target: edge.target,
       label: edge.label ?? undefined,
+      labelShowBg: Boolean(edge.label),
+      labelBgPadding: [8, 4],
+      labelBgBorderRadius: 999,
+      labelBgStyle: {
+        fill: "rgba(15, 23, 42, 0.88)",
+        stroke: "rgba(148, 163, 184, 0.18)",
+        strokeWidth: 1,
+      },
       animated: edgeState(edge) === "active",
       selectable: false,
       style:
         edgeState(edge) === "traversed"
-          ? { stroke: "rgba(16, 185, 129, 0.85)", strokeWidth: 2.2 }
+          ? { stroke: "rgba(16, 185, 129, 0.85)", strokeWidth: 2.4 }
           : edgeState(edge) === "active"
-            ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.4 }
+            ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.8 }
             : edgeState(edge) === "not-taken"
               ? { stroke: "rgba(244, 114, 182, 0.4)", strokeWidth: 1.6, strokeDasharray: "6 4" }
-              : { stroke: "rgba(148, 163, 184, 0.35)", strokeWidth: 1.3 },
-      labelStyle: { fill: "rgb(148, 163, 184)", fontSize: 11, fontWeight: 600 },
+              : { stroke: "rgba(148, 163, 184, 0.28)", strokeWidth: 1.4 },
+      labelStyle: { fill: "rgb(203, 213, 225)", fontSize: 10, fontWeight: 700 },
     }));
   }, [completedIds, edges, run?.currentNodeId, selectedDecisionTargets]);
 
