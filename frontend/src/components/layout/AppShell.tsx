@@ -22,6 +22,7 @@ import {
   PanelTop,
   Settings,
   Sun,
+  Workflow,
   User,
   Users,
   Zap,
@@ -48,6 +49,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/audios",    label: "Audios",           icon: Library,   permissions: ["audio:create"] },
   { href: "/admin/storage",   label: "Almacenamiento",   icon: HardDrive, roles: ["OWNER"] },
   { href: "/admin/categories",label: "Categorías",       icon: ListMusic, permissions: ["category:create"] },
+  { href: "/admin/narratives",label: "Narrativas",       icon: Workflow,  permissions: ["narratives:view"] },
   { href: "/admin/buttons",   label: "Botones",          icon: PanelTop,  permissions: ["button:create"] },
   { href: "/admin/users",     label: "Usuarios",         icon: Users,     permissions: ["user:create"] },
   { href: "/admin/history",   label: "Historial",        icon: History,   permissions: ["history:read"] },
@@ -355,6 +357,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 
 function getPageTitle(pathname: string) {
   if (pathname === "/board") return "/Botonera";
+  if (pathname.startsWith("/admin/narratives")) return "/Narrativas";
   if (pathname === "/admin/buttons") return "/Botones";
   if (pathname === "/admin/organizations") return "/Organizaciones";
   if (pathname === "/admin/audios") return "/Audios";
