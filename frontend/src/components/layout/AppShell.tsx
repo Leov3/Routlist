@@ -337,10 +337,10 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
           </div>
         </header>
 
-        {/* Scrollable content */}
-        <main className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-          <div className="flex-1 p-6 lg:p-8">{children}</div>
-        </main>
+{/* Scrollable content */}
+         <main className="flex flex-1 flex-col overflow-hidden">
+           <div className="flex-1 p-6 lg:p-8">{children}</div>
+         </main>
       </div>
 
       <AccountSettingsModal

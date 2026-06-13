@@ -5,7 +5,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type CSSProperties,
 } from "react";
 import {
   Background,
@@ -29,19 +28,18 @@ import {
   CheckCircle2,
   CopyPlus,
   FileDown,
-  Layers3,
   Plus,
   Save,
-  Sparkles,
   TriangleAlert,
   WandSparkles,
+  ArrowLeft,
+  RefreshCw,
 } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type {
   NarrativeBuilderState,
-  NarrativeGraphEdge,
   NarrativeGraphJson,
-  NarrativeGraphNode,
   NarrativeNodeType,
   NarrativeVersion,
 } from "@/types/narratives";
@@ -145,10 +143,32 @@ function makeNodeId(type: NarrativeNodeType) {
   return `${type.toLowerCase()}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function nodeTitle(node: Node<FlowNodeData>) {
-  const nodeType = (node.data?.nodeType ?? node.type) as NarrativeNodeType;
-  const data = node.data ?? { nodeType };
-  return data.title || data.label || NODE_PALETTE.find((item) => item.type === nodeType)?.label || nodeType;
+import dagre from "dagre";
+
+function autoLayout(nodes: Node<FlowNodeData>[], edges: Edge[]) {
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: "TB", ranksep: 100, nodesep: 50 });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  nodes.forEach((node) => {
+    g.setNode(node.id, { width: 240, height: 100 });
+  });
+  edges.forEach((edge) => {
+    g.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(g);
+
+  return nodes.map((node) => {
+    const pos = g.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: pos.x - 120,
+        y: pos.y - 50,
+      },
+    };
+  });
 }
 
 function nodeSummary(node: Node<FlowNodeData>) {
@@ -288,11 +308,6 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [audios, setAudios] = useState<{ id: string; name: string }[]>([]);
   const [buttons, setButtons] = useState<{ id: string; label: string; category?: { name: string } }[]>([]);
 
-  const selectedNode = useMemo(
-    () => nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId],
-  );
-
   const editingNode = useMemo(
     () => nodes.find((node) => node.id === editingNodeId) ?? null,
     [nodes, editingNodeId],
@@ -409,6 +424,10 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         setSelectedNodeId(null);
       }
     }
+  }
+
+  function autoLayoutNodes() {
+    setNodes((current) => autoLayout(current, edges));
   }
 
   const onConnect = useCallback((connection: Connection) => {
@@ -816,7 +835,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     </div>
   ) : null;
 
-  if (loading) {
+if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center rounded-[28px] border border-outline-variant bg-surface-container text-sm text-on-surface-variant">
         Cargando builder de narrativa...
@@ -825,118 +844,124 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)] relative">
+    <div className="flex h-full min-h-0 flex-col lg:grid lg:gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
       {/* Palette */}
-      <aside className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1">
+      <aside className="space-y-3 rounded-2xl border border-outline-variant bg-surface-container p-3 shadow-elevation-1 max-h-[300px] lg:max-h-none overflow-y-auto">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-            Biblioteca
-          </p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
+          <h2 className="text-sm font-semibold tracking-tight text-on-surface uppercase tracking-[0.1em]">
             Nodos
           </h2>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {NODE_PALETTE.map((item) => (
             <button
               key={item.type}
               type="button"
               onClick={() => addNode(item.type)}
-              className="group flex w-full items-start gap-3 rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-left transition-colors hover:border-primary"
+              className="group flex w-full items-center gap-2.5 rounded-xl border border-outline-variant bg-surface px-2.5 py-2 text-left transition-colors hover:border-primary"
             >
-              <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${item.accent} text-white shadow-elevation-1`}>
-                <Plus className="h-4 w-4" />
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.accent} text-white shadow-sm`}>
+                <Plus className="h-3.5 w-3.5" />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-on-surface">{item.label}</span>
-                <span className="block text-xs text-on-surface-variant">{item.description}</span>
+                <span className="block text-xs font-semibold text-on-surface">{item.label}</span>
+                <span className="block text-[10px] leading-tight text-on-surface-variant truncate">{item.description}</span>
               </span>
             </button>
           ))}
         </div>
 
-        <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+        <div className="rounded-xl border border-outline-variant bg-surface px-3 py-2 mt-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-on-surface-variant">
             Estado
           </p>
-          <div className="mt-2 grid gap-2 text-sm">
+          <div className="mt-1.5 grid gap-1 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-on-surface-variant">Versión</span>
               <span className="font-semibold text-on-surface">
-                {selectedVersion ? `v${selectedVersion.versionNumber}` : "Sin versión"}
+                {selectedVersion ? `v${selectedVersion.versionNumber}` : "Ninguna"}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-on-surface-variant">Nodos</span>
               <span className="font-semibold text-on-surface">{nodes.length}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-on-surface-variant">Conexiones</span>
-              <span className="font-semibold text-on-surface">{edges.length}</span>
-            </div>
           </div>
         </div>
       </aside>
 
       {/* Canvas */}
-      <section className="overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container shadow-elevation-1">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-4 py-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-              Canvas
-            </p>
-            <h2 className="text-lg font-semibold tracking-tight text-on-surface">
-              Builder visual
+      <section className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container shadow-elevation-1 flex flex-col min-h-[400px] lg:min-h-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-3 py-2 bg-surface/50">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin/narratives"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-outline-variant bg-surface text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+              title="Volver al listado"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <h2 className="text-sm font-semibold tracking-tight text-on-surface">
+              Lienzo de Narrativa
             </h2>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => void saveGraph()}
               disabled={saving}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
             >
-              <Save className="h-4 w-4" />
-              {saving ? "Guardando..." : "Guardar"}
+              <Save className="h-3.5 w-3.5" />
+              {saving ? "..." : "Guardar"}
             </button>
             <button
               type="button"
               onClick={() => void validateGraph()}
               disabled={working}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
             >
-              <WandSparkles className="h-4 w-4" />
+              <WandSparkles className="h-3.5 w-3.5" />
               Validar
+            </button>
+            <button
+              type="button"
+              onClick={() => autoLayoutNodes()}
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+              title="Auto organizar nodos"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Auto
+            </button>
+            <button
+              type="button"
+              onClick={duplicateFromPublished}
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+            >
+              <CopyPlus className="h-3.5 w-3.5" />
+              Copiar pub.
             </button>
             <button
               type="button"
               onClick={() => void publishGraph()}
               disabled={working}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:opacity-70"
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-semibold text-on-primary transition-transform hover:scale-[1.02] disabled:opacity-70"
             >
-              <FileDown className="h-4 w-4" />
+              <FileDown className="h-3.5 w-3.5" />
               Publicar
-            </button>
-            <button
-              type="button"
-              onClick={duplicateFromPublished}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-            >
-              <CopyPlus className="h-4 w-4" />
-              Copiar publicada
             </button>
           </div>
         </div>
 
         {message && (
-          <div className="m-4 rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface-variant">
+          <div className="m-3 rounded-xl border border-outline-variant bg-surface px-4 py-2 text-sm text-on-surface-variant">
             {message}
           </div>
         )}
 
-        <div className="h-[760px]">
+        <div className="flex-1 min-h-0 w-full">
           <ReactFlow
             nodes={flowNodes}
             edges={edges}
