@@ -174,4 +174,4 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - Checks:
   - `npm --prefix frontend run build` completado correctamente.
 - Último commit:
-  - Pendiente.
+  - `cdf898e` `feat(narratives-player): polish execution node widgets`

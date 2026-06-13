@@ -348,10 +348,10 @@ Rama:
 feature/narratives-player-ui-polish
 
 Commit:
-Pendiente
+cdf898e
 
 Push:
-Pendiente
+origin/dev
 
 Resumen:
 Se aplica el primer bloque de pulido integral de UI/UX: header operativo compacto, canvas protagonista, controles flotantes dark, minimap oculto, dock inferior operacional y nodos más expresivos con acceso directo a acciones.
