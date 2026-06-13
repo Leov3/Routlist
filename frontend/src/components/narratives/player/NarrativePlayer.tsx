@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowRight,
@@ -22,6 +23,7 @@ import type {
   NarrativeRunDetail,
   NarrativeRunEventType,
 } from "@/types/narratives";
+import { ApiError } from "@/lib/api";
 
 type NarrativePlayerProps = {
   runId: string;
@@ -121,6 +123,7 @@ function formatDateTime(value?: string | null) {
 }
 
 export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps) {
+  const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const [run, setRun] = useState<NarrativeRunDetail | null>(null);
@@ -130,6 +133,21 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [isPlaying, setIsPlaying] = useState(false);
   const [runCompleted, setRunCompleted] = useState(false);
   const [selectedDecisionTarget, setSelectedDecisionTarget] = useState<string | null>(null);
+
+  function handleApiError(error: unknown, fallbackMessage: string) {
+    if (error instanceof ApiError) {
+      if (error.status === 401) {
+        router.replace("/login");
+        return "Tu sesión expiró o fue cerrada en otro dispositivo.";
+      }
+      if (error.status === 403) {
+        return "No tienes permisos para ejecutar esta narrativa.";
+      }
+      return error.message || fallbackMessage;
+    }
+
+    return error instanceof Error ? error.message : fallbackMessage;
+  }
 
   const { nodes, edges } = useMemo(() => readGraph(run?.narrativeVersion.graphJson ?? null), [run]);
   const nodeMap = useMemo(
@@ -192,12 +210,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       setRun(detail);
       setRunCompleted(detail.status !== "RUNNING");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo cargar la ejecución.");
+      setMessage(handleApiError(error, "No se pudo cargar la ejecución."));
       setRun(null);
     } finally {
       setLoading(false);
     }
-  }, [runId]);
+  }, [runId, router]);
 
   useEffect(() => {
     void load();
@@ -250,7 +268,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       await load();
       onReloadRequest?.();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la ejecución.");
+      setMessage(handleApiError(error, "No se pudo actualizar la ejecución."));
     } finally {
       setWorking(false);
     }
@@ -331,7 +349,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         }),
       });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo reproducir el audio.");
+      setMessage(handleApiError(error, "No se pudo reproducir el audio."));
     } finally {
       setWorking(false);
     }
@@ -367,7 +385,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       await load();
       setRunCompleted(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo finalizar la ejecución.");
+      setMessage(handleApiError(error, "No se pudo finalizar la ejecución."));
     } finally {
       setWorking(false);
     }
@@ -384,7 +402,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       await load();
       setRunCompleted(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo cancelar la ejecución.");
+      setMessage(handleApiError(error, "No se pudo cancelar la ejecución."));
     } finally {
       setWorking(false);
     }
