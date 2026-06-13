@@ -1428,13 +1428,183 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             ×
                           </button>
                         </div>
-                        <div className="p-4">
-                          <h4 className="font-semibold text-on-surface">{nodeLabel(ctxNode)}</h4>
-                          <p className="mt-1 text-sm text-on-surface-variant">{nodeSummary(ctxNode)}</p>
-                          
-                          <div className="mt-4 rounded-xl border border-dashed border-outline-variant bg-surface-container px-3 py-4 text-center text-xs text-on-surface-variant">
-                            Las acciones específicas de este nodo (reproducir, elegir, etc.) se inyectarán en el Hito 4.
+                        <div className="p-4 space-y-4">
+                          <div>
+                            <h4 className="font-semibold text-on-surface">{nodeLabel(ctxNode)}</h4>
+                            <p className="mt-1 text-sm text-on-surface-variant">{nodeSummary(ctxNode)}</p>
                           </div>
+
+                          {/* === AUDIO / AUDIO_BUTTON actions === */}
+                          {(ctxNode.type === "AUDIO" || ctxNode.type === "AUDIO_BUTTON") && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            const canAct = isCurrentNode;
+                            return (
+                              <div className="space-y-3">
+                                {/* Barra de progreso si está reproduciendo */}
+                                {isCurrentNode && playbackState !== "idle" && playbackProgress.duration > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] text-on-surface-variant">
+                                      <span>{Math.floor(playbackProgress.current)}s</span>
+                                      <span>{Math.floor(playbackProgress.duration)}s</span>
+                                    </div>
+                                    <div className="h-1.5 w-full rounded-full bg-on-surface/10">
+                                      <div
+                                        className="h-1.5 rounded-full bg-primary transition-all"
+                                        style={{ width: `${playbackProgress.duration > 0 ? (playbackProgress.current / playbackProgress.duration) * 100 : 0}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Audio element oculto — solo para el nodo actual */}
+                                {isCurrentNode && renderAudioControls(nodeLabel(ctxNode))}
+                                <div className="flex flex-wrap gap-2">
+                                  {canAct && playbackState === "idle" && (
+                                    <button type="button" onClick={() => { void playAudio(); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90">
+                                      <Play className="h-3.5 w-3.5 fill-current" /> Reproducir
+                                    </button>
+                                  )}
+                                  {canAct && playbackState === "playing" && (
+                                    <button type="button" onClick={() => { void pauseAudio(); }} className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-primary">
+                                      <Pause className="h-3.5 w-3.5 fill-current" /> Pausar
+                                    </button>
+                                  )}
+                                  {canAct && playbackState === "paused" && (
+                                    <button type="button" onClick={() => { void playAudio(); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90">
+                                      <Play className="h-3.5 w-3.5 fill-current" /> Reanudar
+                                    </button>
+                                  )}
+                                  {canAct && playbackState !== "idle" && (
+                                    <button type="button" onClick={() => { void stopAudio(); }} className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-red-400 hover:text-red-400">
+                                      <Square className="h-3.5 w-3.5 fill-current" /> Detener
+                                    </button>
+                                  )}
+                                  {canAct && (
+                                    <button type="button" onClick={() => { void completeCurrentNode(true); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20">
+                                      <CheckCircle2 className="h-3.5 w-3.5" /> Marcar completado
+                                    </button>
+                                  )}
+                                  {!canAct && (
+                                    <p className="text-xs text-on-surface-variant">Sólo disponible cuando sea el paso actual.</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* === SCRIPT_TEXT actions === */}
+                          {ctxNode.type === "SCRIPT_TEXT" && (() => {
+                            const text = (ctxNode.data as any)?.text ?? nodeLabel(ctxNode);
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            return (
+                              <div className="space-y-3">
+                                <div className="max-h-48 overflow-y-auto rounded-xl border border-outline-variant bg-surface-container p-3 text-sm text-on-surface">
+                                  <p className="leading-relaxed">"{ text }"</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <button type="button" onClick={() => { void navigator.clipboard.writeText(text); }} className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-primary">
+                                    <Copy className="h-3.5 w-3.5" /> Copiar texto
+                                  </button>
+                                  {isCurrentNode && (
+                                    <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary">
+                                      <ArrowRight className="h-3.5 w-3.5" /> Leído · Continuar
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* === INSTRUCTION actions === */}
+                          {ctxNode.type === "INSTRUCTION" && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            return (
+                              <div className="space-y-3">
+                                <div className="rounded-xl border-l-4 border-l-amber-500 bg-amber-500/10 p-3 text-sm text-amber-100">
+                                  {nodeLabel(ctxNode)}
+                                </div>
+                                {isCurrentNode && (
+                                  <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Entendido · Continuar
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* === PAUSE actions === */}
+                          {ctxNode.type === "PAUSE" && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            const pauseData = ctxNode.data as any;
+                            return (
+                              <div className="space-y-3">
+                                <div className="rounded-xl border border-outline-variant bg-surface p-3 text-sm">
+                                  <p className="text-on-surface-variant">Tipo: <span className="font-semibold text-on-surface">{pauseData?.pauseType === "timer" ? "Temporizador" : "Manual"}</span></p>
+                                  {pauseData?.durationSeconds && <p className="text-on-surface-variant">Duración: <span className="font-semibold text-on-surface">{pauseData.durationSeconds}s</span></p>}
+                                </div>
+                                {isCurrentNode && (
+                                  <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary">
+                                    <ArrowRight className="h-3.5 w-3.5" /> Continuar
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* === DECISION actions === */}
+                          {ctxNode.type === "DECISION" && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            const choices: DecisionChoice[] = (() => {
+                              const raw = (ctxNode.data as any)?.options;
+                              if (Array.isArray(raw)) return raw as DecisionChoice[];
+                              return flowEdges
+                                .filter((e) => e.source === ctxNode.id)
+                                .map((e) => ({ label: (e.label as string) || "Continuar", targetNodeId: e.target }));
+                            })();
+                            return (
+                              <div className="space-y-3">
+                                <p className="text-sm font-semibold text-on-surface">{(ctxNode.data as any)?.question ?? nodeLabel(ctxNode)}</p>
+                                {isCurrentNode ? (
+                                  <div className="flex flex-col gap-2">
+                                    {choices.length > 0 ? choices.map((c) => (
+                                      <button
+                                        key={c.targetNodeId}
+                                        type="button"
+                                        onClick={() => { void chooseDecision(c.targetNodeId, c.label); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }}
+                                        className="w-full rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2.5 text-left text-sm font-semibold text-purple-300 hover:bg-purple-500/20"
+                                      >
+                                        {c.label}
+                                      </button>
+                                    )) : <p className="text-xs text-on-surface-variant">No hay opciones configuradas.</p>}
+                                  </div>
+                                ) : <p className="text-xs text-on-surface-variant">Solo disponible en el paso actual.</p>}
+                              </div>
+                            );
+                          })()}
+
+                          {/* === END actions === */}
+                          {ctxNode.type === "END" && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            return (
+                              <div className="space-y-3">
+                                <div className="rounded-xl border border-outline-variant bg-surface p-3 text-sm text-on-surface-variant">
+                                  {nodeLabel(ctxNode)} — Fin del flujo.
+                                </div>
+                                {isCurrentNode && (
+                                  <button type="button" onClick={() => { void finishRun(); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Finalizar ejecución
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Estado bloqueado */}
+                          {status === "locked" && (
+                            <div className="flex items-start gap-2 rounded-xl border border-outline-variant bg-surface-container px-3 py-2 text-xs text-on-surface-variant">
+                              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                              Este nodo no está disponible aún en la ruta actual.
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1443,36 +1613,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               )}
             </div>
           </section>
-
-          {/* TEMPORARY ACTION PANEL UNTIL HITO 2/4 */}
-          {actionNode ? (
-            <section className="rounded-[28px] border border-primary/20 bg-primary/5 p-5 shadow-elevation-1">
-              <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-                <div className="flex items-start gap-4">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${actionNodeIsCurrent ? "bg-primary text-on-primary" : "bg-surface text-on-surface shadow-sm"}`}>
-                    {actionNode.type.slice(0, 2)}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-on-surface">{nodeLabel(actionNode)}</h3>
-                    <p className="mt-1 text-sm text-on-surface-variant">{nodeSummary(actionNode)}</p>
-                    {actionNodeIsCurrent ? (
-                      <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
-                        Paso actual
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex-1 max-w-2xl rounded-2xl bg-surface p-4 shadow-sm">
-                   {renderActionContent()}
-                </div>
-
-                <div className="flex shrink-0 flex-col gap-2">
-                   {renderActionButtons()}
-                </div>
-              </div>
-            </section>
-          ) : null}
 
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Resumen */}
