@@ -65,6 +65,12 @@ type AudioButtonOption = {
 
 type ApiCollection<T> = T[] | { data?: T[]; items?: T[] };
 
+type DecisionOption = {
+  id: string;
+  label: string;
+  description?: string;
+};
+
 type FlowNodeData = {
   title?: string;
   label?: string;
@@ -82,7 +88,7 @@ type FlowNodeData = {
   pauseType?: string;
   durationSeconds?: string | number;
   manual?: boolean;
-  options?: string;
+  options?: string | string[] | DecisionOption[];
   builderSummary?: string;
   builderStatus?: "valid" | "warning" | "error" | "info";
   builderStatusLabel?: string;
@@ -148,7 +154,10 @@ const DEFAULT_NODE_DATA: Record<NarrativeNodeType, Record<string, unknown>> = {
   DECISION: {
     title: "Decisión",
     question: "¿Qué sigue?",
-    options: "Sí|No",
+    options: [
+      { id: "decision-option-yes", label: "Sí", description: "" },
+      { id: "decision-option-no", label: "No", description: "" },
+    ],
     operatorNotes: "",
   },
   END: { label: "Fin" },
@@ -165,6 +174,10 @@ function graphFromVersions(version?: NarrativeVersion | null): NarrativeGraphJso
 
 function makeNodeId(type: NarrativeNodeType) {
   return `${type.toLowerCase()}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function makeDecisionOptionId() {
+  return `decision-option-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 import dagre from "dagre";
@@ -250,18 +263,34 @@ function statusDotClassName(status: FlowNodeData["builderStatus"]) {
   }
 }
 
-function normalizeDecisionOptions(value: unknown) {
+function normalizeDecisionOptions(value: unknown): DecisionOption[] {
   if (Array.isArray(value)) {
-    return value
-      .map((item) => {
-        if (typeof item === "string") return item.trim();
-        if (item && typeof item === "object" && "label" in item) {
-          const label = item.label;
-          return typeof label === "string" ? label.trim() : "";
+    const normalized: Array<DecisionOption | null> = value
+      .map((item, index) => {
+        if (typeof item === "string") {
+          const label = item.trim();
+          return {
+            id: `legacy-option-${index}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "item"}`,
+            label,
+            description: "",
+          };
         }
-        return "";
-      })
-      .filter(Boolean);
+        if (item && typeof item === "object" && "label" in item) {
+          const option = item as { id?: unknown; label?: unknown; description?: unknown };
+          const label = typeof option.label === "string" ? option.label.trim() : "";
+          return {
+            id:
+              typeof option.id === "string" && option.id.trim()
+                ? option.id
+                : `legacy-option-${index}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "item"}`,
+            label,
+            description: typeof option.description === "string" ? option.description : "",
+          };
+        }
+        return null;
+      });
+
+    return normalized.filter((option): option is DecisionOption => option !== null);
   }
 
   if (typeof value !== "string") return [];
@@ -269,7 +298,82 @@ function normalizeDecisionOptions(value: unknown) {
   return value
     .split("|")
     .map((option) => option.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((label, index) => ({
+      id: `legacy-option-${index}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "item"}`,
+      label,
+      description: "",
+    }));
+}
+
+function normalizeBuilderNodeData(
+  nodeType: NarrativeNodeType,
+  data: Record<string, unknown> | undefined,
+): FlowNodeData {
+  const baseData = {
+    nodeType,
+    ...(data ?? {}),
+  } as FlowNodeData;
+
+  if (nodeType === "DECISION") {
+    return {
+      ...baseData,
+      options: normalizeDecisionOptions(baseData.options),
+    };
+  }
+
+  return baseData;
+}
+
+function serializeNodeData(nodeType: NarrativeNodeType, data: FlowNodeData) {
+  const persistedData = { ...data };
+  delete persistedData.builderSummary;
+  delete persistedData.builderStatus;
+  delete persistedData.builderStatusLabel;
+  delete persistedData.builderBadges;
+
+  if (nodeType === "DECISION") {
+    return {
+      ...persistedData,
+      options: normalizeDecisionOptions(persistedData.options),
+    };
+  }
+
+  return { ...persistedData };
+}
+
+function findDecisionOutgoingEdges(nodeId: string, edges: Edge[]) {
+  return edges.filter((edge) => edge.source === nodeId);
+}
+
+function normalizeDecisionEdgeLabel(label: string | null | undefined) {
+  return String(label ?? "").trim().toLowerCase();
+}
+
+function decisionRouteCoverage(options: DecisionOption[], edges: Edge[]) {
+  const optionLabels = new Map(
+    options
+      .filter((option) => option.label.trim())
+      .map((option) => [normalizeDecisionEdgeLabel(option.label), option]),
+  );
+  const matchedOptionIds = new Set<string>();
+  const unmatchedEdges: Edge[] = [];
+
+  for (const edge of edges) {
+    const key = normalizeDecisionEdgeLabel(edge.label as string | undefined);
+    const option = optionLabels.get(key);
+    if (option) {
+      matchedOptionIds.add(option.id);
+    } else {
+      unmatchedEdges.push(edge);
+    }
+  }
+
+  return {
+    matchedOptionIds,
+    unmatchedEdges,
+    missingOptions: options.filter((option) => !matchedOptionIds.has(option.id)),
+  };
 }
 
 function normalizeGraph(graph: NarrativeGraphJson) {
@@ -278,7 +382,10 @@ function normalizeGraph(graph: NarrativeGraphJson) {
       id: node.id,
       type: node.type,
       position: node.position ?? { x: 0, y: 0 },
-      data: node.data ?? {},
+      data: serializeNodeData(
+        node.type,
+        normalizeBuilderNodeData(node.type, node.data as Record<string, unknown> | undefined),
+      ),
     })),
     edges: graph.edges.map((edge) => ({
       id: edge.id,
@@ -452,6 +559,13 @@ function sameStringSet(left: string[], right: string[]) {
   return leftSorted.every((value, index) => value === rightSorted[index]);
 }
 
+function arrayMove<T>(items: T[], fromIndex: number, toIndex: number) {
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
+}
+
 function getNodeDisplayName(node: Node<FlowNodeData>) {
   return String(
     node.data?.title ??
@@ -579,7 +693,10 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         id: node.id,
         type: (node.data?.nodeType ?? node.type) as NarrativeNodeType,
         position: node.position,
-        data: { ...(node.data ?? {}) },
+        data: serializeNodeData(
+          (node.data?.nodeType ?? node.type) as NarrativeNodeType,
+          (node.data ?? {}) as FlowNodeData,
+        ),
       })),
       edges: edges.map((edge) => ({
         id: edge.id,
@@ -831,8 +948,10 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
       if (nodeType === "DECISION") {
         const question = String(node.data?.question ?? "").trim();
         const options = normalizeDecisionOptions(node.data?.options);
-        const outgoingEdges = edges.filter((edge) => edge.source === node.id);
-        const labels = options.map((option) => option.toLowerCase());
+        const outgoingEdges = findDecisionOutgoingEdges(node.id, edges);
+        const labels = options.map((option) => option.label.toLowerCase());
+        const emptyLabels = options.filter((option) => !option.label.trim());
+        const routeCoverage = decisionRouteCoverage(options, outgoingEdges);
 
         if (!question) {
           issues.push({
@@ -861,11 +980,23 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         if (new Set(labels).size !== labels.length) {
           issues.push({
             id: `decision-duplicates-${node.id}`,
-            level: "warning",
+            level: "error",
             message: `La decisión "${nodeLabel}" tiene etiquetas de opción duplicadas.`,
             nodeId: node.id,
             nodeLabel,
             issueType: "decision-duplicates",
+            source: "local",
+          });
+        }
+
+        if (emptyLabels.length > 0) {
+          issues.push({
+            id: `decision-empty-label-${node.id}`,
+            level: "error",
+            message: `La decisión "${nodeLabel}" tiene opciones sin etiqueta.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "decision-empty-label",
             source: "local",
           });
         }
@@ -895,7 +1026,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
           });
         }
 
-        if (options.length > outgoingEdges.length) {
+        if (routeCoverage.missingOptions.length > 0) {
           issues.push({
             id: `decision-missing-route-${node.id}`,
             level: "warning",
@@ -903,6 +1034,18 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
             nodeId: node.id,
             nodeLabel,
             issueType: "decision-route-gap",
+            source: "local",
+          });
+        }
+
+        if (routeCoverage.unmatchedEdges.length > 0) {
+          issues.push({
+            id: `decision-unmatched-route-${node.id}`,
+            level: "warning",
+            message: `La decisión "${nodeLabel}" tiene rutas cuyas etiquetas no coinciden con ninguna opción.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "decision-edge-mismatch",
             source: "local",
           });
         }
@@ -1042,10 +1185,7 @@ try {
           id: node.id,
           type: node.type,
           position: node.position ?? { x: 120, y: 120 },
-          data: {
-            nodeType: node.type,
-            ...(node.data ?? {}),
-          } as FlowNodeData,
+          data: normalizeBuilderNodeData(node.type, node.data as Record<string, unknown> | undefined),
         })),
       );
       setEdges(
@@ -1197,14 +1337,19 @@ try {
           case "DECISION": {
             const question = String(node.data?.question ?? "").trim();
             const options = normalizeDecisionOptions(node.data?.options);
+            const routeCoverage = decisionRouteCoverage(options, findDecisionOutgoingEdges(node.id, edges));
             summary = question
-              ? `${question} · ${options.length} opción${options.length === 1 ? "" : "es"}`
+              ? `${question} · ${options.length} opción${options.length === 1 ? "" : "es"} · ${routeCoverage.matchedOptionIds.size}/${options.length} rutas`
               : "Define la pregunta y sus rutas";
             badges.push({ label: `${outgoingCount} ruta${outgoingCount === 1 ? "" : "s"}`, tone: "info" });
             if (!question) markError("Sin pregunta");
             if (options.length < 2) markError("Opciones insuficientes");
+            if (new Set(options.map((option) => option.label.trim().toLowerCase())).size !== options.length) {
+              markError("Etiquetas duplicadas");
+            }
             if (outgoingCount < 2) markError("Sin ramas mínimas");
-            if (outgoingCount > 0 && options.length > outgoingCount) markWarning("Faltan rutas");
+            if (routeCoverage.missingOptions.length > 0) markWarning("Faltan rutas");
+            if (routeCoverage.unmatchedEdges.length > 0) markWarning("Rutas sin opción");
             break;
           }
           case "END":
@@ -1232,7 +1377,7 @@ try {
           } as FlowNodeData,
         };
       }),
-    [audioMap, buttonMap, graphMetrics.incoming, graphMetrics.outgoing, nodes],
+    [audioMap, buttonMap, edges, graphMetrics.incoming, graphMetrics.outgoing, nodes],
   );
 
   function addNode(type: NarrativeNodeType) {
@@ -1246,10 +1391,10 @@ try {
         x: 120 + (count % 3) * 280,
         y: 120 + Math.floor(count / 3) * 180,
       },
-      data: {
-        nodeType: type,
-        ...(DEFAULT_NODE_DATA[type] ?? {}),
-      } as FlowNodeData,
+        data: {
+          nodeType: type,
+          ...(DEFAULT_NODE_DATA[type] ?? {}),
+        } as FlowNodeData,
     };
 
     setNodes((current) => [...current, node]);
@@ -1261,6 +1406,51 @@ try {
     setNodes((current) =>
       current.map((node) => (node.id === nodeId ? updateNodeData(node, patch) : node)),
     );
+  }
+
+  function updateDecisionNodeOptions(
+    nodeId: string,
+    updater: (options: DecisionOption[]) => DecisionOption[],
+  ) {
+    setNodes((current) =>
+      current.map((node) => {
+        if (node.id !== nodeId) return node;
+        const nextOptions = updater(normalizeDecisionOptions(node.data?.options));
+        return updateNodeData(node, { options: nextOptions });
+      }),
+    );
+  }
+
+  function renameDecisionOption(nodeId: string, optionId: string, patch: Partial<DecisionOption>) {
+    const node = nodes.find((item) => item.id === nodeId);
+    if (!node) return;
+
+    const currentOptions = normalizeDecisionOptions(node.data?.options);
+    const previous = currentOptions.find((option) => option.id === optionId);
+    if (!previous) return;
+
+    const nextOptions = currentOptions.map((option) =>
+      option.id === optionId ? { ...option, ...patch } : option,
+    );
+    const nextLabel = (patch.label ?? previous.label).trim();
+    const previousLabel = previous.label.trim();
+
+    setNodes((current) =>
+      current.map((item) => {
+        if (item.id !== nodeId) return item;
+        return updateNodeData(item, { options: nextOptions });
+      }),
+    );
+
+    if (patch.label !== undefined && previousLabel && nextLabel && previousLabel !== nextLabel) {
+      setEdges((current) =>
+        current.map((edge) =>
+          edge.source === nodeId && normalizeDecisionEdgeLabel(edge.label as string | undefined) === normalizeDecisionEdgeLabel(previousLabel)
+            ? { ...edge, label: nextLabel }
+            : edge,
+        ),
+      );
+    }
   }
 
   const onNodesChange = useCallback((changes: Parameters<typeof applyNodeChanges>[0]) => {
@@ -1300,7 +1490,18 @@ try {
 
   const onConnect = useCallback((connection: Connection) => {
     const sourceNode = nodes.find((node) => node.id === connection.source);
-    const defaultLabel = sourceNode?.data?.nodeType === "DECISION" ? "Opción" : "Siguiente";
+    let defaultLabel = "Siguiente";
+
+    if (sourceNode?.data?.nodeType === "DECISION") {
+      const decisionOptions = normalizeDecisionOptions(sourceNode.data?.options);
+      const outgoingEdges = findDecisionOutgoingEdges(sourceNode.id, edges);
+      const routeCoverage = decisionRouteCoverage(decisionOptions, outgoingEdges);
+      defaultLabel =
+        routeCoverage.missingOptions[0]?.label ??
+        decisionOptions[0]?.label ??
+        "Opción";
+    }
+
     const label = window.prompt("Etiqueta de la conexión", defaultLabel)?.trim();
 
     setEdges((current) =>
@@ -1314,7 +1515,7 @@ try {
         current,
       ),
     );
-  }, [nodes]);
+  }, [edges, nodes]);
 
   async function saveGraph() {
     setSaving(true);
@@ -1326,7 +1527,10 @@ try {
           id: node.id,
           type: (node.data?.nodeType ?? node.type) as NarrativeNodeType,
           position: node.position,
-          data: { ...(node.data ?? {}) },
+          data: serializeNodeData(
+            (node.data?.nodeType ?? node.type) as NarrativeNodeType,
+            (node.data ?? {}) as FlowNodeData,
+          ),
         })),
         edges: edges.map((edge) => ({
           id: edge.id,
@@ -1377,7 +1581,10 @@ try {
               id: node.id,
               type: (node.data?.nodeType ?? node.type) as NarrativeNodeType,
               position: node.position,
-              data: { ...(node.data ?? {}) },
+              data: serializeNodeData(
+                (node.data?.nodeType ?? node.type) as NarrativeNodeType,
+                (node.data ?? {}) as FlowNodeData,
+              ),
             })),
             edges: edges.map((edge) => ({
               id: edge.id,
@@ -1429,7 +1636,7 @@ try {
         id: node.id,
         type: "narrative",
         position: node.position ?? { x: 120, y: 120 },
-        data: { nodeType: node.type, ...(node.data ?? {}) } as FlowNodeData,
+        data: normalizeBuilderNodeData(node.type, node.data as Record<string, unknown> | undefined),
       })),
     );
     setEdges(
@@ -1474,6 +1681,18 @@ try {
   const editingNodeButton =
     editingNode?.data?.nodeType === "AUDIO_BUTTON" && editingNode.data.audioButtonId
       ? buttonMap.get(String(editingNode.data.audioButtonId))
+      : null;
+  const editingDecisionOptions =
+    editingNode?.data?.nodeType === "DECISION"
+      ? normalizeDecisionOptions(editingNode.data.options)
+      : [];
+  const editingDecisionRoutes =
+    editingNode?.data?.nodeType === "DECISION"
+      ? findDecisionOutgoingEdges(editingNode.id, edges)
+      : [];
+  const editingDecisionCoverage =
+    editingNode?.data?.nodeType === "DECISION"
+      ? decisionRouteCoverage(editingDecisionOptions, editingDecisionRoutes)
       : null;
 
   const modalPanel = editingNode ? (
@@ -1795,13 +2014,123 @@ try {
                   />
                 </label>
                 <label className="grid gap-1.5">
-                  <FieldLabel>Opciones separadas por |</FieldLabel>
-                  <textarea
-                    value={String(editingNode.data.options ?? "")}
-                    onChange={(event) => saveNodePatch(editingNode.id, { options: event.target.value })}
-                    className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-                  />
+                  <FieldLabel>Opciones</FieldLabel>
+                  <div className="space-y-3">
+                    {editingDecisionOptions.map((option, index) => {
+                      const hasRoute = Boolean(
+                        editingDecisionCoverage?.matchedOptionIds.has(option.id),
+                      );
+
+                      return (
+                        <div
+                          key={option.id}
+                          className="rounded-2xl border border-outline-variant bg-surface-container px-3 py-3"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <label className="grid gap-1.5">
+                                <FieldLabel>Etiqueta</FieldLabel>
+                                <input
+                                  value={option.label}
+                                  onChange={(event) =>
+                                    renameDecisionOption(editingNode.id, option.id, {
+                                      label: event.target.value,
+                                    })
+                                  }
+                                  className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                                />
+                              </label>
+                              <label className="grid gap-1.5">
+                                <FieldLabel>Descripción opcional</FieldLabel>
+                                <textarea
+                                  value={option.description ?? ""}
+                                  onChange={(event) =>
+                                    renameDecisionOption(editingNode.id, option.id, {
+                                      description: event.target.value,
+                                    })
+                                  }
+                                  className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                                />
+                              </label>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(hasRoute ? "valid" : "warning")}`}>
+                                {hasRoute ? "Con ruta" : "Sin ruta"}
+                              </span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateDecisionNodeOptions(editingNode.id, (options) =>
+                                      index > 0 ? arrayMove(options, index, index - 1) : options,
+                                    )
+                                  }
+                                  disabled={index === 0}
+                                  className="rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-50"
+                                >
+                                  Subir
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateDecisionNodeOptions(editingNode.id, (options) =>
+                                      index < options.length - 1 ? arrayMove(options, index, index + 1) : options,
+                                    )
+                                  }
+                                  disabled={index === editingDecisionOptions.length - 1}
+                                  className="rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-50"
+                                >
+                                  Bajar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateDecisionNodeOptions(editingNode.id, (options) =>
+                                      options.filter((item) => item.id !== option.id),
+                                    )
+                                  }
+                                  className="rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateDecisionNodeOptions(editingNode.id, (options) => [
+                          ...options,
+                          { id: makeDecisionOptionId(), label: "", description: "" },
+                        ])
+                      }
+                      className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Agregar opción
+                    </button>
+                  </div>
                 </label>
+              </ModalSection>
+
+              <ModalSection
+                title="Cobertura de rutas"
+                description="Las etiquetas de las conexiones deben coincidir con las opciones para mantener compatibilidad con el player actual."
+              >
+                <div className="space-y-2 text-sm text-on-surface-variant">
+                  <p>
+                    <span className="font-semibold text-on-surface">Opciones con ruta:</span>{" "}
+                    {editingDecisionCoverage?.matchedOptionIds.size ?? 0} / {editingDecisionOptions.length}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-on-surface">Rutas sin opción:</span>{" "}
+                    {editingDecisionCoverage?.unmatchedEdges.length ?? 0}
+                  </p>
+                </div>
               </ModalSection>
 
               <ModalSection
