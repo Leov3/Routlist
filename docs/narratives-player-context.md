@@ -183,6 +183,9 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - Los nuevos widgets mantienen JSX propio por tipo y dejan de depender de una card visual genérica.
 - Build validado:
   - `npm --prefix frontend run build`
+- Commits:
+  - `7fa981f` `refactor(narratives-player): split execution nodes by type`
+  - `78ac902` `chore(narratives-player): improve widget sizing and viewport`
 - Próximo ajuste:
   - validar visualmente en Docker local y ajustar spacing si alguna narrativa larga queda demasiado compacta.
 - Ajuste de viewport aplicado:

@@ -389,10 +389,10 @@ Rama:
 feature/narratives-player-ui-polish
 
 Commit:
-Pendiente
+7fa981f
 
 Push:
-Pendiente
+origin/dev
 
 Resumen:
 Se rematan estados y aristas con labels dark tipo chip y contraste más consistente con el tema oscuro del player canvas.
@@ -505,10 +505,10 @@ Rama:
 dev
 
 Commit:
-Pendiente
+78ac902
 
 Push:
-Pendiente
+origin/dev
 
 Resumen:
 Pulido específico de nodos del player canvas. Los nodos dejan de sentirse como cards genéricas y pasan a widgets operativos por tipo: inicio, cierre, mini reproductor de audio, botón de botonera, guion copiable, nota operativa, pausa y decisión. Se agregan CTAs visibles para el nodo actual y el popover contextual prioriza contenido/acciones sobre metadata técnica.
