@@ -97,14 +97,23 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - `DECISION` usa labels de aristas y opciones legacy para presentar rutas accionables.
 - Al avanzar, el panel vuelve al nodo actual y el canvas recentra el flujo.
 - La decisión seleccionada deja feedback visible en el panel y en las aristas.
+- Commit: `33b4685` (feat: complete decision and end canvas flow)
 
 ### Hito 7
 - El cierre exitoso queda restringido al nodo `END`.
 - El panel de `END` informa explícitamente cuándo la ejecución ya puede completarse.
+- Commit: `33b4685` / `18e3b9d`
 
 ### Hito 8
-- Ajuste responsive básico del canvas y ancho del panel contextual.
-- Se conserva el tema actual sin reabrir el diseño general.
+- Refactorización para remover el sidebar fijo lateral y priorizar el menú contextual por clic secundario en nodos.
+- Ajuste responsive básico del canvas.
+- Commit: `e7b5223` (refactor: remove fixed action sidebar)
+
+### Hito 9
+- Se añade la animación `fadeIn` al menú contextual del canvas.
+- Los nodos reciben un halo de selección (`ring-2 ring-primary`) y escalado interactivo en hover.
+- Se implementan banners de estado de corrida altamente visibles sobre el canvas para `END` listo, `COMPLETED` y `CANCELLED`.
+- Commit: Pendiente (Pulido final)
 
 ## Cómo continuar si se corta la sesión
 1. Confirmar rama actual: `dev`.
@@ -113,13 +122,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 4. Continuar desde el próximo hito recomendado.
 
 ## Último commit realizado
-- `4e02793` `merge: narratives player canvas hitos 0-5`
+- `d8172db` `feat(narratives-player): wire contextual node actions` (y los commits subsecuentes del pulido final)
 
 ## Último push realizado
-- `origin/dev` después de `4e02793`
+- `origin/dev`
 
 ## Próximo hito recomendado
-- Validación manual del flujo completo en `dev` y cierre fino de UX si aparece algún borde.
+- Validación en ambiente Docker de producción.
 
 ## Comandos útiles
 - `git status --short --branch`

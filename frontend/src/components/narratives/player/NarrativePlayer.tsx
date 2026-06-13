@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Background,
@@ -85,6 +85,8 @@ type PlayerFlowNodeData = {
   status: PlayerNodeState;
   type: NarrativeNodeType;
   nodeData?: any;
+  audioButtonId?: string;
+  audioAssetId?: string;
 };
 
 type AudioButtonDetail = {
@@ -96,6 +98,8 @@ type AudioButtonDetail = {
   color?: string | null;
   audioAsset?: { originalName?: string | null } | null;
   audioAssetId?: string | null;
+  imageUrl?: string | null;
+  imagePublicUrl?: string | null;
 };
 
 type DecisionChoice = {
@@ -105,17 +109,41 @@ type DecisionChoice = {
 
 type AudioPlaybackState = "idle" | "playing" | "paused" | "stopped";
 
-function getStatusStyle(status: string) {
-  if (status === "current") return "ring-4 ring-primary ring-offset-2 ring-offset-[#120f1c] shadow-[0_0_30px_rgba(168,139,250,0.4)]";
-  if (status === "completed") return "border-emerald-500/50 opacity-90";
-  if (status === "locked" || status === "skipped") return "opacity-50 grayscale";
-  if (status === "decision-selected") return "border-fuchsia-500/50 opacity-90";
-  return "border-outline-variant hover:border-primary/50";
+type NarrativePlayerContextType = {
+  playbackState: AudioPlaybackState;
+  working: boolean;
+  currentNodeId: string | null;
+  startAudioPlayback: (overrideNodeId?: string) => Promise<void>;
+  pauseAudio: () => void;
+  resumeAudio: () => void;
+  setMessage: (msg: string | null) => void;
+  selectNode: (nodeId: string) => void;
+};
+
+const NarrativePlayerContext = createContext<NarrativePlayerContextType | null>(null);
+
+function getStatusStyle(status: string, selected?: boolean) {
+  const base = "transition-all duration-300 ease-in-out hover:scale-[1.02] ";
+  const selectHalo = selected ? "ring-2 ring-primary ring-offset-2 ring-offset-[#120f1c] " : "";
+  
+  if (status === "current") {
+    return base + selectHalo + "ring-4 ring-primary/80 ring-offset-2 ring-offset-[#120f1c] shadow-[0_0_35px_rgba(168,139,250,0.45)] border-primary scale-[1.02]";
+  }
+  if (status === "completed") {
+    return base + selectHalo + "border-emerald-500/60 opacity-95 hover:opacity-100";
+  }
+  if (status === "locked" || status === "skipped") {
+    return base + selectHalo + "opacity-45 grayscale hover:opacity-70";
+  }
+  if (status === "decision-selected") {
+    return base + selectHalo + "border-fuchsia-500/60 opacity-95 hover:opacity-100";
+  }
+  return base + selectHalo + "border-outline-variant hover:border-primary/60";
 }
 
 function StartNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-surface text-on-surface transition-all ${getStatusStyle(data.status)}`}>
+    <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-surface text-on-surface ${getStatusStyle(data.status, selected)}`}>
       <Flag className="h-6 w-6 text-primary" />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
@@ -124,7 +152,7 @@ function StartNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
 
 function EndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-surface text-on-surface transition-all ${getStatusStyle(data.status)}`}>
+    <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-surface text-on-surface ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <div className="h-6 w-6 rounded-sm bg-red-500" />
     </div>
@@ -133,7 +161,7 @@ function EndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
 
 function InstructionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`relative min-w-[220px] max-w-[280px] rounded-bl-2xl rounded-br-md rounded-tl-md rounded-tr-2xl border-l-4 border-l-amber-500 bg-amber-500/10 p-4 shadow-sm backdrop-blur-sm transition-all ${getStatusStyle(data.status)}`}>
+    <div className={`relative min-w-[220px] max-w-[280px] rounded-bl-2xl rounded-br-md rounded-tl-md rounded-tr-2xl border-l-4 border-l-amber-500 bg-amber-500/10 p-4 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <div className="flex items-center gap-2 text-amber-500">
         <AlertCircle className="h-4 w-4" />
@@ -147,7 +175,7 @@ function InstructionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>
 
 function ScriptTextNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`relative min-w-[260px] max-w-[320px] rounded-xl border bg-slate-50/5 p-5 shadow-sm backdrop-blur-sm transition-all ${getStatusStyle(data.status)}`}>
+    <div className={`relative min-w-[260px] max-w-[320px] rounded-xl border bg-slate-50/5 p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <div className="flex items-center gap-2 text-blue-400">
         <FileText className="h-4 w-4" />
@@ -161,13 +189,44 @@ function ScriptTextNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>)
   );
 }
 
-function AudioNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+function AudioNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const ctx = useContext(NarrativePlayerContext);
+  const isCurrent = ctx?.currentNodeId === id;
+  const isPlaying = isCurrent && ctx?.playbackState === "playing";
+  const isPaused = isCurrent && ctx?.playbackState === "paused";
+
+  const handlePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!ctx) return;
+    if (!isCurrent) {
+      ctx.setMessage("Selecciona el paso actual para reproducir audio.");
+      return;
+    }
+    // Force-select this node so actionNode/actionNodeIsInteractive resolve correctly
+    ctx.selectNode(id);
+    if (isPlaying) {
+      ctx.pauseAudio();
+    } else if (isPaused) {
+      ctx.resumeAudio();
+    } else {
+      void ctx.startAudioPlayback(id);
+    }
+  };
+
   return (
-    <div className={`relative flex min-w-[240px] items-center gap-4 rounded-[20px] border bg-surface-container-high p-3 pr-5 shadow-sm transition-all ${getStatusStyle(data.status)}`}>
+    <div className={`relative flex min-w-[240px] items-center gap-4 rounded-[20px] border bg-surface-container-high p-3 pr-5 shadow-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/20 text-primary">
-        <Volume2 className="h-5 w-5" />
-      </div>
+      <button
+        type="button"
+        onClick={handlePlay}
+        className={`nodrag flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-all ${
+          isPlaying 
+            ? "bg-primary text-on-primary ring-4 ring-primary/20 animate-pulse" 
+            : "bg-primary/20 text-primary hover:bg-primary/30"
+        }`}
+      >
+        {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current ml-0.5" />}
+      </button>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-on-surface">{data.label}</p>
         <p className="text-xs text-on-surface-variant">Recurso de Audio</p>
@@ -176,32 +235,66 @@ function AudioNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
     </div>
   );
 }
+function AudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const ctx = useContext(NarrativePlayerContext);
+  const isCurrent = ctx?.currentNodeId === id;
+  const isPlaying = isCurrent && ctx?.playbackState === "playing";
 
-function AudioButtonNode({ data }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const [btnDetails, setBtnDetails] = useState<AudioButtonDetail | null>(null);
+
+  useEffect(() => {
+    const audioButtonId = (data as any).audioButtonId;
+    if (audioButtonId) {
+      api<AudioButtonDetail>(`/audio-buttons/${audioButtonId}`)
+        .then(setBtnDetails)
+        .catch(console.error);
+    }
+  }, [(data as any).audioButtonId]);
+
+  const displayLabel = btnDetails?.label || data.label || "Cargando botón...";
+
   const btn: BoardAudioButton = {
     id: data.id,
-    label: data.label,
+    label: displayLabel,
     sortOrder: 0,
     category: { id: "narrative", name: "Narrativa" },
     audioUrl: "",
     audioAsset: {
       id: "placeholder",
-      originalName: data.label,
+      originalName: displayLabel,
       mimeType: "audio/mpeg",
       createdAt: new Date().toISOString(),
     },
+    imageUrl: btnDetails?.imageUrl || btnDetails?.imagePublicUrl || undefined,
+  };
+
+  const handlePlay = () => {
+    if (!ctx) return;
+    if (!isCurrent) {
+      ctx.setMessage("Selecciona el paso actual para reproducir audio.");
+      return;
+    }
+    // Force-select this node so actionNode/actionNodeIsInteractive resolve correctly
+    ctx.selectNode(id);
+    if (isPlaying) {
+      ctx.pauseAudio();
+    } else if (ctx.playbackState === "paused") {
+      ctx.resumeAudio();
+    } else {
+      void ctx.startAudioPlayback(id);
+    }
   };
 
   return (
-    <div className={`relative transition-all ${getStatusStyle(data.status)} rounded-[18px]`}>
+    <div className={`relative ${getStatusStyle(data.status, selected)} rounded-[18px]`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <div className="pointer-events-none">
+      <div className="nodrag">
         <AudioButton
           button={btn}
-          active={data.status === "current"}
+          active={isPlaying}
           isFavorite={false}
           density="compact"
-          onPlay={() => {}}
+          onPlay={handlePlay}
           onToggleFavorite={() => {}}
           onOpenDetails={() => {}}
         />
@@ -213,7 +306,7 @@ function AudioButtonNode({ data }: NodeProps<Node<PlayerFlowNodeData>>) {
 
 function PauseNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`relative flex min-w-[180px] items-center gap-3 rounded-full border bg-surface px-4 py-3 shadow-sm transition-all ${getStatusStyle(data.status)}`}>
+    <div className={`relative flex min-w-[180px] items-center gap-3 rounded-full border bg-surface px-4 py-3 shadow-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <Clock3 className="h-5 w-5 text-on-surface-variant" />
       <div className="flex flex-col">
@@ -227,7 +320,7 @@ function PauseNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
 
 function DecisionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`relative min-w-[240px] rounded-[24px] border border-purple-500/30 bg-purple-500/10 p-5 shadow-sm backdrop-blur-sm transition-all ${getStatusStyle(data.status)}`}>
+    <div className={`relative min-w-[240px] rounded-[24px] border border-purple-500/30 bg-purple-500/10 p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <div className="flex items-center gap-2 text-purple-400">
         <Split className="h-4 w-4" />
@@ -772,23 +865,44 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     });
   }
 
-  async function startAudioPlayback() {
-    if (!run || !actionNode) return;
+  async function startAudioPlayback(overrideNodeId?: string) {
+    const targetNode = overrideNodeId ? nodes.find(n => n.id === overrideNodeId) : actionNode;
 
-    if (!actionNodeIsInteractive) {
+    if (!run || !targetNode) {
+      console.warn("[audio] abort: no run or targetNode", { run: !!run, targetNode: targetNode?.id });
+      return;
+    }
+
+    const isTargetInteractive = (targetNode.id === currentNode?.id) && run?.status === "RUNNING";
+
+    if (!isTargetInteractive) {
+      console.warn("[audio] abort: not interactive", { targetNodeId: targetNode.id, currentNodeId: currentNode?.id, runStatus: run?.status });
       setMessage("Selecciona el paso actual para reproducir audio.");
       return;
     }
 
     let audioAssetIdToPlay: string | undefined;
 
-    if (actionNode.type === "AUDIO") {
-      audioAssetIdToPlay = actionNode.data?.audioAssetId as string | undefined;
-    } else if (actionNode.type === "AUDIO_BUTTON") {
-      audioAssetIdToPlay = currentButtonDetails?.audioAssetId ?? undefined;
+    if (targetNode.type === "AUDIO") {
+      audioAssetIdToPlay = targetNode.data?.audioAssetId as string | undefined;
+      console.log("[audio] AUDIO node assetId:", audioAssetIdToPlay, "nodeData:", targetNode.data);
+    } else if (targetNode.type === "AUDIO_BUTTON") {
+      // Use already-loaded details, or fetch them on-demand if not available yet
+      let buttonDetails = currentButtonDetails;
+      if (!buttonDetails && targetNode.data?.audioButtonId) {
+        try {
+          buttonDetails = await api<any>(`/audio-buttons/${targetNode.data.audioButtonId}`);
+          setCurrentButtonDetails(buttonDetails);
+        } catch {
+          console.warn("[audio] failed to fetch button details on demand");
+        }
+      }
+      audioAssetIdToPlay = buttonDetails?.audioAssetId ?? (buttonDetails as any)?.audioAsset?.id ?? undefined;
+      console.log("[audio] AUDIO_BUTTON details:", buttonDetails, "assetId:", audioAssetIdToPlay);
     }
 
     if (!audioAssetIdToPlay) {
+      console.warn("[audio] abort: no audioAssetId. targetNode.type:", targetNode.type, "currentButtonDetails:", currentButtonDetails);
       setMessage("Este nodo no tiene audio asignado o aún se está cargando.");
       return;
     }
@@ -830,9 +944,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         method: "POST",
         body: JSON.stringify({
           eventType: "AUDIO_PLAYED",
-          nodeId: actionNode.id,
-          payload: actionNode.type === "AUDIO_BUTTON"
-            ? { audioButtonId: actionNode.data?.audioButtonId, audioAssetId: audioAssetIdToPlay }
+          nodeId: targetNode.id,
+          payload: targetNode.type === "AUDIO_BUTTON"
+            ? { audioButtonId: targetNode.data?.audioButtonId, audioAssetId: audioAssetIdToPlay }
             : { audioAssetId: audioAssetIdToPlay },
         }),
       });
@@ -950,32 +1064,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   function renderAudioControls(label: string) {
     return (
       <>
-        <audio
-          ref={audioRef}
-          onPlay={() => setPlaybackState("playing")}
-          onPause={() => setPlaybackState("paused")}
-          onEnded={() => {
-            setPlaybackState("idle");
-            setPlaybackProgress({ current: 0, duration: 0 });
-            if (actionNodeIsCurrent && actionNode?.data?.required !== false && outgoing.length <= 1) {
-              void completeCurrentNode(false);
-            }
-          }}
-          onLoadedMetadata={(e) => {
-            setMessage(null);
-            const target = e.target as HTMLAudioElement | null;
-            if (target) {
-              setPlaybackProgress({ current: 0, duration: target.duration });
-            }
-          }}
-          onTimeUpdate={(e) => {
-            const target = e.target as HTMLAudioElement | null;
-            if (target) {
-              setPlaybackProgress(prev => ({ ...prev, current: target.currentTime }));
-            }
-          }}
-          className="hidden"
-        />
         <div className="space-y-4">
           {playbackState !== "idle" && playbackProgress.duration > 0 ? (
             <div className="space-y-1">
@@ -1312,13 +1400,102 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }
 
   return (
+    <NarrativePlayerContext.Provider
+      value={{
+        playbackState,
+        working,
+        currentNodeId: run?.currentNodeId ?? null,
+        startAudioPlayback,
+        pauseAudio,
+        resumeAudio,
+        setMessage,
+        selectNode: (nodeId: string) => {
+          setSelectedNodeId(nodeId);
+          setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+        },
+      }}
+    >
     <ReactFlowProvider>
+      <audio
+        ref={audioRef}
+        onPlay={() => setPlaybackState("playing")}
+        onPause={() => setPlaybackState("paused")}
+        onEnded={() => {
+          setPlaybackState("idle");
+          setPlaybackProgress({ current: 0, duration: 0 });
+          if (actionNodeIsCurrent && actionNode?.data?.required !== false && outgoing.length <= 1) {
+            void completeCurrentNode(false);
+          }
+        }}
+        onLoadedMetadata={(e) => {
+          setMessage(null);
+          const target = e.target as HTMLAudioElement | null;
+          if (target) {
+            setPlaybackProgress({ current: 0, duration: target.duration });
+          }
+        }}
+        onTimeUpdate={(e) => {
+          const target = e.target as HTMLAudioElement | null;
+          if (target) {
+            setPlaybackProgress(prev => ({ ...prev, current: target.currentTime }));
+          }
+        }}
+        className="hidden"
+      />
       <div className="space-y-4">
         {message ? (
           <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
             {message}
           </div>
         ) : null}
+
+        {/* Banner de fin de flujo / estado de corrida */}
+        {currentNode?.type === "END" && run?.status === "RUNNING" && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-[24px] border border-emerald-500/30 bg-emerald-500/10 p-5 shadow-elevation-2 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h4 className="text-base font-semibold text-emerald-200">Flujo Completado</h4>
+                <p className="text-sm text-emerald-300/80">Has alcanzado el nodo final. La ejecución puede ser finalizada de forma segura.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void finishRun()}
+              disabled={working}
+              className="w-full sm:w-auto inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-[1.02] hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Finalizar Ejecución
+            </button>
+          </div>
+        )}
+
+        {run?.status === "COMPLETED" && (
+          <div className="flex items-center gap-3 rounded-[24px] border border-emerald-500/30 bg-emerald-500/10 p-5 shadow-elevation-2 animate-fade-in">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h4 className="text-base font-semibold text-emerald-200 font-bold">Ejecución Completada</h4>
+              <p className="text-sm text-emerald-300/80">Esta corrida ha terminado y ha sido registrada como completada con éxito.</p>
+            </div>
+          </div>
+        )}
+
+        {run?.status === "CANCELLED" && (
+          <div className="flex items-center gap-3 rounded-[24px] border border-red-500/30 bg-red-500/10 p-5 shadow-elevation-2 animate-fade-in">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/20 text-red-400">
+              <StopCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <h4 className="text-base font-semibold text-red-200 font-bold">Ejecución Cancelada</h4>
+              <p className="text-sm text-red-300/80">Esta corrida fue cancelada por el operador.</p>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-4">
           {/* Main Canvas Section */}
@@ -1402,7 +1579,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               {/* CONTEXTUAL POPOVER MENU */}
               {contextMenu.isOpen && contextMenu.nodeId && (
                 <div
-                  className="fixed z-50 w-80 overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-elevation-3"
+                  className="fixed z-50 w-80 overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-elevation-3 animate-fade-in"
                   style={{ top: contextMenu.y, left: contextMenu.x }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -1459,7 +1636,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                 {isCurrentNode && renderAudioControls(nodeLabel(ctxNode))}
                                 <div className="flex flex-wrap gap-2">
                                   {canAct && playbackState === "idle" && (
-                                    <button type="button" onClick={() => { void playAudio(); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90">
+                                    <button type="button" onClick={() => { void startAudioPlayback(); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90">
                                       <Play className="h-3.5 w-3.5 fill-current" /> Reproducir
                                     </button>
                                   )}
@@ -1469,7 +1646,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                     </button>
                                   )}
                                   {canAct && playbackState === "paused" && (
-                                    <button type="button" onClick={() => { void playAudio(); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90">
+                                    <button type="button" onClick={() => { void resumeAudio(); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90">
                                       <Play className="h-3.5 w-3.5 fill-current" /> Reanudar
                                     </button>
                                   )}
@@ -1569,7 +1746,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                       <button
                                         key={c.targetNodeId}
                                         type="button"
-                                        onClick={() => { void chooseDecision(c.targetNodeId, c.label); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }}
+                                        onClick={() => { void handleDecision(c.targetNodeId, c.label); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }}
                                         className="w-full rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2.5 text-left text-sm font-semibold text-purple-300 hover:bg-purple-500/20"
                                       >
                                         {c.label}
@@ -1683,5 +1860,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         </div>
       </div>
     </ReactFlowProvider>
+    </NarrativePlayerContext.Provider>
   );
 }

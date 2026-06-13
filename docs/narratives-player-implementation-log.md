@@ -249,18 +249,16 @@ Rama:
 dev
 
 Commit:
-Pendiente
+33b4685
 
 Push:
-Pendiente
+origin/dev
 
 Resumen:
 `DECISION` toma labels de aristas y opciones legacy, recentra el canvas al nodo actual y deja feedback visible sobre la ruta elegida.
 
 Archivos modificados:
 - `frontend/src/components/narratives/player/NarrativePlayer.tsx`
-- `docs/narratives-player-context.md`
-- `docs/narratives-player-implementation-log.md`
 
 Checks ejecutados:
 - `npm --prefix frontend run build`
@@ -286,18 +284,16 @@ Rama:
 dev
 
 Commit:
-Pendiente
+33b4685 / 18e3b9d
 
 Push:
-Pendiente
+origin/dev
 
 Resumen:
 La finalización exitosa queda restringida al nodo `END` y el panel de cierre lo comunica explícitamente.
 
 Archivos modificados:
 - `frontend/src/components/narratives/player/NarrativePlayer.tsx`
-- `docs/narratives-player-context.md`
-- `docs/narratives-player-implementation-log.md`
 
 Checks ejecutados:
 - `npm --prefix frontend run build`
@@ -323,16 +319,52 @@ Rama:
 dev
 
 Commit:
-Pendiente
+e7b5223
+
+Push:
+origin/dev
+
+Resumen:
+Refactorización para remover el sidebar fijo lateral y priorizar el menú contextual por clic secundario en nodos.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- El player queda operativo con menú contextual y libre de barras laterales fijas.
+
+Riesgos:
+- La usabilidad en dispositivos muy pequeños podría ser incómoda con el clic derecho.
+
+Pendientes:
+- Cierre fino y pulido de UX final.
+
+Próximo hito:
+- `feat(narratives-player): visual animations and completion flow polish`
+
+## Hito 9
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente (Pulido final)
 
 Push:
 Pendiente
 
 Resumen:
-Ajuste responsive menor del canvas y del panel contextual, con documentación alineada al estado final en `dev`.
+Se agrega pulido visual general (animaciones `fadeIn` en el popover contextual, halo de selección `ring-2 ring-primary` y escala interactiva al pasar el cursor sobre los nodos del canvas). Se implementan banners de estado de corrida muy visibles arriba del canvas para cuando el flujo está listo para finalizar, completado o cancelado.
 
 Archivos modificados:
 - `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `frontend/src/app/globals.css`
 - `docs/narratives-player-context.md`
 - `docs/narratives-player-implementation-log.md`
 
@@ -340,13 +372,13 @@ Checks ejecutados:
 - `npm --prefix frontend run build`
 
 Resultado:
-- El player queda operativo en `dev` con canvas read-only guiado hasta Hito 8.
+- El player ofrece una respuesta visual fluida y una guía explícita para la conclusión de la narrativa sin requerir exploración manual oculta.
 
 Riesgos:
-- Falta prueba manual final en el navegador con Docker levantado desde `dev`.
+- Ninguno detectado.
 
 Pendientes:
-- Validación manual de la ruta completa.
+- Confirmación y validación final por parte del usuario.
 
 Próximo hito:
-- Ninguno dentro del alcance actual.
+- Cierre de la fase de modernización del player.
