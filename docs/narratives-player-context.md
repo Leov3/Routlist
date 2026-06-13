@@ -175,3 +175,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
   - `npm --prefix frontend run build` completado correctamente.
 - Último commit:
   - `cdf898e` `feat(narratives-player): polish execution node widgets`
+
+## React Flow Widget Nodes
+- Rama activa: `dev`.
+- Se extraen los `nodeTypes` reales del player a `frontend/src/components/narratives/player/nodes/playerNodeTypes.tsx`.
+- `NarrativePlayer.tsx` queda como orquestador del run/canvas y ya no contiene el markup principal de los widgets.
+- Los nuevos widgets mantienen JSX propio por tipo y dejan de depender de una card visual genérica.
+- Build validado:
+  - `npm --prefix frontend run build`
+- Próximo ajuste:
+  - validar visualmente en Docker local y ajustar zoom/tamaño si el canvas todavía muestra miniaturas.

@@ -532,3 +532,39 @@ Riesgos:
 Pendientes:
 - Probar reproducción real de `AUDIO` y `AUDIO_BUTTON` en navegador.
 - Probar rutas de `DECISION` y cierre `END`.
+
+## Hito 12
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Se separan los nodos del player canvas a una estructura real de `nodeTypes` por tipo en `frontend/src/components/narratives/player/nodes/`. `NarrativePlayer.tsx` deja de contener el markup visual principal de los nodos y pasa a registrar los widgets especializados.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `frontend/src/components/narratives/player/nodes/playerNodeTypes.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- Build frontend correcto.
+- `nodeTypes` ahora vive fuera del player principal.
+
+Riesgos:
+- Falta validación visual manual con Docker local.
+
+Pendientes:
+- Ajustar zoom/viewport y rematar interacción visual fina si aún se perciben miniaturas.
