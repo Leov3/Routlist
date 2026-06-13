@@ -537,6 +537,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [isValidationPanelOpen, setIsValidationPanelOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({
     valid: true,
@@ -2035,7 +2036,7 @@ if (loading) {
       </aside>
 
       {/* Canvas */}
-      <section className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container shadow-elevation-1 flex flex-col min-h-[400px] lg:min-h-0">
+      <section className="relative overflow-hidden rounded-2xl border border-outline-variant bg-surface-container shadow-elevation-1 flex flex-col min-h-[400px] lg:min-h-0">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-3 py-2 bg-surface/50">
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -2066,9 +2067,14 @@ if (loading) {
               <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(hasUnpublishedChanges ? "warning" : "valid")}`}>
                 {hasUnpublishedChanges ? "Cambios sin publicar" : "Draft alineado con publicada"}
               </span>
-              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(effectiveValidation.valid ? "valid" : "warning")}`}>
+              <button
+                type="button"
+                onClick={() => setIsValidationPanelOpen((current) => !current)}
+                className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors hover:border-primary ${badgeClassName(effectiveValidation.valid ? "valid" : "warning")}`}
+                title="Abrir panel de validación"
+              >
                 {effectiveValidation.valid ? "Validación OK" : `${validationIssues.length} observación(es)`}
-              </span>
+              </button>
             </div>
           </div>
 
@@ -2179,178 +2185,191 @@ if (loading) {
           </ReactFlow>
         </div>
 
-        <div className="border-t border-outline-variant px-4 py-4">
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-            <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                Validación
-              </p>
-              <div className="mt-2 space-y-2 text-sm">
-                {effectiveValidation.valid ? (
-                  <p className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-300">
-                    <CheckCircle2 className="h-4 w-4" />
-                    La narrativa está lista para publicar.
+        {isValidationPanelOpen ? (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 flex justify-end">
+            <div className="pointer-events-auto w-full max-w-5xl rounded-[28px] border border-outline-variant bg-surface/95 p-4 shadow-elevation-3 backdrop-blur-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                    Panel de validación
                   </p>
-                ) : (
-                  <p className="inline-flex items-center gap-2 text-amber-600 dark:text-amber-300">
-                    <AlertCircle className="h-4 w-4" />
-                    Hay observaciones que conviene resolver antes de publicar.
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    Revisa issues, estado de publicación y detalle de versión sin salir del canvas.
                   </p>
-                )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void validateGraph()}
+                    disabled={working}
+                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
+                  >
+                    <WandSparkles className="h-3.5 w-3.5" />
+                    Revalidar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsValidationPanelOpen(false)}
+                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(effectiveValidation.valid ? "valid" : "warning")}`}>
-                  {effectiveValidation.valid ? "Publicable" : "Requiere revisión"}
-                </span>
-                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(hasUnsavedChanges ? "warning" : "valid")}`}>
-                  {hasUnsavedChanges ? "Pendiente de guardar" : "Sin cambios locales pendientes"}
-                </span>
-                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(groupedValidation.errors.length > 0 ? "error" : "valid")}`}>
-                  {groupedValidation.errors.length} error(es)
-                </span>
-                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(groupedValidation.warnings.length > 0 ? "warning" : "valid")}`}>
-                  {groupedValidation.warnings.length} advertencia(s)
-                </span>
-                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName("info")}`}>
-                  {groupedValidation.suggestions.length} sugerencia(s)
-                </span>
-              </div>
-            </div>
 
-            <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                Detalle de versión
-              </p>
-              <div className="mt-2 text-sm text-on-surface-variant">
-                {selectedVersion ? (
-                  <div className="space-y-1">
-                    <p>
-                      <span className="font-semibold text-on-surface">Versión:</span>{" "}
-                      v{selectedVersion.versionNumber} · {selectedVersion.status}
+              <div className="mt-4 max-h-[65vh] overflow-y-auto pr-1">
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                  <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                      Validación
                     </p>
-                    <p>
-                      <span className="font-semibold text-on-surface">Versión publicada:</span>{" "}
-                      {builder?.publishedVersion
-                        ? `v${builder.publishedVersion.versionNumber}`
-                        : "Aún no existe"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-on-surface">Estado narrativa:</span>{" "}
-                      {builder?.narrative.status}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-on-surface">Última actualización:</span>{" "}
-                      {builder?.narrative.updatedAt
-                        ? new Date(builder.narrative.updatedAt).toLocaleString("es-CO")
-                        : "Sin registro"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-on-surface">Publicación pendiente:</span>{" "}
-                      {hasUnpublishedChanges ? "Sí" : "No"}
-                    </p>
-                  </div>
-                ) : (
-                  <p>Sin versión cargada.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-2xl border border-outline-variant bg-surface px-4 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                  Panel de validación
-                </p>
-                <p className="mt-1 text-sm text-on-surface-variant">
-                  Cada issue permite enfocar el nodo y abrir su modal si aplica.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void validateGraph()}
-                disabled={working}
-                className="inline-flex h-9 items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
-              >
-                <WandSparkles className="h-3.5 w-3.5" />
-                Revalidar
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3 xl:grid-cols-3">
-              {([
-                ["Errores críticos", groupedValidation.errors, "error"],
-                ["Advertencias", groupedValidation.warnings, "warning"],
-                ["Sugerencias", groupedValidation.suggestions, "suggestion"],
-              ] as const).map(([title, issues, level]) => (
-                <div key={title} className="rounded-2xl border border-outline-variant bg-surface-container px-3 py-3">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-on-surface">{title}</p>
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClassName(issueTone(level))}`}>
-                      {issues.length}
-                    </span>
+                    <div className="mt-2 space-y-2 text-sm">
+                      {effectiveValidation.valid ? (
+                        <p className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-300">
+                          <CheckCircle2 className="h-4 w-4" />
+                          La narrativa está lista para publicar.
+                        </p>
+                      ) : (
+                        <p className="inline-flex items-center gap-2 text-amber-600 dark:text-amber-300">
+                          <AlertCircle className="h-4 w-4" />
+                          Hay observaciones que conviene resolver antes de publicar.
+                        </p>
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(effectiveValidation.valid ? "valid" : "warning")}`}>
+                        {effectiveValidation.valid ? "Publicable" : "Requiere revisión"}
+                      </span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(hasUnsavedChanges ? "warning" : "valid")}`}>
+                        {hasUnsavedChanges ? "Pendiente de guardar" : "Sin cambios locales pendientes"}
+                      </span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(groupedValidation.errors.length > 0 ? "error" : "valid")}`}>
+                        {groupedValidation.errors.length} error(es)
+                      </span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(groupedValidation.warnings.length > 0 ? "warning" : "valid")}`}>
+                        {groupedValidation.warnings.length} advertencia(s)
+                      </span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName("info")}`}>
+                        {groupedValidation.suggestions.length} sugerencia(s)
+                      </span>
+                    </div>
                   </div>
 
-                  {issues.length === 0 ? (
-                    <p className="text-xs text-on-surface-variant">
-                      {level === "error"
-                        ? "Sin bloqueos de publicación."
-                        : level === "warning"
-                          ? "Sin advertencias activas."
-                          : "Sin sugerencias por ahora."}
+                  <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                      Detalle de versión
                     </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {issues.map((issue) => {
-                        const Icon = issueIcon(issue.level);
+                    <div className="mt-2 text-sm text-on-surface-variant">
+                      {selectedVersion ? (
+                        <div className="space-y-1">
+                          <p>
+                            <span className="font-semibold text-on-surface">Versión:</span>{" "}
+                            v{selectedVersion.versionNumber} · {selectedVersion.status}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-on-surface">Versión publicada:</span>{" "}
+                            {builder?.publishedVersion
+                              ? `v${builder.publishedVersion.versionNumber}`
+                              : "Aún no existe"}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-on-surface">Estado narrativa:</span>{" "}
+                            {builder?.narrative.status}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-on-surface">Última actualización:</span>{" "}
+                            {builder?.narrative.updatedAt
+                              ? new Date(builder.narrative.updatedAt).toLocaleString("es-CO")
+                              : "Sin registro"}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-on-surface">Publicación pendiente:</span>{" "}
+                            {hasUnpublishedChanges ? "Sí" : "No"}
+                          </p>
+                        </div>
+                      ) : (
+                        <p>Sin versión cargada.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-                        return (
-                          <div
-                            key={issue.id}
-                            className="rounded-xl border border-outline-variant bg-surface px-3 py-3"
-                          >
-                            <div className="flex items-start gap-2">
-                              <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm text-on-surface">{issue.message}</p>
-                                <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-on-surface-variant">
-                                  <span>{issue.issueType}</span>
-                                  {issue.nodeLabel ? <span>{issue.nodeLabel}</span> : null}
-                                  <span>{issue.source === "backend" ? "backend" : "builder"}</span>
+                <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                  {([
+                    ["Errores críticos", groupedValidation.errors, "error"],
+                    ["Advertencias", groupedValidation.warnings, "warning"],
+                    ["Sugerencias", groupedValidation.suggestions, "suggestion"],
+                  ] as const).map(([title, issues, level]) => (
+                    <div key={title} className="rounded-2xl border border-outline-variant bg-surface-container px-3 py-3">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-on-surface">{title}</p>
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClassName(issueTone(level))}`}>
+                          {issues.length}
+                        </span>
+                      </div>
+
+                      {issues.length === 0 ? (
+                        <p className="text-xs text-on-surface-variant">
+                          {level === "error"
+                            ? "Sin bloqueos de publicación."
+                            : level === "warning"
+                              ? "Sin advertencias activas."
+                              : "Sin sugerencias por ahora."}
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {issues.map((issue) => {
+                            const Icon = issueIcon(issue.level);
+
+                            return (
+                              <div
+                                key={issue.id}
+                                className="rounded-xl border border-outline-variant bg-surface px-3 py-3"
+                              >
+                                <div className="flex items-start gap-2">
+                                  <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm text-on-surface">{issue.message}</p>
+                                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-on-surface-variant">
+                                      <span>{issue.issueType}</span>
+                                      {issue.nodeLabel ? <span>{issue.nodeLabel}</span> : null}
+                                      <span>{issue.source === "backend" ? "backend" : "builder"}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {issue.nodeId ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => focusNode(issue.nodeId!)}
+                                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                                    >
+                                      Ir al nodo
+                                    </button>
+                                  ) : null}
+                                  {issue.nodeId ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => focusNode(issue.nodeId!, { openEditor: true })}
+                                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                                    >
+                                      Editar nodo
+                                    </button>
+                                  ) : null}
                                 </div>
                               </div>
-                            </div>
-
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {issue.nodeId ? (
-                                <button
-                                  type="button"
-                                  onClick={() => focusNode(issue.nodeId!)}
-                                  className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-                                >
-                                  Ir al nodo
-                                </button>
-                              ) : null}
-                              {issue.nodeId ? (
-                                <button
-                                  type="button"
-                                  onClick={() => focusNode(issue.nodeId!, { openEditor: true })}
-                                  className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-                                >
-                                  Editar nodo
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </section>
 
       {modalPanel}
