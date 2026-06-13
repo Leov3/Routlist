@@ -133,10 +133,10 @@ Rama:
 feature/narratives-player-canvas
 
 Commit:
-Pendiente
+3d544c0
 
 Push:
-Pendiente
+origin/feature/narratives-player-canvas
 
 Resumen:
 Se reemplaza el bloque lineal principal de ejecución por un panel lateral contextual asociado al nodo seleccionado o al nodo actual del flujo.
@@ -162,3 +162,76 @@ Pendientes:
 
 Próximo hito:
 - `feat(narratives-player): support audio and audio button actions in canvas`
+
+## Hito 4
+
+Fecha:
+2026-06-13
+
+Rama:
+feature/narratives-player-canvas
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Se refuerza la operación contextual de `AUDIO` y `AUDIO_BUTTON` con metadata visible, notas y mensajes claros de recurso faltante o inaccesible.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- El panel contextual ya trata audio como recurso operativo real y no solo como acción mínima.
+- `AUDIO_BUTTON` muestra mejor su contexto y falla de forma explícita si no resuelve detalle.
+
+Riesgos:
+- La lógica de eventos de audio sigue siendo la base previa y todavía no emite pausas o stops como eventos persistidos.
+
+Pendientes:
+- Cerrar `SCRIPT_TEXT`, `INSTRUCTION` y `PAUSE` con la misma profundidad operativa.
+
+Próximo hito:
+- `feat(narratives-player): support text instruction and pause nodes`
+
+## Hito 5
+
+Fecha:
+2026-06-13
+
+Rama:
+feature/narratives-player-canvas
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Pendiente.
+
+Archivos modificados:
+- Pendiente
+
+Checks ejecutados:
+- Pendiente
+
+Resultado:
+- Pendiente
+
+Riesgos:
+- Pendiente
+
+Pendientes:
+- Implementar Hito 5.
+
+Próximo hito:
+- `feat(narratives-player): support text instruction and pause nodes`

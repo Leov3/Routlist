@@ -83,6 +83,11 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - Los nodos fuera del paso actual quedan en modo consulta, sin ejecutar acciones.
 - La actividad reciente se mueve a un bloque separado para no competir con el canvas.
 
+### Hito 4
+- `AUDIO` y `AUDIO_BUTTON` operan desde el panel contextual.
+- Se muestran badges operativos, descripción, notas y estado del recurso.
+- `AUDIO_BUTTON` ahora expone mejor su categoría, audio asociado y error de carga si el recurso falta.
+
 ## Cómo continuar si se corta la sesión
 1. Confirmar rama actual: `feature/narratives-player-canvas`.
 2. Leer este archivo y `docs/narratives-player-implementation-log.md`.
@@ -90,13 +95,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 4. Continuar desde el próximo hito recomendado.
 
 ## Último commit realizado
-- `79a0149` `feat(narratives-player): add guided node and edge states`
+- `3d544c0` `feat(narratives-player): add contextual node action panel`
 
 ## Último push realizado
-- `origin/feature/narratives-player-canvas` después de `79a0149`
+- `origin/feature/narratives-player-canvas` después de `3d544c0`
 
 ## Próximo hito recomendado
-- `Hito 4`: consolidar acciones y metadata de `AUDIO` y `AUDIO_BUTTON` dentro del panel contextual.
+- `Hito 5`: reforzar `SCRIPT_TEXT`, `INSTRUCTION` y `PAUSE` dentro del panel contextual.
 
 ## Comandos útiles
 - `git status --short --branch`

@@ -224,6 +224,10 @@ function formatDateTime(value?: string | null) {
   });
 }
 
+function boolLabel(value: unknown, truthy: string, falsy: string) {
+  return value ? truthy : falsy;
+}
+
 export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -238,6 +242,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [selectedDecisionTarget, setSelectedDecisionTarget] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [currentButtonDetails, setCurrentButtonDetails] = useState<any>(null);
+  const [buttonDetailsError, setButtonDetailsError] = useState<string | null>(null);
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
 
   function handleApiError(error: unknown, fallbackMessage: string) {
@@ -273,11 +278,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
   useEffect(() => {
     if (actionNode?.type === "AUDIO_BUTTON" && actionNode.data?.audioButtonId) {
+      setButtonDetailsError(null);
       api(`/audio-buttons/${actionNode.data.audioButtonId}`)
-        .then(res => setCurrentButtonDetails(res))
-        .catch(err => console.error("Error loading button details", err));
+        .then((res) => {
+          setCurrentButtonDetails(res);
+          setButtonDetailsError(null);
+        })
+        .catch((err) => {
+          console.error("Error loading button details", err);
+          setCurrentButtonDetails(null);
+          setButtonDetailsError("No se pudo cargar el detalle del botón o el recurso ya no está disponible.");
+        });
     } else {
       setCurrentButtonDetails(null);
+      setButtonDetailsError(null);
     }
   }, [actionNode]);
 
@@ -702,6 +716,10 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       ? String(currentButtonDetails?.audioAssetId ?? "") 
       : "";
   const hasAudio = Boolean(audioAssetId);
+  const audioDescription = String(actionNode?.data?.description ?? "");
+  const operatorNotes = String(actionNode?.data?.operatorNotes ?? actionNode?.data?.notes ?? "");
+  const isRequiredNode = actionNode?.data?.required !== false;
+  const canReplay = actionNode?.data?.allowReplay !== false;
 
   if (loading) {
     return (
@@ -946,6 +964,31 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                     <div className="space-y-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Audio</p>
                       <p className="text-sm font-medium text-on-surface">{nodeSummary(actionNode)}</p>
+                      <div className="flex flex-wrap gap-2 text-[11px]">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
+                          {boolLabel(isRequiredNode, "Requerido", "Opcional")}
+                        </span>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(canReplay ? "available" : "locked")}`}>
+                          {boolLabel(canReplay, "Permite repetir", "Sin repetición")}
+                        </span>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(hasAudio ? "completed" : "error")}`}>
+                          {boolLabel(hasAudio, "Audio listo", "Audio faltante")}
+                        </span>
+                      </div>
+                      {audioDescription ? (
+                        <p className="text-sm text-on-surface-variant">{audioDescription}</p>
+                      ) : null}
+                      {operatorNotes ? (
+                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas de operador</p>
+                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+                        </div>
+                      ) : null}
+                      {!hasAudio ? (
+                        <div className="rounded-2xl border border-red-300/40 bg-red-500/10 px-3 py-3 text-sm text-red-700 dark:text-red-300">
+                          Este nodo no tiene un audio válido asignado.
+                        </div>
+                      ) : null}
                       <audio
                         ref={audioRef}
                         onPlay={() => setIsPlaying(true)}
@@ -996,16 +1039,40 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                   ) : actionNode.type === "AUDIO_BUTTON" ? (
                     <div className="space-y-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Botón de audio</p>
+                      <div className="flex flex-wrap gap-2 text-[11px]">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
+                          {boolLabel(isRequiredNode, "Requerido", "Opcional")}
+                        </span>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(hasAudio ? "completed" : "error")}`}>
+                          {boolLabel(hasAudio, "Audio asociado", "Audio faltante")}
+                        </span>
+                      </div>
                       {currentButtonDetails ? (
                         <div className="rounded-xl border border-outline-variant bg-surface p-3" style={{ borderLeftColor: currentButtonDetails.color, borderLeftWidth: 4 }}>
                           <p className="font-semibold text-on-surface">{currentButtonDetails.label}</p>
                           <p className="text-xs text-on-surface-variant">
                             Categoría: {currentButtonDetails.category?.name || "Sin categoría"} | Acceso directo: {currentButtonDetails.shortcutKey || "Ninguno"}
                           </p>
+                          <p className="mt-1 text-xs text-on-surface-variant">
+                            Audio: {currentButtonDetails.audioAsset?.originalName || currentButtonDetails.audioAssetId || "No disponible"}
+                          </p>
+                          {currentButtonDetails.description ? (
+                            <p className="mt-2 text-sm text-on-surface-variant">{currentButtonDetails.description}</p>
+                          ) : null}
+                        </div>
+                      ) : buttonDetailsError ? (
+                        <div className="rounded-2xl border border-red-300/40 bg-red-500/10 px-3 py-3 text-sm text-red-700 dark:text-red-300">
+                          {buttonDetailsError}
                         </div>
                       ) : (
                         <p className="text-sm text-on-surface-variant">Cargando detalles del botón...</p>
                       )}
+                      {operatorNotes ? (
+                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas de operador</p>
+                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+                        </div>
+                      ) : null}
                       <audio
                         ref={audioRef}
                         onPlay={() => setIsPlaying(true)}
