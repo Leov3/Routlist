@@ -49,10 +49,10 @@ Rama:
 feature/narratives-player-canvas
 
 Commit:
-Pendiente
+a9db25f
 
 Push:
-Pendiente
+origin/feature/narratives-player-canvas
 
 Resumen:
 Se agrega un canvas read-only basado en React Flow sobre el grafo publicado, manteniendo el player actual funcional como soporte operativo inicial.
@@ -80,7 +80,46 @@ Riesgos:
 - Los estados del canvas aún son mínimos (`current`, `completed`, `pending`).
 
 Pendientes:
-- Commit y push de Hito 1.
+- Evolucionar estados visuales del flujo.
 
 Próximo hito:
 - `feat(narratives-player): add guided node and edge states`
+
+## Hito 2
+
+Fecha:
+2026-06-13
+
+Rama:
+feature/narratives-player-canvas
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Se agregan estados guiados del flujo para nodos y aristas a partir de la ejecución real, incluyendo decisiones tomadas, nodos omitidos y rutas activas o no tomadas.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- El canvas refleja estado operativo del flujo.
+- Las decisiones tomadas afectan visualmente las rutas del grafo.
+
+Riesgos:
+- La selección manual de nodos todavía no controla el contenido mostrado.
+- El panel contextual sigue siendo el bloque lineal existente.
+
+Pendientes:
+- Commit y push de Hito 2.
+
+Próximo hito:
+- `feat(narratives-player): add contextual node action panel`

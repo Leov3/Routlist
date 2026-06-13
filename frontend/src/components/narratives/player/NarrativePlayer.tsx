@@ -51,7 +51,16 @@ type NodeActionState = {
   eventType?: NarrativeRunEventType;
 };
 
-type StepStatus = "completed" | "current" | "pending";
+type PlayerNodeState =
+  | "current"
+  | "completed"
+  | "available"
+  | "locked"
+  | "skipped"
+  | "error"
+  | "decision-selected";
+
+type PlayerEdgeState = "traversed" | "active" | "pending" | "not-taken";
 
 type NodeMeta = NarrativeGraphNode & {
   data?: Record<string, unknown>;
@@ -60,7 +69,7 @@ type NodeMeta = NarrativeGraphNode & {
 type PlayerFlowNodeData = {
   label: string;
   summary: string;
-  status: StepStatus;
+  status: PlayerNodeState;
   type: NarrativeNodeType;
 };
 
@@ -70,7 +79,15 @@ function PlayerFlowNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>)
       ? "border-primary bg-primary/12 shadow-[0_0_0_1px_rgba(168,139,250,0.28)]"
       : data.status === "completed"
         ? "border-emerald-400/40 bg-emerald-500/8"
-        : "border-outline-variant bg-surface";
+        : data.status === "available"
+          ? "border-sky-400/35 bg-sky-500/8"
+          : data.status === "skipped"
+            ? "border-amber-400/35 bg-amber-500/8"
+            : data.status === "error"
+              ? "border-red-400/40 bg-red-500/10"
+              : data.status === "decision-selected"
+                ? "border-fuchsia-400/40 bg-fuchsia-500/10"
+                : "border-outline-variant bg-surface opacity-70";
 
   return (
     <div
@@ -92,7 +109,15 @@ function PlayerFlowNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>)
               ? "bg-primary"
               : data.status === "completed"
                 ? "bg-emerald-400"
-                : "bg-slate-500"
+                : data.status === "available"
+                  ? "bg-sky-400"
+                  : data.status === "skipped"
+                    ? "bg-amber-400"
+                    : data.status === "error"
+                      ? "bg-red-400"
+                      : data.status === "decision-selected"
+                        ? "bg-fuchsia-400"
+                        : "bg-slate-500"
           }`}
         />
       </div>
@@ -160,18 +185,24 @@ function nodeSummary(node: NodeMeta | undefined) {
   return "";
 }
 
-function nodeStatus(nodeId: string, completedIds: Set<string>, currentNodeId?: string | null) {
-  if (currentNodeId === nodeId) return "current" as const;
-  if (completedIds.has(nodeId)) return "completed" as const;
-  return "pending" as const;
-}
-
-function statusTone(status: StepStatus) {
+function statusTone(status: PlayerNodeState) {
   if (status === "completed") {
     return "border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:border-emerald-900/50 dark:text-emerald-300";
   }
   if (status === "current") {
     return "border-primary/30 bg-primary/10 text-primary";
+  }
+  if (status === "available") {
+    return "border-sky-300 bg-sky-500/10 text-sky-700 dark:border-sky-900/50 dark:text-sky-300";
+  }
+  if (status === "skipped") {
+    return "border-amber-300 bg-amber-500/10 text-amber-700 dark:border-amber-900/50 dark:text-amber-300";
+  }
+  if (status === "error") {
+    return "border-red-300 bg-red-500/10 text-red-700 dark:border-red-900/50 dark:text-red-300";
+  }
+  if (status === "decision-selected") {
+    return "border-fuchsia-300 bg-fuchsia-500/10 text-fuchsia-700 dark:border-fuchsia-900/50 dark:text-fuchsia-300";
   }
   return "border-outline-variant bg-surface-container text-on-surface-variant";
 }
@@ -247,7 +278,75 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     return ids;
   }, [run?.events]);
 
-  const currentStatus = currentNode ? nodeStatus(currentNode.id, completedIds, run?.currentNodeId) : "pending";
+  const skippedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const event of run?.events ?? []) {
+      if (event.eventType === "NODE_SKIPPED") {
+        ids.add(event.nodeId);
+      }
+    }
+    return ids;
+  }, [run?.events]);
+
+  const selectedDecisionTargets = useMemo(() => {
+    const targets = new Map<string, string>();
+    for (const event of run?.events ?? []) {
+      if (event.eventType === "DECISION_SELECTED") {
+        const targetNodeId = typeof event.payload?.targetNodeId === "string" ? event.payload.targetNodeId : undefined;
+        if (targetNodeId) {
+          targets.set(event.nodeId, targetNodeId);
+        }
+      }
+    }
+    return targets;
+  }, [run?.events]);
+
+  const availableIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!currentNode) return ids;
+    ids.add(currentNode.id);
+    for (const edge of edges) {
+      if (edge.source === currentNode.id) {
+        ids.add(edge.target);
+      }
+    }
+    return ids;
+  }, [currentNode, edges]);
+
+  const nodeStates = useMemo(() => {
+    const states = new Map<string, PlayerNodeState>();
+    for (const node of nodes) {
+      const data = node.data ?? {};
+      const type = node.type as NarrativeNodeType;
+      let state: PlayerNodeState = "locked";
+
+      const hasError =
+        (type === "AUDIO" && !data.audioAssetId) ||
+        (type === "AUDIO_BUTTON" && !data.audioButtonId) ||
+        (type === "SCRIPT_TEXT" && !data.body) ||
+        (type === "INSTRUCTION" && !data.instruction) ||
+        (type === "DECISION" && findOutgoingEdges(node.id, edges).length === 0);
+
+      if (hasError) {
+        state = "error";
+      } else if (run?.currentNodeId === node.id) {
+        state = "current";
+      } else if (skippedIds.has(node.id)) {
+        state = "skipped";
+      } else if (completedIds.has(node.id)) {
+        state = "completed";
+      } else if (selectedDecisionTargets.has(node.id)) {
+        state = "decision-selected";
+      } else if (availableIds.has(node.id)) {
+        state = "available";
+      }
+
+      states.set(node.id, state);
+    }
+    return states;
+  }, [availableIds, completedIds, edges, nodes, run?.currentNodeId, selectedDecisionTargets, skippedIds]);
+
+  const currentStatus = currentNode ? nodeStates.get(currentNode.id) ?? "locked" : "locked";
   const outgoing = currentNode ? findOutgoingEdges(currentNode.id, edges) : [];
   const decisionChoices = currentNode?.type === "DECISION"
     ? outgoing.map((edge) => ({
@@ -295,27 +394,43 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       data: {
         label: nodeLabel(node),
         summary: nodeSummary(node),
-        status: nodeStatus(node.id, completedIds, run?.currentNodeId),
+        status: nodeStates.get(node.id) ?? "locked",
         type: node.type,
       },
     }));
-  }, [completedIds, nodes, run?.currentNodeId]);
+  }, [nodeStates, nodes]);
 
   const flowEdges = useMemo<Edge[]>(() => {
+    const edgeState = (edge: NarrativeGraphEdge): PlayerEdgeState => {
+      const selectedTarget = selectedDecisionTargets.get(edge.source);
+      if (selectedTarget) {
+        return selectedTarget === edge.target ? "active" : "not-taken";
+      }
+      if (run?.currentNodeId === edge.source) return "active";
+      if (completedIds.has(edge.source) && (completedIds.has(edge.target) || run?.currentNodeId === edge.target)) {
+        return "traversed";
+      }
+      return "pending";
+    };
+
     return edges.map((edge) => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
       label: edge.label ?? undefined,
-      animated: run?.currentNodeId === edge.source,
+      animated: edgeState(edge) === "active",
       selectable: false,
       style:
-        completedIds.has(edge.source) || run?.currentNodeId === edge.source
-          ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.2 }
-          : { stroke: "rgba(148, 163, 184, 0.45)", strokeWidth: 1.4 },
+        edgeState(edge) === "traversed"
+          ? { stroke: "rgba(16, 185, 129, 0.85)", strokeWidth: 2.2 }
+          : edgeState(edge) === "active"
+            ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.4 }
+            : edgeState(edge) === "not-taken"
+              ? { stroke: "rgba(244, 114, 182, 0.4)", strokeWidth: 1.6, strokeDasharray: "6 4" }
+              : { stroke: "rgba(148, 163, 184, 0.35)", strokeWidth: 1.3 },
       labelStyle: { fill: "rgb(148, 163, 184)", fontSize: 11, fontWeight: 600 },
     }));
-  }, [completedIds, edges, run?.currentNodeId]);
+  }, [completedIds, edges, run?.currentNodeId, selectedDecisionTargets]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -945,7 +1060,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 </p>
                 <div className="mt-3 space-y-2">
                   {orderedNodes.map((node) => {
-                    const status = nodeStatus(node.id, completedIds, run.currentNodeId);
+                    const status = nodeStates.get(node.id) ?? "locked";
                     return (
                       <div
                         key={node.id}

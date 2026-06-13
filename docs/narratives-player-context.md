@@ -71,8 +71,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - El canvas usa el grafo publicado y conserva la lógica actual de ejecución.
 - Se agregan `fitView`, `MiniMap`, `Controls` y botón `Centrar paso actual`.
 
+### Hito 2
+- Se derivan estados visuales de nodos y aristas desde `run.currentNodeId` y `run.events`.
+- Los nodos ahora distinguen `current`, `completed`, `available`, `locked`, `skipped`, `error` y `decision-selected`.
+- Las aristas distinguen `active`, `traversed`, `pending` y `not-taken`.
+
 ### Trabajo en progreso
-- Validar y consolidar Hito 1 como commit aislado.
+- Validar y consolidar Hito 2 como commit aislado.
 
 ## Cómo continuar si se corta la sesión
 1. Confirmar rama actual: `feature/narratives-player-canvas`.
@@ -81,13 +86,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 4. Continuar desde el próximo hito recomendado.
 
 ## Último commit realizado
-- `9cdeb91` `docs(narratives-player): add canvas player implementation context`
+- `a9db25f` `feat(narratives-player): add read-only canvas view`
 
 ## Último push realizado
-- `origin/feature/narratives-player-canvas` después de `9cdeb91`
+- `origin/feature/narratives-player-canvas` después de `a9db25f`
 
 ## Próximo hito recomendado
-- `Hito 2`: derivar estados visuales de nodos y aristas desde `run.currentNodeId` y `run.events`.
+- `Hito 3`: crear panel lateral derecho de ejecución y desacoplarlo del bloque lineal actual.
 
 ## Comandos útiles
 - `git status --short --branch`
