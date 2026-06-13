@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, Play } from "lucide-react";
@@ -24,16 +24,22 @@ export default function NarrativeRunPage() {
   const [runId, setRunId] = useState<string | null>(existingRunId);
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const startAttemptedRef = useRef(false);
 
   useEffect(() => {
     setRunId(existingRunId);
+    if (existingRunId) {
+      startAttemptedRef.current = true;
+      setStarting(false);
+    }
   }, [existingRunId]);
 
   useEffect(() => {
-    if (!narrativeId || runId || starting) return;
+    if (!narrativeId || runId || starting || startAttemptedRef.current) return;
 
     let cancelled = false;
     async function start() {
+      startAttemptedRef.current = true;
       setStarting(true);
       setMessage(null);
       try {
@@ -46,6 +52,7 @@ export default function NarrativeRunPage() {
         router.replace(`/narratives/${narrativeId}/run?run=${result.id}`);
       } catch (error) {
         if (!cancelled) {
+          startAttemptedRef.current = false;
           setMessage(error instanceof Error ? error.message : "No se pudo iniciar la narrativa.");
         }
       } finally {

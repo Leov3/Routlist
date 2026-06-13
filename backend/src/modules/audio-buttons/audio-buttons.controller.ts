@@ -49,6 +49,12 @@ export class AudioButtonsController {
     return this.audioButtonsService.board(user);
   }
 
+  @Get(':id')
+  @Permissions('button:read')
+  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.audioButtonsService.findOne(user, id);
+  }
+
   @Post()
   @Permissions('button:create')
   @ApiConsumes('multipart/form-data')

@@ -32,6 +32,10 @@ export class AudioButtonsService {
     }).then((buttons) => buttons.map((button) => this.serializeButton(button)));
   }
 
+  findOne(user: AuthenticatedUser, id: string) {
+    return this.findSerializableButton(user, id);
+  }
+
   async board(user: AuthenticatedUser) {
     const favorites = await this.prisma.audioButtonFavorite.findMany({
       where: {
