@@ -184,4 +184,8 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - Build validado:
   - `npm --prefix frontend run build`
 - Próximo ajuste:
-  - validar visualmente en Docker local y ajustar zoom/tamaño si el canvas todavía muestra miniaturas.
+  - validar visualmente en Docker local y ajustar spacing si alguna narrativa larga queda demasiado compacta.
+- Ajuste de viewport aplicado:
+  - `minZoom` 0.6 y `maxZoom` 1.4.
+  - `fitView` usa padding menor y `maxZoom` más cercano para flujos pequeños.
+  - `defaultViewport` inicia cerca de 0.9 para evitar sensación de miniatura.

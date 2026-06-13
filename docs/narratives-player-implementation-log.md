@@ -568,3 +568,37 @@ Riesgos:
 
 Pendientes:
 - Ajustar zoom/viewport y rematar interacción visual fina si aún se perciben miniaturas.
+
+## Hito 13
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Se ajusta el viewport de React Flow para evitar que los widgets nuevos se vean como miniaturas. Se configuran límites de zoom, viewport inicial y `fitView` con `maxZoom` diferenciado para narrativas pequeñas.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- Build frontend correcto.
+
+Riesgos:
+- El resultado visual final depende del spacing real guardado en cada grafo publicado.
+
+Pendientes:
+- Validación manual en Docker local.

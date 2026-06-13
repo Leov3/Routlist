@@ -1384,9 +1384,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 }}
                 onInit={(instance) => {
                   reactFlowRef.current = instance;
-                  queueMicrotask(() => instance.fitView({ padding: 0.2, duration: 500 }));
+                  queueMicrotask(() => {
+                    instance.fitView({
+                      padding: flowNodes.length <= 6 ? 0.24 : 0.18,
+                      minZoom: 0.65,
+                      maxZoom: flowNodes.length <= 6 ? 0.95 : 0.82,
+                      duration: 500,
+                    });
+                  });
                 }}
                 fitView
+                fitViewOptions={{ padding: 0.2, minZoom: 0.65, maxZoom: flowNodes.length <= 6 ? 0.95 : 0.82 }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
+                minZoom={0.6}
+                maxZoom={1.4}
                 proOptions={{ hideAttribution: true }}
                 nodesDraggable={false}
                 nodesConnectable={false}
