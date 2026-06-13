@@ -23,7 +23,8 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 
 ## Estado actual después del último hito
 - Hito 0 completado y respaldado en feature + `dev`.
-- Hito 1 implementado en la rama feature, pendiente de commit e integración a `dev`.
+- Hito 1 completado y respaldado en feature + `dev`.
+- Hito 2 implementado en la rama feature, pendiente de commit e integración a `dev`.
 - Checks ejecutados sobre el estado actual:
   - `npm --prefix frontend run build`
   - `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
@@ -149,17 +150,30 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - Se reemplazan IDs crudos por nombres visibles de audio y botón cuando los recursos están cargados.
 - La selección inicial tras cargar o copiar publicada ahora queda en el primer nodo, no en todos.
 
+### Hito 2
+- Se agrega un panel de validación estructurado con:
+  - errores críticos
+  - advertencias
+  - sugerencias
+- Cada issue puede:
+  - enfocar el nodo en el canvas
+  - abrir el modal del nodo
+- Se añade una capa de validación local en frontend para UX administrativa.
+- La validación remota del backend se sigue ejecutando y se incorpora al panel como respaldo.
+- El builder ahora muestra conteos visibles de errores, advertencias y sugerencias.
+
 ## Trabajo en progreso
-- Commit, push e integración a `dev` del Hito 1.
+- Commit, push e integración a `dev` del Hito 2.
 
 ## Pendientes
 - Formalizar panel de validación con errores, advertencias y sugerencias.
 - Añadir resúmenes visuales útiles por tipo de nodo en el canvas.
 - Mejorar la visibilidad del estado de draft/publicada dentro del builder.
 - Normalizar `DECISION.options` sin romper datos legacy ni player.
+- Reemplazar en una fase posterior la inferencia local/backend por un contrato de issues tipado y compartido.
 
 ## Riesgos detectados
-- El builder actual usa `validation: { valid, errors[] }`; para Hito 2 hará falta una capa de issues enriquecidos en frontend o ampliar contrato en backend.
+- El backend sigue devolviendo `validation: { valid, errors[] }`; Hito 2 resuelve UX con una capa local, pero el contrato aún no es rico.
 - `FlowNodeData` es laxo y hoy mezcla contratos de nodos distintos; la limpieza grande debe quedar para Hito 7.
 - `PAUSE` tiene coexistencia de `pauseType` y `manual`; cualquier mejora debe respetar ambas formas por compatibilidad.
 - `DECISION.options` sigue siendo string legacy; moverlo a estructura tipada sin capa intermedia rompería compatibilidad.
@@ -198,14 +212,14 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 5. Antes de commitear, actualizar ambos documentos con el estado real.
 
 ## Último commit realizado
-- `05d6d9b` - `docs(narratives): add builder implementation context`
+- `6416afd` - `feat(narratives-builder): improve node cards and status badges`
 
 ## Último push realizado
 - `feature/narratives-builder-upgrade` empujada con Hito 0.
-- `dev` actualizado con merge de Hito 0 en `a01b01a`.
+- `dev` actualizado con merge de Hito 1 en `83829a5`.
 
 ## Próximo hito recomendado
-- Cerrar Hito 1 en Git y pasar a Hito 2: panel de validación con foco y acciones de edición.
+- Cerrar Hito 2 en Git y pasar a Hito 3: mejora de modales con validación contextual por tipo de nodo.
 
 ## Comandos útiles para correr el proyecto
 - `npm --prefix frontend run dev`
