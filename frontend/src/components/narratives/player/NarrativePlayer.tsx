@@ -89,6 +89,8 @@ type PlayerFlowNodeData = {
   nodeData?: any;
   audioButtonId?: string;
   audioAssetId?: string;
+  isRequired?: boolean;
+  decisionChoices?: DecisionChoice[];
 };
 
 type AudioButtonDetail = {
@@ -118,6 +120,11 @@ type NarrativePlayerContextType = {
   startAudioPlayback: (overrideNodeId?: string) => Promise<void>;
   pauseAudio: () => void;
   resumeAudio: () => void;
+  stopAudio: () => void;
+  completeCurrentNode: (skip?: boolean) => Promise<void>;
+  finishRun: () => Promise<void>;
+  copyNodeText: (nodeId: string) => Promise<void>;
+  chooseDecision: (targetNodeId: string, label: string) => Promise<void>;
   setMessage: (msg: string | null) => void;
   selectNode: (nodeId: string) => void;
   openNodeMenu: (nodeId: string) => void;
@@ -161,16 +168,78 @@ function NodeActionButton({ id }: { id: string }) {
   );
 }
 
+function StateBadge({ status }: { status: PlayerNodeState }) {
+  const label =
+    status === "current" ? "Actual" :
+    status === "completed" ? "Completado" :
+    status === "available" ? "Disponible" :
+    status === "error" ? "Error" :
+    status === "decision-selected" ? "Elegido" :
+    status === "skipped" ? "Omitido" :
+    "Bloqueado";
+  const tone =
+    status === "current" ? "border-primary/40 bg-primary/15 text-primary" :
+    status === "completed" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" :
+    status === "error" ? "border-red-400/30 bg-red-500/10 text-red-300" :
+    status === "decision-selected" ? "border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-300" :
+    status === "locked" ? "border-slate-500/20 bg-slate-900/50 text-slate-500" :
+    "border-white/10 bg-black/25 text-slate-300";
+  return <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] ${tone}`}>{label}</span>;
+}
+
+function NodePrimaryButton({
+  children,
+  disabled,
+  onClick,
+  tone = "primary",
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  tone?: "primary" | "amber" | "emerald" | "purple";
+}) {
+  const className =
+    tone === "emerald" ? "bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25" :
+    tone === "amber" ? "bg-amber-400/15 text-amber-100 hover:bg-amber-400/25" :
+    tone === "purple" ? "bg-purple-500/15 text-purple-100 hover:bg-purple-500/25" :
+    "bg-primary text-on-primary hover:bg-primary/90";
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick(event);
+      }}
+      className={`nodrag inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function nodeTextPreview(value: unknown, fallback = "Sin contenido") {
+  const text = String(value ?? "").trim();
+  if (!text) return fallback;
+  return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+}
+
 function StartNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`group relative flex min-w-[180px] items-center gap-3 rounded-[20px] border-2 bg-surface px-4 py-4 text-on-surface ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[210px] rounded-[22px] border-2 bg-gradient-to-br from-primary/18 via-surface to-surface px-4 py-4 text-on-surface ${getStatusStyle(data.status, selected)}`}>
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
-      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-        <Flag className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-on-surface-variant">Inicio</p>
-        <p className="text-sm font-semibold text-on-surface">Comenzar narrativa</p>
+      <div className="flex items-start gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/20 text-primary">
+          <Flag className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">Inicio</p>
+            <StateBadge status={data.status} />
+          </div>
+          <p className="mt-1 text-sm font-semibold text-on-surface">Comenzar narrativa</p>
+          <p className="mt-1 text-xs text-on-surface-variant">Punto de arranque del flujo</p>
+        </div>
       </div>
       <NodeActionButton id={data.id} />
     </div>
@@ -178,49 +247,98 @@ function StartNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
 }
 
 function EndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const ctx = useContext(NarrativePlayerContext);
+  const isCurrent = ctx?.currentNodeId === data.id;
   return (
-    <div className={`group relative flex min-w-[180px] items-center gap-3 rounded-[20px] border-2 bg-surface px-4 py-4 text-on-surface ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[220px] rounded-[22px] border-2 bg-gradient-to-br from-emerald-500/16 via-surface to-surface px-4 py-4 text-on-surface ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400">
-        <CheckCircle2 className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-on-surface-variant">Fin</p>
-        <p className="text-sm font-semibold text-on-surface">{data.label || "Cerrar narrativa"}</p>
+      <div className="flex items-start gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-300">
+          <CheckCircle2 className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">Fin</p>
+            <StateBadge status={data.status} />
+          </div>
+          <p className="mt-1 text-sm font-semibold text-on-surface">{data.label || "Cierre de narrativa"}</p>
+          {isCurrent ? (
+            <div className="mt-3">
+              <NodePrimaryButton tone="emerald" onClick={() => void ctx?.finishRun()}>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Finalizar
+              </NodePrimaryButton>
+            </div>
+          ) : null}
+        </div>
       </div>
       <NodeActionButton id={data.id} />
     </div>
   );
 }
 
-function InstructionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+function InstructionNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const ctx = useContext(NarrativePlayerContext);
+  const isCurrent = ctx?.currentNodeId === id;
   return (
-    <div className={`group relative min-w-[240px] max-w-[300px] rounded-bl-2xl rounded-br-md rounded-tl-md rounded-tr-2xl border-l-4 border-l-amber-500 bg-amber-500/10 p-4 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[260px] max-w-[330px] rotate-[-0.4deg] rounded-bl-3xl rounded-br-lg rounded-tl-lg rounded-tr-3xl border border-amber-300/25 border-l-4 border-l-amber-400 bg-gradient-to-br from-amber-400/20 via-[#211a11] to-surface p-4 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <div className="flex items-center gap-2 text-amber-500">
-        <AlertCircle className="h-4 w-4" />
-        <span className="text-xs font-bold uppercase tracking-wider">Instrucción</span>
+      <div className="flex items-start justify-between gap-4 pr-6">
+        <div className="flex items-center gap-2 text-amber-200">
+          <AlertCircle className="h-4 w-4" />
+          <span className="text-xs font-bold uppercase tracking-[0.18em]">Instrucción</span>
+        </div>
+        <StateBadge status={data.status} />
       </div>
-      <p className="mt-2 text-sm font-medium text-amber-100/90">{data.label}</p>
+      <p className="mt-3 text-sm font-semibold leading-relaxed text-amber-50">{nodeTextPreview(data.label, "Sin instrucción")}</p>
+      {isCurrent ? (
+        <div className="mt-4">
+          <NodePrimaryButton tone="amber" onClick={() => void ctx?.completeCurrentNode(false)}>
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Entendido
+          </NodePrimaryButton>
+        </div>
+      ) : null}
       <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );
 }
 
-function ScriptTextNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+function ScriptTextNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const ctx = useContext(NarrativePlayerContext);
+  const isCurrent = ctx?.currentNodeId === id;
   return (
-    <div className={`group relative min-w-[260px] max-w-[340px] rounded-xl border bg-slate-50/5 p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[290px] max-w-[370px] rounded-[22px] border bg-gradient-to-br from-sky-500/12 via-surface-container-high to-surface p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <div className="flex items-center gap-2 text-blue-400">
-        <FileText className="h-4 w-4" />
-        <span className="text-xs font-bold uppercase tracking-wider">Guion a leer</span>
+      <div className="flex items-start justify-between gap-4 pr-6">
+        <div className="flex items-center gap-2 text-sky-300">
+          <FileText className="h-4 w-4" />
+          <span className="text-xs font-bold uppercase tracking-[0.18em]">Guion a leer</span>
+        </div>
+        <StateBadge status={data.status} />
       </div>
-      <p className="mt-3 line-clamp-4 text-sm font-medium leading-relaxed text-slate-200">
-        "{data.label}"
+      <p className="mt-4 line-clamp-5 rounded-2xl border border-white/8 bg-black/20 px-3 py-3 text-sm font-medium leading-relaxed text-slate-100">
+        "{nodeTextPreview(data.label, "Sin guion")}"
       </p>
-      <div className="mt-3 inline-flex rounded-full border border-slate-500/30 bg-slate-900/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
-        Copiable
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            void ctx?.copyNodeText(id);
+          }}
+          className="nodrag inline-flex items-center gap-1.5 rounded-full border border-sky-300/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-sky-200 hover:border-sky-300/40"
+        >
+          <Copy className="h-3 w-3" />
+          Copiable
+        </button>
+        {isCurrent ? (
+          <NodePrimaryButton onClick={() => void ctx?.completeCurrentNode(false)}>
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Leído
+          </NodePrimaryButton>
+        ) : null}
       </div>
       <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
@@ -253,22 +371,39 @@ function AudioNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) 
   };
 
   return (
-    <div className={`group relative flex min-w-[250px] items-center gap-4 rounded-[20px] border bg-surface-container-high p-3 pr-8 shadow-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[280px] rounded-[24px] border bg-gradient-to-br from-violet-500/16 via-surface-container-high to-surface p-4 pr-9 shadow-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <button
-        type="button"
-        onClick={handlePlay}
-        className={`nodrag flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-all ${
-          isPlaying 
-            ? "bg-primary text-on-primary ring-4 ring-primary/20 animate-pulse" 
-            : "bg-primary/20 text-primary hover:bg-primary/30"
-        }`}
-      >
-        {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current ml-0.5" />}
-      </button>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-on-surface">{data.label}</p>
-        <p className="text-xs text-on-surface-variant">Recurso de audio</p>
+      <div className="flex items-start gap-4">
+        <button
+          type="button"
+          onClick={handlePlay}
+          className={`nodrag flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl transition-all ${
+            isPlaying 
+              ? "bg-primary text-on-primary ring-4 ring-primary/20 animate-pulse" 
+              : "bg-primary/20 text-primary hover:bg-primary/30"
+          }`}
+        >
+          {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="ml-0.5 h-5 w-5 fill-current" />}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-200">Audio</p>
+            <StateBadge status={data.status} />
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-semibold text-slate-300">
+              {data.isRequired ? "Requerido" : "Opcional"}
+            </span>
+          </div>
+          <p className="mt-2 truncate text-sm font-bold text-on-surface">{data.label}</p>
+          <p className="mt-1 text-xs text-on-surface-variant">{isPlaying ? "Reproduciendo" : isPaused ? "Pausado" : "Listo para reproducir"}</p>
+          {isCurrent ? (
+            <div className="mt-3">
+              <NodePrimaryButton onClick={handlePlay}>
+                {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+                {isPlaying ? "Pausar" : isPaused ? "Reanudar" : "Reproducir"}
+              </NodePrimaryButton>
+            </div>
+          ) : null}
+        </div>
       </div>
       <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
@@ -326,18 +461,40 @@ function AudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeDa
   };
 
   return (
-    <div className={`group relative ${getStatusStyle(data.status, selected)} rounded-[18px]`}>
+    <div className={`group relative min-w-[270px] rounded-[24px] border bg-gradient-to-br from-primary/20 via-surface-container-high to-surface p-3 pr-9 shadow-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <div className="nodrag">
-        <AudioButton
-          button={btn}
-          active={isPlaying}
-          isFavorite={false}
-          density="compact"
-          onPlay={handlePlay}
-          onToggleFavorite={() => {}}
-          onOpenDetails={() => {}}
-        />
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            handlePlay();
+          }}
+          className={`nodrag flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl transition ${
+            isPlaying ? "bg-primary text-on-primary animate-pulse" : "bg-primary/20 text-primary hover:bg-primary/30"
+          }`}
+        >
+          {isPlaying ? <Pause className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Botonera</p>
+            <StateBadge status={data.status} />
+          </div>
+          <p className="mt-2 truncate text-base font-black text-on-surface">{displayLabel}</p>
+          <p className="mt-1 text-xs text-on-surface-variant">{btnDetails?.category?.name || "Botón de audio"}</p>
+          {isCurrent ? (
+            <div className="mt-3 flex items-center gap-2">
+              <NodePrimaryButton onClick={() => handlePlay()}>
+                {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+                {isPlaying ? "Pausar" : "Reproducir"}
+              </NodePrimaryButton>
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-3 hidden">
+        <AudioButton button={btn} active={isPlaying} isFavorite={false} density="compact" onPlay={handlePlay} onToggleFavorite={() => {}} onOpenDetails={() => {}} />
       </div>
       <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
@@ -345,14 +502,34 @@ function AudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeDa
   );
 }
 
-function PauseNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+function PauseNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const ctx = useContext(NarrativePlayerContext);
+  const isCurrent = ctx?.currentNodeId === id;
+  const isTimer = data.nodeData?.manual === false || data.nodeData?.pauseType === "timer";
+  const duration = data.nodeData?.durationSeconds;
   return (
-    <div className={`group relative flex min-w-[220px] items-center gap-3 rounded-[20px] border bg-surface px-4 py-4 shadow-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[240px] rounded-[22px] border bg-gradient-to-br from-slate-500/14 via-surface to-surface px-4 py-4 shadow-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <Clock3 className="h-5 w-5 text-on-surface-variant" />
-      <div className="flex flex-col">
-        <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Pausa</span>
-        <span className="text-sm font-semibold text-on-surface">Temporizador / Manual</span>
+      <div className="flex items-start gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-500/15 text-slate-200">
+          <Clock3 className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-300">Pausa</span>
+            <StateBadge status={data.status} />
+          </div>
+          <span className="mt-2 block text-sm font-semibold text-on-surface">{isTimer ? "Temporizada" : "Manual"}</span>
+          <span className="text-xs text-on-surface-variant">{isTimer && duration ? `${duration}s de espera` : "Continuar cuando corresponda"}</span>
+          {isCurrent ? (
+            <div className="mt-3">
+              <NodePrimaryButton onClick={() => void ctx?.completeCurrentNode(false)}>
+                <ArrowRight className="h-3.5 w-3.5" />
+                Continuar
+              </NodePrimaryButton>
+            </div>
+          ) : null}
+        </div>
       </div>
       <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
@@ -360,22 +537,38 @@ function PauseNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   );
 }
 
-function DecisionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+function DecisionNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const ctx = useContext(NarrativePlayerContext);
+  const isCurrent = ctx?.currentNodeId === id;
+  const choices = data.decisionChoices ?? [];
   return (
-    <div className={`group relative min-w-[260px] rounded-[24px] border border-purple-500/30 bg-purple-500/10 p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[300px] max-w-[380px] rounded-[26px] border border-purple-500/30 bg-gradient-to-br from-purple-500/18 via-surface-container-high to-surface p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <div className="flex items-center gap-2 text-purple-400">
-        <Split className="h-4 w-4" />
-        <span className="text-xs font-bold uppercase tracking-wider">Decisión</span>
+      <div className="flex items-start justify-between gap-4 pr-6">
+        <div className="flex items-center gap-2 text-purple-300">
+          <Split className="h-4 w-4" />
+          <span className="text-xs font-bold uppercase tracking-[0.18em]">Decisión</span>
+        </div>
+        <StateBadge status={data.status} />
       </div>
-      <p className="mt-2 text-center text-sm font-semibold text-purple-100">{data.label}</p>
-      <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-        {(readDecisionLabels(data.nodeData?.options).slice(0, 3)).map((option) => (
-          <span key={option} className="rounded-full border border-purple-400/20 bg-purple-950/40 px-2.5 py-1 text-[10px] font-semibold text-purple-200">
-            {option}
-          </span>
+      <p className="mt-3 text-sm font-semibold leading-relaxed text-purple-50">{nodeTextPreview(data.label, "¿Qué sigue?")}</p>
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {(choices.length ? choices : readDecisionLabels(data.nodeData?.options).map((label) => ({ label, targetNodeId: label }))).slice(0, 4).map((option) => (
+          <button
+            key={`${option.targetNodeId}-${option.label}`}
+            type="button"
+            disabled={!isCurrent}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (isCurrent) void ctx?.chooseDecision(option.targetNodeId, option.label);
+            }}
+            className="nodrag rounded-full border border-purple-300/25 bg-purple-950/45 px-2.5 py-1 text-[10px] font-bold text-purple-100 transition hover:border-purple-300/50 disabled:cursor-default disabled:opacity-80"
+          >
+            {option.label}
+          </button>
         ))}
       </div>
+      {isCurrent ? <p className="mt-3 text-[11px] font-semibold text-purple-200">Elige una ruta para continuar</p> : null}
       <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
@@ -719,9 +912,18 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         status: nodeStates.get(node.id) ?? "locked",
         type: node.type,
         nodeData: node.data,
+        audioButtonId: node.data?.audioButtonId as string | undefined,
+        audioAssetId: node.data?.audioAssetId as string | undefined,
+        isRequired: node.data?.required !== false,
+        decisionChoices: node.type === "DECISION"
+          ? findOutgoingEdges(node.id, edges).map((edge, choiceIndex) => ({
+              label: edge.label?.trim() || readDecisionLabels(node.data?.options)[choiceIndex] || "Opción",
+              targetNodeId: edge.target,
+            }))
+          : undefined,
       },
     }));
-  }, [nodeStates, nodes]);
+  }, [edges, nodeStates, nodes]);
 
   const flowEdges = useMemo<Edge[]>(() => {
     const edgeState = (edge: NarrativeGraphEdge): PlayerEdgeState => {
@@ -1137,6 +1339,21 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
   }
 
+  async function copyNodeText(nodeId: string) {
+    const node = nodeMap.get(nodeId);
+    const text = String(node?.data?.body ?? node?.data?.instruction ?? "");
+    if (!text) {
+      setMessage("Este nodo no tiene contenido para copiar.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("Contenido copiado al portapapeles.");
+    } catch {
+      setMessage("No se pudo copiar el contenido.");
+    }
+  }
+
   function renderAudioControls(label: string) {
     return (
       <>
@@ -1484,6 +1701,11 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         startAudioPlayback,
         pauseAudio,
         resumeAudio,
+        stopAudio,
+        completeCurrentNode,
+        finishRun,
+        copyNodeText,
+        chooseDecision: handleDecision,
         setMessage,
         selectNode: (nodeId: string) => {
           setSelectedNodeId(nodeId);
@@ -1716,9 +1938,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                         <div className="flex items-center justify-between border-b border-outline-variant bg-surface-container px-4 py-3">
                           <div className="flex items-center gap-2">
                             <span className={`inline-flex h-2.5 w-2.5 rounded-full ${status === "current" ? "bg-primary animate-pulse" : status === "completed" ? "bg-emerald-400" : "bg-slate-500"}`} />
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
-                              {ctxNode.type}
-                            </p>
+                            <div>
+                              <p className="text-sm font-semibold text-on-surface">{nodeLabel(ctxNode)}</p>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
+                                {status === "current" ? "Paso actual" : status === "completed" ? "Ya completado" : status === "locked" ? "Bloqueado" : ctxNode.type}
+                              </p>
+                            </div>
                           </div>
                           <button
                             type="button"
@@ -1729,17 +1954,18 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                           </button>
                         </div>
                         <div className="p-4 space-y-4">
-                          <div>
-                            <h4 className="font-semibold text-on-surface">{nodeLabel(ctxNode)}</h4>
-                            <p className="mt-1 text-sm text-on-surface-variant">{nodeSummary(ctxNode)}</p>
-                          </div>
-
                           {/* === AUDIO / AUDIO_BUTTON actions === */}
                           {(ctxNode.type === "AUDIO" || ctxNode.type === "AUDIO_BUTTON") && (() => {
                             const isCurrentNode = ctxNode.id === run?.currentNodeId;
                             const canAct = isCurrentNode;
                             return (
                               <div className="space-y-3">
+                                <div className="rounded-2xl border border-primary/15 bg-primary/10 px-3 py-3">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                                    {ctxNode.type === "AUDIO_BUTTON" ? "Botón de botonera" : "Recurso de audio"}
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-on-surface">{nodeSummary(ctxNode)}</p>
+                                </div>
                                 {/* Barra de progreso si está reproduciendo */}
                                 {isCurrentNode && playbackState !== "idle" && playbackProgress.duration > 0 && (
                                   <div className="space-y-1">
@@ -1784,7 +2010,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                     </button>
                                   )}
                                   {!canAct && (
-                                    <p className="text-xs text-on-surface-variant">Sólo disponible cuando sea el paso actual.</p>
+                                    <p className="text-xs text-on-surface-variant">Disponible como acción cuando sea el paso actual.</p>
                                   )}
                                 </div>
                               </div>
@@ -1793,15 +2019,16 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
                           {/* === SCRIPT_TEXT actions === */}
                           {ctxNode.type === "SCRIPT_TEXT" && (() => {
-                            const text = (ctxNode.data as any)?.text ?? nodeLabel(ctxNode);
+                            const text = String((ctxNode.data as any)?.body ?? "");
                             const isCurrentNode = ctxNode.id === run?.currentNodeId;
                             return (
                               <div className="space-y-3">
-                                <div className="max-h-48 overflow-y-auto rounded-xl border border-outline-variant bg-surface-container p-3 text-sm text-on-surface">
-                                  <p className="leading-relaxed">"{ text }"</p>
+                                <div className="max-h-56 overflow-y-auto rounded-2xl border border-sky-300/20 bg-sky-500/10 p-4 text-sm text-slate-100">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-300">Guion completo</p>
+                                  <p className="mt-3 whitespace-pre-wrap leading-7">"{text || "Sin contenido"}"</p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                  <button type="button" onClick={() => { void navigator.clipboard.writeText(text); }} className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-primary">
+                                  <button type="button" onClick={() => { void copyNodeText(ctxNode.id); }} className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-primary">
                                     <Copy className="h-3.5 w-3.5" /> Copiar texto
                                   </button>
                                   {isCurrentNode && (
@@ -1817,10 +2044,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                           {/* === INSTRUCTION actions === */}
                           {ctxNode.type === "INSTRUCTION" && (() => {
                             const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            const instruction = String((ctxNode.data as any)?.instruction ?? "");
                             return (
                               <div className="space-y-3">
-                                <div className="rounded-xl border-l-4 border-l-amber-500 bg-amber-500/10 p-3 text-sm text-amber-100">
-                                  {nodeLabel(ctxNode)}
+                                <div className="rounded-2xl border-l-4 border-l-amber-400 bg-amber-400/12 p-4 text-sm text-amber-50">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Instrucción operativa</p>
+                                  <p className="mt-3 whitespace-pre-wrap leading-7">{instruction || "Sin instrucción"}</p>
                                 </div>
                                 {isCurrentNode && (
                                   <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white">
@@ -1837,8 +2066,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             const pauseData = ctxNode.data as any;
                             return (
                               <div className="space-y-3">
-                                <div className="rounded-xl border border-outline-variant bg-surface p-3 text-sm">
-                                  <p className="text-on-surface-variant">Tipo: <span className="font-semibold text-on-surface">{pauseData?.pauseType === "timer" ? "Temporizador" : "Manual"}</span></p>
+                                <div className="rounded-2xl border border-outline-variant bg-surface p-4 text-sm">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Pausa</p>
+                                  <p className="mt-2 text-on-surface-variant">Tipo: <span className="font-semibold text-on-surface">{pauseData?.pauseType === "timer" || pauseData?.manual === false ? "Temporizador" : "Manual"}</span></p>
                                   {pauseData?.durationSeconds && <p className="text-on-surface-variant">Duración: <span className="font-semibold text-on-surface">{pauseData.durationSeconds}s</span></p>}
                                 </div>
                                 {isCurrentNode && (
@@ -1855,14 +2085,16 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             const isCurrentNode = ctxNode.id === run?.currentNodeId;
                             const choices: DecisionChoice[] = (() => {
                               const raw = (ctxNode.data as any)?.options;
-                              if (Array.isArray(raw)) return raw as DecisionChoice[];
                               return flowEdges
                                 .filter((e) => e.source === ctxNode.id)
-                                .map((e) => ({ label: (e.label as string) || "Continuar", targetNodeId: e.target }));
+                                .map((e, index) => ({ label: (e.label as string) || readDecisionLabels(raw)[index] || "Continuar", targetNodeId: e.target }));
                             })();
                             return (
                               <div className="space-y-3">
-                                <p className="text-sm font-semibold text-on-surface">{(ctxNode.data as any)?.question ?? nodeLabel(ctxNode)}</p>
+                                <div className="rounded-2xl border border-purple-300/20 bg-purple-500/10 p-4">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Pregunta</p>
+                                  <p className="mt-2 text-sm font-semibold text-on-surface">{(ctxNode.data as any)?.question ?? nodeLabel(ctxNode)}</p>
+                                </div>
                                 {isCurrentNode ? (
                                   <div className="flex flex-col gap-2">
                                     {choices.length > 0 ? choices.map((c) => (
@@ -1886,8 +2118,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             const isCurrentNode = ctxNode.id === run?.currentNodeId;
                             return (
                               <div className="space-y-3">
-                                <div className="rounded-xl border border-outline-variant bg-surface p-3 text-sm text-on-surface-variant">
-                                  {nodeLabel(ctxNode)} — Fin del flujo.
+                                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Cierre</p>
+                                  <p className="mt-2">{nodeLabel(ctxNode)} · Fin del flujo.</p>
                                 </div>
                                 {isCurrentNode && (
                                   <button type="button" onClick={() => { void finishRun(); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">

@@ -495,3 +495,40 @@ Riesgos:
 
 Pendientes:
 - Completar la fase de validación en entornos reales.
+
+## Hito 11
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Pulido específico de nodos del player canvas. Los nodos dejan de sentirse como cards genéricas y pasan a widgets operativos por tipo: inicio, cierre, mini reproductor de audio, botón de botonera, guion copiable, nota operativa, pausa y decisión. Se agregan CTAs visibles para el nodo actual y el popover contextual prioriza contenido/acciones sobre metadata técnica.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- Build frontend correcto.
+- No se tocó builder.
+- No se modificó backend ni contratos del grafo.
+
+Riesgos:
+- Requiere validación visual manual en Docker local con una narrativa que incluya todos los tipos de nodo.
+
+Pendientes:
+- Probar reproducción real de `AUDIO` y `AUDIO_BUTTON` en navegador.
+- Probar rutas de `DECISION` y cierre `END`.

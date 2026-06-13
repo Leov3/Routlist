@@ -128,7 +128,7 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - `origin/dev`
 
 ## Próximo hito recomendado
-- Validación en ambiente Docker de producción.
+- Validación manual en Docker local del pulido específico de nodos del player.
 
 ## Comandos útiles
 - `git status --short --branch`
@@ -157,3 +157,21 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
   - nodos `START`, `END`, `SCRIPT_TEXT`, `INSTRUCTION`, `AUDIO`, `AUDIO_BUTTON`, `PAUSE` y `DECISION` con mayor expresividad visual
   - botón de tres puntos en nodos para abrir acciones como fallback al clic derecho
   - labels de aristas como chips dark en lugar de etiquetas blancas
+
+## Node Widget Polish
+- Rama activa: `dev`.
+- Alcance aplicado: únicamente nodos del player canvas y su popover contextual.
+- No se tocaron builder, backend, contratos de grafo ni layout general del player.
+- Cambios aplicados:
+  - `START` y `END` ahora se leen como inicio/cierre operativos, con badge de estado.
+  - `AUDIO` se presenta como mini reproductor con CTA visible cuando es el paso actual.
+  - `AUDIO_BUTTON` se presenta como botón de botonera, con label/categoría y CTA de reproducción.
+  - `SCRIPT_TEXT` se presenta como guion legible, copiable y con CTA `Leído`.
+  - `INSTRUCTION` se presenta como nota/post-it operativo con CTA `Entendido`.
+  - `PAUSE` muestra manual/timer y CTA `Continuar`.
+  - `DECISION` muestra opciones como chips accionables cuando es el nodo actual.
+  - El popover reduce metadata técnica y prioriza contenido, acciones y notas.
+- Checks:
+  - `npm --prefix frontend run build` completado correctamente.
+- Último commit:
+  - Pendiente.
