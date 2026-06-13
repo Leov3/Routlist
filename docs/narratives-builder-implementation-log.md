@@ -4,7 +4,7 @@
 
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
-Commit: pendiente
+Commit: `05d6d9b`
 Push: `origin/feature/narratives-builder-upgrade`, luego merge a `dev`
 Resumen:
 - Se revisó el estado del repositorio y se confirmó base limpia sobre `dev`.
@@ -122,8 +122,8 @@ Próximo hito:
 
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
-Commit: pendiente
-Push: pendiente
+Commit: `072cb01` en feature, `9711da2` en `dev`
+Push: `origin/feature/narratives-builder-upgrade`, `origin/dev`
 Resumen:
 - Se normalizó `DECISION.options` a objetos con `id`, `label` y `description`.
 - El builder mantiene compatibilidad con formatos legacy previos.
@@ -144,8 +144,7 @@ Riesgos:
 - La relación opción-ruta sigue siendo implícita por `edge.label`, no por `sourceOptionId`.
 - El backend todavía no valida estructura enriquecida de opciones, solo la forma general del grafo.
 Pendientes:
-- Commit y push del Hito 4.
-- Integración de Hito 4 a `dev`.
+- Ninguno dentro del alcance del hito.
 Próximo hito:
 - Hito 5
 
@@ -153,8 +152,8 @@ Próximo hito:
 
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
-Commit: pendiente
-Push: pendiente
+Commit: `09a755c` en feature, `3aeea4b` en `dev`
+Push: `origin/feature/narratives-builder-upgrade`, `origin/dev`
 Resumen:
 - Se endureció la publicación desde el builder.
 - La publicación ahora se bloquea con errores críticos.
@@ -173,8 +172,7 @@ Resultado de checks:
 Riesgos:
 - El diff es básico y está basado en comparación por ids/contenido serializado.
 Pendientes:
-- Commit y push del Hito 5.
-- Integración de Hito 5 a `dev`.
+- Ninguno dentro del alcance del hito.
 Próximo hito:
 - Hito 6
 
@@ -182,8 +180,8 @@ Próximo hito:
 
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
-Commit: pendiente
-Push: pendiente
+Commit: `197edbe` en feature, `47fb969` en `dev`
+Push: `origin/feature/narratives-builder-upgrade`, `origin/dev`
 Resumen:
 - Se añadió duplicación de nodo.
 - El borrado ahora confirma el impacto sobre conexiones.
@@ -203,8 +201,7 @@ Riesgos:
 - No se implementó undo/redo.
 - No se duplican ramas completas, solo nodos individuales.
 Pendientes:
-- Commit y push del Hito 6.
-- Integración de Hito 6 a `dev`.
+- Ninguno dentro del alcance del hito.
 Próximo hito:
 - Hito 7
 
@@ -212,8 +209,8 @@ Próximo hito:
 
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
-Commit: pendiente
-Push: pendiente
+Commit: `6ac69b2` en feature, `04f63e6` en `dev`
+Push: `origin/feature/narratives-builder-upgrade`, `origin/dev`
 Resumen:
 - Se extrajeron tipos del builder a `frontend/src/types/narratives.ts`.
 - Se formalizó el contrato compartido de `NarrativeBuilderNodeData`.
@@ -232,7 +229,6 @@ Resultado de checks:
 Riesgos:
 - La estructura completa por subtipos sigue conviviendo dentro de un contrato unificado por compatibilidad.
 Pendientes:
-- Commit y push del Hito 7.
-- Integración de Hito 7 a `dev`.
+- Ninguno dentro del alcance del hito.
 Próximo hito:
 - Cierre de fase actual
