@@ -612,10 +612,10 @@ Rama:
 dev
 
 Commit:
-Pendiente
+17ce8dd
 
 Push:
-Pendiente
+origin/dev
 
 Resumen:
 Optimización del player canvas y separación visual de nodos. Se centraliza la carga de detalles de `AUDIO_BUTTON` en una caché del player para evitar fetches por cada nodo renderizado. Además, el player transforma las posiciones del grafo en modo ejecución para separar nodos grandes sin modificar el grafo publicado ni el builder.

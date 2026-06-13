@@ -237,8 +237,8 @@ Próximo hito:
 
 Fecha: 2026-06-13
 Rama: `dev`
-Commit: Pendiente
-Push: Pendiente
+Commit: `17ce8dd`
+Push: `origin/dev`
 Resumen:
 - `INSTRUCTION` se reclasifica como anotación operativa, no como paso de ejecución.
 - La paleta separa `INSTRUCTION` en la sección `Anotaciones`.
