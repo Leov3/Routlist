@@ -24,7 +24,8 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 ## Estado actual después del último hito
 - Hito 0 completado y respaldado en feature + `dev`.
 - Hito 1 completado y respaldado en feature + `dev`.
-- Hito 2 implementado en la rama feature, pendiente de commit e integración a `dev`.
+- Hito 2 completado y respaldado en feature + `dev`.
+- Hito 3 implementado en la rama feature, pendiente de commit e integración a `dev`.
 - Checks ejecutados sobre el estado actual:
   - `npm --prefix frontend run build`
   - `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
@@ -162,8 +163,20 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - La validación remota del backend se sigue ejecutando y se incorpora al panel como respaldo.
 - El builder ahora muestra conteos visibles de errores, advertencias y sugerencias.
 
+### Hito 3
+- Se reorganiza el modal por secciones lógicas:
+  - configuración principal
+  - contenido
+  - recurso asociado
+  - comportamiento
+  - notas internas u operatorias
+  - validación del nodo
+- Cada tipo de nodo ahora presenta un popup más legible y orientado a administración.
+- El modal incorpora un resumen de issues específicos del nodo en edición.
+- Los nodos `AUDIO` y `AUDIO_BUTTON` muestran estado visible del recurso asociado dentro del modal.
+
 ## Trabajo en progreso
-- Push e integración final documentada del Hito 2.
+- Commit, push e integración a `dev` del Hito 3.
 
 ## Pendientes
 - Formalizar panel de validación con errores, advertencias y sugerencias.
@@ -220,7 +233,7 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - `dev` actualizado con merge de Hito 1 en `83829a5`.
 
 ## Próximo hito recomendado
-- Cerrar Hito 2 en Git y pasar a Hito 3: mejora de modales con validación contextual por tipo de nodo.
+- Cerrar Hito 3 en Git y pasar a Hito 4: normalización compatible de `DECISION.options`.
 
 ## Comandos útiles para correr el proyecto
 - `npm --prefix frontend run dev`
