@@ -33,8 +33,14 @@ import {
   SkipForward,
   StopCircle,
   TriangleAlert,
+  FileText,
+  Split,
+  Flag,
+  Volume2
 } from "lucide-react";
 import { api, apiUrl } from "@/lib/api";
+import { AudioButton } from "@/components/audio-board/AudioButton";
+import type { BoardAudioButton } from "@/types/routlis";
 import type {
   NarrativeGraphEdge,
   NarrativeGraphJson,
@@ -97,62 +103,148 @@ type DecisionChoice = {
 
 type AudioPlaybackState = "idle" | "playing" | "paused" | "stopped";
 
-function PlayerFlowNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
-  const statusClass =
-    data.status === "current"
-      ? "border-primary bg-primary/12 shadow-[0_0_0_1px_rgba(168,139,250,0.28)]"
-      : data.status === "completed"
-        ? "border-emerald-400/40 bg-emerald-500/8"
-        : data.status === "available"
-          ? "border-sky-400/35 bg-sky-500/8"
-          : data.status === "skipped"
-            ? "border-amber-400/35 bg-amber-500/8"
-            : data.status === "error"
-              ? "border-red-400/40 bg-red-500/10"
-              : data.status === "decision-selected"
-                ? "border-fuchsia-400/40 bg-fuchsia-500/10"
-                : "border-outline-variant bg-surface opacity-70";
+function getStatusStyle(status: string) {
+  if (status === "current") return "ring-4 ring-primary ring-offset-2 ring-offset-[#120f1c] shadow-[0_0_30px_rgba(168,139,250,0.4)]";
+  if (status === "completed") return "border-emerald-500/50 opacity-90";
+  if (status === "locked" || status === "skipped") return "opacity-50 grayscale";
+  if (status === "decision-selected") return "border-fuchsia-500/50 opacity-90";
+  return "border-outline-variant hover:border-primary/50";
+}
+
+function StartNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  return (
+    <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-surface text-on-surface transition-all ${getStatusStyle(data.status)}`}>
+      <Flag className="h-6 w-6 text-primary" />
+      <Handle type="source" position={Position.Bottom} className="!opacity-0" />
+    </div>
+  );
+}
+
+function EndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  return (
+    <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-surface text-on-surface transition-all ${getStatusStyle(data.status)}`}>
+      <Handle type="target" position={Position.Top} className="!opacity-0" />
+      <div className="h-6 w-6 rounded-sm bg-red-500" />
+    </div>
+  );
+}
+
+function InstructionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  return (
+    <div className={`relative min-w-[220px] max-w-[280px] rounded-bl-2xl rounded-br-md rounded-tl-md rounded-tr-2xl border-l-4 border-l-amber-500 bg-amber-500/10 p-4 shadow-sm backdrop-blur-sm transition-all ${getStatusStyle(data.status)}`}>
+      <Handle type="target" position={Position.Top} className="!opacity-0" />
+      <div className="flex items-center gap-2 text-amber-500">
+        <AlertCircle className="h-4 w-4" />
+        <span className="text-xs font-bold uppercase tracking-wider">Instrucción</span>
+      </div>
+      <p className="mt-2 text-sm font-medium text-amber-100/90">{data.label}</p>
+      <Handle type="source" position={Position.Bottom} className="!opacity-0" />
+    </div>
+  );
+}
+
+function ScriptTextNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  return (
+    <div className={`relative min-w-[260px] max-w-[320px] rounded-xl border bg-slate-50/5 p-5 shadow-sm backdrop-blur-sm transition-all ${getStatusStyle(data.status)}`}>
+      <Handle type="target" position={Position.Top} className="!opacity-0" />
+      <div className="flex items-center gap-2 text-blue-400">
+        <FileText className="h-4 w-4" />
+        <span className="text-xs font-bold uppercase tracking-wider">Guion a leer</span>
+      </div>
+      <p className="mt-3 line-clamp-4 text-sm font-medium leading-relaxed text-slate-200">
+        "{data.label}"
+      </p>
+      <Handle type="source" position={Position.Bottom} className="!opacity-0" />
+    </div>
+  );
+}
+
+function AudioNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  return (
+    <div className={`relative flex min-w-[240px] items-center gap-4 rounded-[20px] border bg-surface-container-high p-3 pr-5 shadow-sm transition-all ${getStatusStyle(data.status)}`}>
+      <Handle type="target" position={Position.Top} className="!opacity-0" />
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/20 text-primary">
+        <Volume2 className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-on-surface">{data.label}</p>
+        <p className="text-xs text-on-surface-variant">Recurso de Audio</p>
+      </div>
+      <Handle type="source" position={Position.Bottom} className="!opacity-0" />
+    </div>
+  );
+}
+
+function AudioButtonNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData & { nodeData?: any }>>) {
+  const btn: BoardAudioButton = {
+    id: data.id || "temp",
+    label: data.label,
+    audioUrl: "",
+    imageUrl: "",
+    categoryId: "narrative",
+    durationSeconds: 0,
+    tags: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 
   return (
-    <div
-      className={`min-w-[220px] rounded-2xl border px-4 py-3 text-left shadow-elevation-1 transition-colors ${statusClass} ${
-        selected ? "ring-2 ring-primary/30" : ""
-      }`}
-    >
-      <Handle type="target" position={Position.Top} className="opacity-0" />
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-            {data.type}
-          </p>
-          <p className="mt-1 text-sm font-semibold text-on-surface">{data.label}</p>
-        </div>
-        <span
-          className={`inline-flex h-2.5 w-2.5 rounded-full ${
-            data.status === "current"
-              ? "bg-primary"
-              : data.status === "completed"
-                ? "bg-emerald-400"
-                : data.status === "available"
-                  ? "bg-sky-400"
-                  : data.status === "skipped"
-                    ? "bg-amber-400"
-                    : data.status === "error"
-                      ? "bg-red-400"
-                      : data.status === "decision-selected"
-                        ? "bg-fuchsia-400"
-                        : "bg-slate-500"
-          }`}
+    <div className={`relative transition-all ${getStatusStyle(data.status)} rounded-[18px]`}>
+      <Handle type="target" position={Position.Top} className="!opacity-0" />
+      <div className="pointer-events-none">
+        <AudioButton
+          button={btn}
+          active={data.status === "current"}
+          isFavorite={false}
+          density="compact"
+          onPlay={() => {}}
+          onToggleFavorite={() => {}}
+          onOpenDetails={() => {}}
         />
       </div>
-      <p className="mt-2 line-clamp-3 text-xs text-on-surface-variant">{data.summary || "Sin resumen"}</p>
-      <Handle type="source" position={Position.Bottom} className="opacity-0" />
+      <Handle type="source" position={Position.Bottom} className="!opacity-0" />
+    </div>
+  );
+}
+
+function PauseNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  return (
+    <div className={`relative flex min-w-[180px] items-center gap-3 rounded-full border bg-surface px-4 py-3 shadow-sm transition-all ${getStatusStyle(data.status)}`}>
+      <Handle type="target" position={Position.Top} className="!opacity-0" />
+      <Clock3 className="h-5 w-5 text-on-surface-variant" />
+      <div className="flex flex-col">
+        <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Pausa</span>
+        <span className="text-sm font-semibold text-on-surface">Temporizador / Manual</span>
+      </div>
+      <Handle type="source" position={Position.Bottom} className="!opacity-0" />
+    </div>
+  );
+}
+
+function DecisionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  return (
+    <div className={`relative min-w-[240px] rounded-[24px] border border-purple-500/30 bg-purple-500/10 p-5 shadow-sm backdrop-blur-sm transition-all ${getStatusStyle(data.status)}`}>
+      <Handle type="target" position={Position.Top} className="!opacity-0" />
+      <div className="flex items-center gap-2 text-purple-400">
+        <Split className="h-4 w-4" />
+        <span className="text-xs font-bold uppercase tracking-wider">Decisión</span>
+      </div>
+      <p className="mt-2 text-center text-sm font-semibold text-purple-100">{data.label}</p>
+      <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );
 }
 
 const playerNodeTypes: NodeTypes = {
-  playerNode: PlayerFlowNode,
+  START: StartNode,
+  INSTRUCTION: InstructionNode,
+  SCRIPT_TEXT: ScriptTextNode,
+  AUDIO: AudioNode,
+  AUDIO_BUTTON: AudioButtonNode,
+  PAUSE: PauseNode,
+  DECISION: DecisionNode,
+  END: EndNode,
+  narrativeNode: InstructionNode // Fallback 
 };
 
 function readGraph(graphJson?: NarrativeGraphJson | null) {
@@ -465,17 +557,19 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const flowNodes = useMemo<Node<PlayerFlowNodeData>[]>(() => {
     return nodes.map((node, index) => ({
       id: node.id,
-      type: "playerNode",
+      type: node.type || "narrativeNode",
       position: node.position ?? { x: index * 260, y: index * 140 },
       draggable: false,
       selectable: true,
       sourcePosition: Position.Bottom,
       targetPosition: Position.Top,
       data: {
+        id: node.id,
         label: nodeLabel(node),
         summary: nodeSummary(node),
         status: nodeStates.get(node.id) ?? "locked",
         type: node.type,
+        nodeData: node.data,
       },
     }));
   }, [nodeStates, nodes]);
@@ -865,10 +959,16 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           }}
           onLoadedMetadata={(e) => {
             setMessage(null);
-            setPlaybackProgress({ current: 0, duration: e.currentTarget.duration });
+            const target = e.target as HTMLAudioElement | null;
+            if (target) {
+              setPlaybackProgress({ current: 0, duration: target.duration });
+            }
           }}
           onTimeUpdate={(e) => {
-            setPlaybackProgress(prev => ({ ...prev, current: e.currentTarget.currentTime }));
+            const target = e.target as HTMLAudioElement | null;
+            if (target) {
+              setPlaybackProgress(prev => ({ ...prev, current: target.currentTime }));
+            }
           }}
           className="hidden"
         />
