@@ -6,7 +6,6 @@ import {
   Background,
   Controls,
   Handle,
-  MiniMap,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -36,7 +35,10 @@ import {
   FileText,
   Split,
   Flag,
-  Volume2
+  Volume2,
+  Ellipsis,
+  Route,
+  Timer
 } from "lucide-react";
 import { api, apiUrl } from "@/lib/api";
 import { AudioButton } from "@/components/audio-board/AudioButton";
@@ -118,6 +120,7 @@ type NarrativePlayerContextType = {
   resumeAudio: () => void;
   setMessage: (msg: string | null) => void;
   selectNode: (nodeId: string) => void;
+  openNodeMenu: (nodeId: string) => void;
 };
 
 const NarrativePlayerContext = createContext<NarrativePlayerContextType | null>(null);
@@ -141,33 +144,65 @@ function getStatusStyle(status: string, selected?: boolean) {
   return base + selectHalo + "border-outline-variant hover:border-primary/60";
 }
 
+function NodeActionButton({ id }: { id: string }) {
+  const ctx = useContext(NarrativePlayerContext);
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        ctx?.openNodeMenu(id);
+      }}
+      className="nodrag absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-black/20 text-slate-300 opacity-0 transition hover:border-primary/50 hover:text-white group-hover:opacity-100"
+      aria-label="Abrir acciones"
+    >
+      <Ellipsis className="h-4 w-4" />
+    </button>
+  );
+}
+
 function StartNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-surface text-on-surface ${getStatusStyle(data.status, selected)}`}>
-      <Flag className="h-6 w-6 text-primary" />
+    <div className={`group relative flex min-w-[180px] items-center gap-3 rounded-[20px] border-2 bg-surface px-4 py-4 text-on-surface ${getStatusStyle(data.status, selected)}`}>
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+        <Flag className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-on-surface-variant">Inicio</p>
+        <p className="text-sm font-semibold text-on-surface">Comenzar narrativa</p>
+      </div>
+      <NodeActionButton id={data.id} />
     </div>
   );
 }
 
 function EndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 bg-surface text-on-surface ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative flex min-w-[180px] items-center gap-3 rounded-[20px] border-2 bg-surface px-4 py-4 text-on-surface ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <div className="h-6 w-6 rounded-sm bg-red-500" />
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400">
+        <CheckCircle2 className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-on-surface-variant">Fin</p>
+        <p className="text-sm font-semibold text-on-surface">{data.label || "Cerrar narrativa"}</p>
+      </div>
+      <NodeActionButton id={data.id} />
     </div>
   );
 }
 
 function InstructionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`relative min-w-[220px] max-w-[280px] rounded-bl-2xl rounded-br-md rounded-tl-md rounded-tr-2xl border-l-4 border-l-amber-500 bg-amber-500/10 p-4 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[240px] max-w-[300px] rounded-bl-2xl rounded-br-md rounded-tl-md rounded-tr-2xl border-l-4 border-l-amber-500 bg-amber-500/10 p-4 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <div className="flex items-center gap-2 text-amber-500">
         <AlertCircle className="h-4 w-4" />
         <span className="text-xs font-bold uppercase tracking-wider">Instrucción</span>
       </div>
       <p className="mt-2 text-sm font-medium text-amber-100/90">{data.label}</p>
+      <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );
@@ -175,7 +210,7 @@ function InstructionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>
 
 function ScriptTextNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`relative min-w-[260px] max-w-[320px] rounded-xl border bg-slate-50/5 p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[260px] max-w-[340px] rounded-xl border bg-slate-50/5 p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <div className="flex items-center gap-2 text-blue-400">
         <FileText className="h-4 w-4" />
@@ -184,6 +219,10 @@ function ScriptTextNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>)
       <p className="mt-3 line-clamp-4 text-sm font-medium leading-relaxed text-slate-200">
         "{data.label}"
       </p>
+      <div className="mt-3 inline-flex rounded-full border border-slate-500/30 bg-slate-900/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+        Copiable
+      </div>
+      <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );
@@ -214,7 +253,7 @@ function AudioNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) 
   };
 
   return (
-    <div className={`relative flex min-w-[240px] items-center gap-4 rounded-[20px] border bg-surface-container-high p-3 pr-5 shadow-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative flex min-w-[250px] items-center gap-4 rounded-[20px] border bg-surface-container-high p-3 pr-8 shadow-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <button
         type="button"
@@ -229,8 +268,9 @@ function AudioNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) 
       </button>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-on-surface">{data.label}</p>
-        <p className="text-xs text-on-surface-variant">Recurso de Audio</p>
+        <p className="text-xs text-on-surface-variant">Recurso de audio</p>
       </div>
+      <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );
@@ -286,7 +326,7 @@ function AudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeDa
   };
 
   return (
-    <div className={`relative ${getStatusStyle(data.status, selected)} rounded-[18px]`}>
+    <div className={`group relative ${getStatusStyle(data.status, selected)} rounded-[18px]`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <div className="nodrag">
         <AudioButton
@@ -299,6 +339,7 @@ function AudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeDa
           onOpenDetails={() => {}}
         />
       </div>
+      <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );
@@ -306,13 +347,14 @@ function AudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeDa
 
 function PauseNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`relative flex min-w-[180px] items-center gap-3 rounded-full border bg-surface px-4 py-3 shadow-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative flex min-w-[220px] items-center gap-3 rounded-[20px] border bg-surface px-4 py-4 shadow-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <Clock3 className="h-5 w-5 text-on-surface-variant" />
       <div className="flex flex-col">
         <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Pausa</span>
         <span className="text-sm font-semibold text-on-surface">Temporizador / Manual</span>
       </div>
+      <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );
@@ -320,13 +362,21 @@ function PauseNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
 
 function DecisionNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={`relative min-w-[240px] rounded-[24px] border border-purple-500/30 bg-purple-500/10 p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
+    <div className={`group relative min-w-[260px] rounded-[24px] border border-purple-500/30 bg-purple-500/10 p-5 shadow-sm backdrop-blur-sm ${getStatusStyle(data.status, selected)}`}>
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <div className="flex items-center gap-2 text-purple-400">
         <Split className="h-4 w-4" />
         <span className="text-xs font-bold uppercase tracking-wider">Decisión</span>
       </div>
       <p className="mt-2 text-center text-sm font-semibold text-purple-100">{data.label}</p>
+      <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+        {(readDecisionLabels(data.nodeData?.options).slice(0, 3)).map((option) => (
+          <span key={option} className="rounded-full border border-purple-400/20 bg-purple-950/40 px-2.5 py-1 text-[10px] font-semibold text-purple-200">
+            {option}
+          </span>
+        ))}
+      </div>
+      <NodeActionButton id={data.id} />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
     </div>
   );
@@ -471,6 +521,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
+  const [showActivityDock, setShowActivityDock] = useState(false);
 
   const handleApiError = useCallback((error: unknown, fallbackMessage: string) => {
     if (error instanceof ApiError) {
@@ -689,17 +740,25 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       source: edge.source,
       target: edge.target,
       label: edge.label ?? undefined,
+      labelShowBg: Boolean(edge.label),
+      labelBgPadding: [8, 4],
+      labelBgBorderRadius: 999,
+      labelBgStyle: {
+        fill: "rgba(15, 23, 42, 0.88)",
+        stroke: "rgba(148, 163, 184, 0.18)",
+        strokeWidth: 1,
+      },
       animated: edgeState(edge) === "active",
       selectable: false,
       style:
         edgeState(edge) === "traversed"
-          ? { stroke: "rgba(16, 185, 129, 0.85)", strokeWidth: 2.2 }
+          ? { stroke: "rgba(16, 185, 129, 0.85)", strokeWidth: 2.4 }
           : edgeState(edge) === "active"
-            ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.4 }
+            ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.8 }
             : edgeState(edge) === "not-taken"
               ? { stroke: "rgba(244, 114, 182, 0.4)", strokeWidth: 1.6, strokeDasharray: "6 4" }
-              : { stroke: "rgba(148, 163, 184, 0.35)", strokeWidth: 1.3 },
-      labelStyle: { fill: "rgb(148, 163, 184)", fontSize: 11, fontWeight: 600 },
+              : { stroke: "rgba(148, 163, 184, 0.28)", strokeWidth: 1.4 },
+      labelStyle: { fill: "rgb(203, 213, 225)", fontSize: 10, fontWeight: 700 },
     }));
   }, [completedIds, edges, run?.currentNodeId, selectedDecisionTargets]);
 
@@ -1018,6 +1077,22 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const operatorNotes = String(actionNode?.data?.operatorNotes ?? actionNode?.data?.notes ?? "");
   const isRequiredNode = actionNode?.data?.required !== false;
   const canReplay = actionNode?.data?.allowReplay !== false;
+  const actionableNodes = useMemo(
+    () => nodes.filter((node) => node.type !== "START").length,
+    [nodes],
+  );
+  const progressedNodes = useMemo(
+    () => nodes.filter((node) => completedIds.has(node.id) || skippedIds.has(node.id)).length + (currentNode && currentNode.type !== "START" ? 1 : 0),
+    [completedIds, currentNode, nodes, skippedIds],
+  );
+  const elapsedLabel = useMemo(() => {
+    if (!run?.startedAt) return null;
+    const diffSeconds = Math.max(0, Math.floor((Date.now() - new Date(run.startedAt).getTime()) / 1000));
+    const hh = String(Math.floor(diffSeconds / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((diffSeconds % 3600) / 60)).padStart(2, "0");
+    const ss = String(diffSeconds % 60).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  }, [run?.startedAt]);
 
   if (loading) {
     return (
@@ -1413,6 +1488,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           setSelectedNodeId(nodeId);
           setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
         },
+        openNodeMenu: (nodeId: string) => {
+          setSelectedNodeId(nodeId);
+          const x = typeof window !== "undefined" ? Math.max(24, window.innerWidth / 2 - 160) : 160;
+          const y = typeof window !== "undefined" ? Math.max(100, window.innerHeight / 2 - 180) : 120;
+          setContextMenu({ isOpen: true, x, y, nodeId });
+        },
       }}
     >
     <ReactFlowProvider>
@@ -1442,12 +1523,79 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         }}
         className="hidden"
       />
-      <div className="space-y-4">
+      <div className="space-y-3">
         {message ? (
           <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
             {message}
           </div>
         ) : null}
+
+        <section className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 shadow-elevation-1">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
+                Narrativas / {run.narrative.title}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-semibold tracking-tight text-on-surface">{run.narrative.title}</h1>
+                <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                  {run.status}
+                </span>
+                <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                  v{run.narrativeVersion.versionNumber}
+                </span>
+                <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                  Paso {Math.min(progressedNodes, actionableNodes)} / {actionableNodes || 0}
+                </span>
+                <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                  {currentNode.type}
+                </span>
+                {elapsedLabel ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                    <Timer className="h-3.5 w-3.5" />
+                    {elapsedLabel}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => centerNode(currentNode)}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+              >
+                <Crosshair className="h-4 w-4" />
+                Centrar
+              </button>
+              <button
+                type="button"
+                onClick={() => void cancelRun()}
+                disabled={working || run.status !== "RUNNING"}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-red-300/30 bg-red-500/10 px-4 text-sm font-semibold text-red-300 transition-colors hover:border-red-400 disabled:opacity-50"
+              >
+                <StopCircle className="h-4 w-4" />
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void finishRun()}
+                disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-300 transition-colors hover:border-emerald-400 disabled:opacity-50"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Finalizar
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/narratives")}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+              >
+                Volver
+              </button>
+            </div>
+          </div>
+        </section>
 
         {/* Banner de fin de flujo / estado de corrida */}
         {currentNode?.type === "END" && run?.status === "RUNNING" && (
@@ -1497,29 +1645,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           </div>
         )}
 
-        <div className="flex flex-col gap-4">
-          {/* Main Canvas Section */}
-          <section className="flex flex-col rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                  Canvas de ejecución
-                </p>
-                <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
-                  Flujo publicado en modo interactivo
-                </h3>
+        <div className="flex flex-col gap-3">
+          <section className="flex flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1">
+            <div className="relative h-[calc(100vh-270px)] min-h-[520px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c]">
+              <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-primary/20 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
+                  {nodeLabel(currentNode)}
+                </span>
+                <span className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-slate-300 backdrop-blur">
+                  {Math.min(progressedNodes, actionableNodes)} / {actionableNodes || 0}
+                </span>
+                <span className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-slate-300 backdrop-blur">
+                  Solo lectura
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => centerNode(currentNode)}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-              >
-                <Crosshair className="h-4 w-4" />
-                Centrar paso actual
-              </button>
-            </div>
-
-            <div className="h-[calc(100vh-280px)] min-h-[500px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c]">
               <ReactFlow
                 nodes={flowNodes}
                 edges={flowEdges}
@@ -1555,24 +1694,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 selectionOnDrag={false}
                 elevateNodesOnSelect={false}
               >
-                <MiniMap
-                  pannable
-                  zoomable
-                  className="!bg-surface !border !border-outline-variant"
-                  nodeStrokeColor={(node) =>
-                    (node.data as PlayerFlowNodeData | undefined)?.status === "current"
-                      ? "rgb(168, 139, 250)"
-                      : "rgba(148, 163, 184, 0.6)"
-                  }
-                  nodeColor={(node) =>
-                    (node.data as PlayerFlowNodeData | undefined)?.status === "completed"
-                      ? "rgba(16, 185, 129, 0.65)"
-                      : (node.data as PlayerFlowNodeData | undefined)?.status === "current"
-                        ? "rgba(168, 139, 250, 0.85)"
-                        : "rgba(51, 65, 85, 0.9)"
-                  }
-                />
-                <Controls showInteractive={false} className="!bg-surface" />
+                <Controls showInteractive={false} className="!left-auto !right-3 !top-3 !bottom-auto !rounded-2xl !border !border-white/10 !bg-black/45 !backdrop-blur" />
                 <Background color="rgba(148,163,184,0.16)" gap={20} size={1.1} />
               </ReactFlow>
 
@@ -1791,72 +1913,102 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             </div>
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* Resumen */}
-            <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                    Narrativa en ejecución
-                  </p>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-on-surface">
-                    {run.narrative.title}
-                  </h2>
+          <section className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 shadow-elevation-1">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 font-semibold text-primary">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                    Actual
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 font-semibold text-emerald-300">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    Completado
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 font-semibold text-slate-300">
+                    <span className="h-2 w-2 rounded-full bg-slate-400" />
+                    Pendiente
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 font-semibold text-fuchsia-300">
+                    <Route className="h-3.5 w-3.5" />
+                    Ruta tomada
+                  </span>
                 </div>
-                <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                  <p className="text-xs uppercase tracking-[0.22em] text-on-surface-variant">Estado</p>
-                  <p className="mt-1 text-sm font-semibold text-on-surface">{run.status}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-outline-variant bg-surface px-3 py-1 text-xs font-semibold text-on-surface-variant">
+                    Seleccionado: {actionNode ? nodeLabel(actionNode) : "Ninguno"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowActivityDock((value) => !value)}
+                    className="rounded-full border border-outline-variant bg-surface px-3 py-1 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                  >
+                    {showActivityDock ? "Ocultar actividad" : "Ver actividad"}
+                  </button>
                 </div>
               </div>
-              <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                  Resumen de ruta
-                </p>
-                <div className="mt-4 space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                  {orderedNodes.map((node) => {
-                    const status = nodeStates.get(node.id) ?? "locked";
-                    return (
-                      <div key={node.id} className={`rounded-2xl border px-3 py-3 text-xs ${statusTone(status)}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-on-surface">{nodeLabel(node)}</span>
-                          <span className="uppercase tracking-[0.18em]">{node.type}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </section>
 
-            {/* Actividad */}
-            <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                  Actividad
-                </p>
-                <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
-                  Eventos recientes
-                </h3>
-              </div>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                {eventLog.length > 0 ? (
-                  eventLog.map((event) => (
-                    <div key={event.id} className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-on-surface">{event.eventType}</p>
-                        <span className="text-[11px] text-on-surface-variant">{formatDateTime(event.createdAt)}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-on-surface-variant">Nodo {event.nodeId}</p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-outline-variant px-4 py-8 text-center text-sm text-on-surface-variant">
-                    Todavía no hay eventos en esta ejecución.
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)]">
+                <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Estado operacional</p>
+                  <p className="mt-2 text-sm font-semibold text-on-surface">
+                    Actual: {nodeLabel(currentNode)} · Última acción: {eventLog[0]?.eventType ?? "Sin eventos"}
+                  </p>
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    Ruta: {orderedNodes.slice(0, 3).map((node) => nodeLabel(node)).join(" → ")}
+                    {orderedNodes.length > 3 ? " ..." : ""}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Resumen</p>
+                  <div className="mt-2 grid gap-1 text-xs text-on-surface-variant">
+                    <p>Versión: <span className="font-semibold text-on-surface">v{run.narrativeVersion.versionNumber}</span></p>
+                    <p>Estado: <span className="font-semibold text-on-surface">{run.status}</span></p>
+                    <p>Eventos: <span className="font-semibold text-on-surface">{run.events?.length ?? 0}</span></p>
                   </div>
-                )}
+                </div>
               </div>
-            </section>
-          </div>
+
+              {showActivityDock ? (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Actividad reciente</p>
+                    <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-2">
+                      {eventLog.length > 0 ? eventLog.map((event) => (
+                        <div key={event.id} className="rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-on-surface">{event.eventType}</p>
+                            <span className="text-[11px] text-on-surface-variant">{formatDateTime(event.createdAt)}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-on-surface-variant">Nodo {event.nodeId}</p>
+                        </div>
+                      )) : (
+                        <p className="text-sm text-on-surface-variant">Todavía no hay eventos en esta ejecución.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Ruta visible</p>
+                    <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-2">
+                      {orderedNodes.map((node) => {
+                        const status = nodeStates.get(node.id) ?? "locked";
+                        return (
+                          <div key={node.id} className={`rounded-xl border px-3 py-2 text-xs ${statusTone(status)}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-on-surface">{nodeLabel(node)}</span>
+                              <span className="uppercase tracking-[0.18em]">{node.type}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
         </div>
       </div>
     </ReactFlowProvider>
