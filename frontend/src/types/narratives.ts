@@ -57,6 +57,41 @@ export type NarrativeVersion = {
   graphJson?: NarrativeGraphJson;
 };
 
+export type NarrativeRunEvent = {
+  id: string;
+  nodeId: string;
+  eventType: NarrativeRunEventType;
+  payload?: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export type NarrativeRunSummary = {
+  id: string;
+  narrativeId: string;
+  narrativeVersionId: string;
+  organizationId: string;
+  status: NarrativeRunStatus;
+  currentNodeId?: string | null;
+  startedAt: string;
+  finishedAt?: string | null;
+  narrative: {
+    id: string;
+    title: string;
+    status: NarrativeStatus;
+  };
+  narrativeVersion: {
+    id: string;
+    versionNumber: number;
+    status: NarrativeVersionStatus;
+  };
+};
+
+export type NarrativeRunDetail = NarrativeRunSummary & {
+  narrative: NarrativeSummary;
+  narrativeVersion: NarrativeVersion;
+  events: NarrativeRunEvent[];
+};
+
 export type NarrativeSummary = {
   id: string;
   title: string;

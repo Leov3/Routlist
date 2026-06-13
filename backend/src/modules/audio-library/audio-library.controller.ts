@@ -92,6 +92,19 @@ export class AudioLibraryController {
     createReadStream(path).pipe(res);
   }
 
+  @Get(':id/narrative-stream')
+  @Permissions('narratives:run')
+  async narrativeStream(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { asset, path } = await this.audioLibraryService.streamPath(user, id);
+    res.setHeader('Content-Type', asset.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${asset.fileName}"`);
+    createReadStream(path).pipe(res);
+  }
+
   @Get(':id/download')
   @Permissions('board:use')
   async download(

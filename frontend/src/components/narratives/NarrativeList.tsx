@@ -123,15 +123,13 @@ export function NarrativeList({
                         <Copy className="h-3.5 w-3.5" />
                         Duplicar
                       </button>
-                      <button
-                        type="button"
-                        disabled
-                        title="Disponible en la siguiente etapa"
-                        className="inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-2xl bg-primary/60 px-3 text-xs font-semibold text-on-primary opacity-80"
+                      <Link
+                        href={`/narratives/${narrative.id}/run`}
+                        className="inline-flex h-9 items-center gap-2 rounded-2xl bg-primary px-3 text-xs font-semibold text-on-primary transition-transform hover:scale-[1.01]"
                       >
                         <ArrowUpRight className="h-3.5 w-3.5" />
-                        Player pronto
-                      </button>
+                        Ejecutar
+                      </Link>
                     </div>
                   </td>
                 </tr>
