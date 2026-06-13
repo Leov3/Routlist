@@ -49,6 +49,21 @@ type BuilderProps = {
   narrativeId: string;
 };
 
+type AudioAssetOption = {
+  id: string;
+  originalName: string;
+};
+
+type AudioButtonOption = {
+  id: string;
+  label: string;
+  category?: {
+    name: string;
+  };
+};
+
+type ApiCollection<T> = T[] | { data?: T[]; items?: T[] };
+
 type FlowNodeData = {
   title?: string;
   label?: string;
@@ -67,6 +82,13 @@ type FlowNodeData = {
   durationSeconds?: string | number;
   manual?: boolean;
   options?: string;
+  builderSummary?: string;
+  builderStatus?: "valid" | "warning" | "error" | "info";
+  builderStatusLabel?: string;
+  builderBadges?: Array<{
+    label: string;
+    tone: "valid" | "warning" | "error" | "info";
+  }>;
 };
 
 type NodePaletteItem = {
@@ -146,6 +168,11 @@ function makeNodeId(type: NarrativeNodeType) {
 
 import dagre from "dagre";
 
+type BuilderBadge = {
+  label: string;
+  tone: "valid" | "warning" | "error" | "info";
+};
+
 function autoLayout(nodes: Node<FlowNodeData>[], edges: Edge[]) {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", ranksep: 100, nodesep: 50 });
@@ -184,6 +211,80 @@ function nodeSummary(node: Node<FlowNodeData>) {
   return NODE_PALETTE.find((item) => item.type === nodeType)?.description || "";
 }
 
+function badgeClassName(tone: BuilderBadge["tone"]) {
+  switch (tone) {
+    case "valid":
+      return "border-emerald-300 bg-emerald-500/12 text-emerald-700 dark:border-emerald-900/40 dark:text-emerald-300";
+    case "warning":
+      return "border-amber-300 bg-amber-500/12 text-amber-700 dark:border-amber-900/40 dark:text-amber-300";
+    case "error":
+      return "border-red-300 bg-red-500/12 text-red-700 dark:border-red-900/40 dark:text-red-300";
+    default:
+      return "border-slate-300 bg-slate-500/12 text-slate-700 dark:border-slate-700/40 dark:text-slate-300";
+  }
+}
+
+function statusDotClassName(status: FlowNodeData["builderStatus"]) {
+  switch (status) {
+    case "valid":
+      return "bg-emerald-500";
+    case "warning":
+      return "bg-amber-500";
+    case "error":
+      return "bg-red-500";
+    default:
+      return "bg-slate-400";
+  }
+}
+
+function normalizeDecisionOptions(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === "string") return item.trim();
+        if (item && typeof item === "object" && "label" in item) {
+          const label = item.label;
+          return typeof label === "string" ? label.trim() : "";
+        }
+        return "";
+      })
+      .filter(Boolean);
+  }
+
+  if (typeof value !== "string") return [];
+
+  return value
+    .split("|")
+    .map((option) => option.trim())
+    .filter(Boolean);
+}
+
+function normalizeGraph(graph: NarrativeGraphJson) {
+  return {
+    nodes: graph.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+      position: node.position ?? { x: 0, y: 0 },
+      data: node.data ?? {},
+    })),
+    edges: graph.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      label: edge.label ?? null,
+    })),
+  };
+}
+
+function graphSignature(graph: NarrativeGraphJson) {
+  return JSON.stringify(normalizeGraph(graph));
+}
+
+function toCollectionItems<T>(value: ApiCollection<T>) {
+  if (Array.isArray(value)) return value;
+  return value.data ?? value.items ?? [];
+}
+
 function nodeClassName(nodeType: NarrativeNodeType) {
   switch (nodeType) {
     case "START":
@@ -215,7 +316,9 @@ function NarrativeFlowNode({ data, selected, type }: NodeProps) {
     flowData.label ||
     NODE_PALETTE.find((item) => item.type === nodeType)?.label ||
     nodeType;
-  const summary = nodeSummary({ data: flowData, type: nodeType } as Node<FlowNodeData>);
+  const summary =
+    flowData.builderSummary ?? nodeSummary({ data: flowData, type: nodeType } as Node<FlowNodeData>);
+  const badges = flowData.builderBadges ?? [];
 
   return (
     <div
@@ -236,9 +339,24 @@ function NarrativeFlowNode({ data, selected, type }: NodeProps) {
           {nodeType.slice(0, 2)}
         </div>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">{nodeType}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">{nodeType}</p>
+            <span className={`h-2 w-2 rounded-full ${statusDotClassName(flowData.builderStatus)}`} />
+          </div>
           <p className="truncate text-sm font-semibold">{title}</p>
           <p className="mt-1 line-clamp-2 text-xs opacity-80">{summary}</p>
+          {badges.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {badges.slice(0, 3).map((badge) => (
+                <span
+                  key={`${badge.tone}-${badge.label}`}
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClassName(badge.tone)}`}
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -317,6 +435,16 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [audios, setAudios] = useState<{ id: string; name: string }[]>([]);
   const [buttons, setButtons] = useState<{ id: string; label: string; category?: { name: string } }[]>([]);
 
+  const audioMap = useMemo(
+    () => new Map(audios.map((audio) => [audio.id, audio])),
+    [audios],
+  );
+
+  const buttonMap = useMemo(
+    () => new Map(buttons.map((button) => [button.id, button])),
+    [buttons],
+  );
+
   const editingNode = useMemo(
     () => nodes.find((node) => node.id === editingNodeId) ?? null,
     [nodes, editingNodeId],
@@ -333,6 +461,61 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   );
 
   const selectedVersion = builder?.draftVersion ?? builder?.publishedVersion ?? null;
+  const currentGraph = useMemo<NarrativeGraphJson>(
+    () => ({
+      nodes: nodes.map((node) => ({
+        id: node.id,
+        type: (node.data?.nodeType ?? node.type) as NarrativeNodeType,
+        position: node.position,
+        data: { ...(node.data ?? {}) },
+      })),
+      edges: edges.map((edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        label: typeof edge.label === "string" ? edge.label : null,
+      })),
+    }),
+    [edges, nodes],
+  );
+  const loadedDraftGraph = useMemo(
+    () => graphFromVersions(builder?.draftVersion ?? builder?.publishedVersion),
+    [builder?.draftVersion, builder?.publishedVersion],
+  );
+  const publishedGraph = useMemo(
+    () => graphFromVersions(builder?.publishedVersion),
+    [builder?.publishedVersion],
+  );
+  const hasUnsavedChanges = useMemo(
+    () => graphSignature(currentGraph) !== graphSignature(loadedDraftGraph),
+    [currentGraph, loadedDraftGraph],
+  );
+  const hasUnpublishedChanges = useMemo(() => {
+    if (!builder?.publishedVersion) {
+      return currentGraph.nodes.length > 0 || currentGraph.edges.length > 0;
+    }
+
+    return graphSignature(currentGraph) !== graphSignature(publishedGraph);
+  }, [builder?.publishedVersion, currentGraph, publishedGraph]);
+  const validationTone = validation.valid ? "valid" : "warning";
+  const versionLabel = selectedVersion ? `v${selectedVersion.versionNumber}` : "Sin versión";
+
+  const graphMetrics = useMemo(() => {
+    const incoming = new Map<string, number>();
+    const outgoing = new Map<string, number>();
+
+    for (const node of nodes) {
+      incoming.set(node.id, 0);
+      outgoing.set(node.id, 0);
+    }
+
+    for (const edge of edges) {
+      incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+      outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
+    }
+
+    return { incoming, outgoing };
+  }, [edges, nodes]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -341,25 +524,22 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
 try {
         const [result, audiosRes, buttonsRes] = await Promise.all([
           api<NarrativeBuilderState>(`/narratives/${narrativeId}/builder`),
-          api<any>("/audio-assets").catch(() => []),
-          api<any>("/audio-buttons").catch(() => []),
+          api<ApiCollection<AudioAssetOption>>("/audio-assets").catch(
+            () => [] as AudioAssetOption[],
+          ),
+          api<ApiCollection<AudioButtonOption>>("/audio-buttons").catch(
+            () => [] as AudioButtonOption[],
+          ),
         ]);
 
         setBuilder(result);
         setAudios(
-          Array.isArray(audiosRes)
-            ? audiosRes.map((a: { id: string; originalName: string }) => ({ id: a.id, name: a.originalName }))
-            : ((audiosRes as any).data
-              ? (audiosRes as any).data.map((a: { id: string; originalName: string }) => ({ id: a.id, name: a.originalName }))
-              : ((audiosRes as any).items
-                ? (audiosRes as any).items.map((a: { id: string; originalName: string }) => ({ id: a.id, name: a.originalName }))
-                : [])),
+          toCollectionItems(audiosRes).map((audio) => ({
+            id: audio.id,
+            name: audio.originalName,
+          })),
         );
-        setButtons(
-          Array.isArray(buttonsRes)
-            ? buttonsRes
-            : ((buttonsRes as any).data || (buttonsRes as any).items || []),
-        );
+        setButtons(toCollectionItems(buttonsRes));
 
         const graph = graphFromVersions(result.draftVersion ?? result.publishedVersion);
 
@@ -384,7 +564,7 @@ try {
         })),
       );
       setValidation(result.validation);
-      setSelectedNodeIds(graph.nodes.map((node) => node.id));
+      setSelectedNodeIds(graph.nodes[0]?.id ? [graph.nodes[0].id] : []);
       setSelectedNodeId(graph.nodes[0]?.id ?? null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo cargar la narrativa.");
@@ -400,18 +580,165 @@ try {
   }, [narrativeId]);
 
   useEffect(() => {
-    void load();
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [load]);
 
   const nodeTypes = useMemo<NodeTypes>(() => ({ narrative: NarrativeFlowNode }), []);
 
   const flowNodes = useMemo(
     () =>
-      nodes.map((node) => ({
-        ...node,
-        type: "narrative",
-      })),
-    [nodes],
+      nodes.map((node) => {
+        const nodeType = (node.data?.nodeType ?? node.type) as NarrativeNodeType;
+        const outgoingCount = graphMetrics.outgoing.get(node.id) ?? 0;
+        const incomingCount = graphMetrics.incoming.get(node.id) ?? 0;
+        const badges: BuilderBadge[] = [];
+        let summary = nodeSummary(node);
+        let status: FlowNodeData["builderStatus"] = "valid";
+        let statusLabel = "Válido";
+
+        const markWarning = (label: string) => {
+          badges.push({ label, tone: "warning" });
+          if (status !== "error") {
+            status = "warning";
+            statusLabel = "Advertencia";
+          }
+        };
+
+        const markError = (label: string) => {
+          badges.push({ label, tone: "error" });
+          status = "error";
+          statusLabel = "Error";
+        };
+
+        switch (nodeType) {
+          case "START":
+            summary = `Punto de arranque · ${outgoingCount} salida${outgoingCount === 1 ? "" : "s"}`;
+            badges.push({ label: "Inicio", tone: "info" });
+            if (incomingCount > 0) markError("Recibe entradas");
+            if (outgoingCount === 0) markError("Sin salida");
+            break;
+          case "AUDIO": {
+            const asset = node.data?.audioAssetId ? audioMap.get(String(node.data.audioAssetId)) : null;
+            summary = asset
+              ? `Audio: ${asset.name}`
+              : "Selecciona un audio para este paso";
+            badges.push({
+              label: node.data?.required ? "Obligatorio" : "Opcional",
+              tone: "info",
+            });
+            badges.push({
+              label: node.data?.allowReplay ? "Repetible" : "Una sola vez",
+              tone: "info",
+            });
+            if (!node.data?.audioAssetId) {
+              markError("Sin audio");
+            } else if (!asset) {
+              markWarning("Recurso no cargado");
+            } else {
+              badges.push({ label: "Recurso activo", tone: "valid" });
+            }
+            break;
+          }
+          case "AUDIO_BUTTON": {
+            const button = node.data?.audioButtonId ? buttonMap.get(String(node.data.audioButtonId)) : null;
+            summary = button
+              ? `Botón: ${button.label}${button.category?.name ? ` · ${button.category.name}` : ""}`
+              : "Selecciona un botón de audio";
+            badges.push({
+              label: node.data?.required ? "Obligatorio" : "Opcional",
+              tone: "info",
+            });
+            if (!node.data?.audioButtonId) {
+              markError("Sin botón");
+            } else if (!button) {
+              markWarning("Botón no cargado");
+            } else {
+              badges.push({ label: "Botón listo", tone: "valid" });
+            }
+            break;
+          }
+          case "SCRIPT_TEXT": {
+            const body = String(node.data?.body ?? "").trim();
+            summary = body ? body.slice(0, 90) : "Escribe el texto que debe seguir el operador";
+            badges.push({
+              label: node.data?.required ? "Obligatorio" : "Opcional",
+              tone: "info",
+            });
+            if (!body) {
+              markWarning("Sin contenido");
+            } else {
+              badges.push({ label: `${body.length} caracteres`, tone: "valid" });
+            }
+            break;
+          }
+          case "INSTRUCTION": {
+            const instruction = String(node.data?.instruction ?? "").trim();
+            summary = instruction ? instruction.slice(0, 90) : "Instrucción operativa pendiente";
+            if (!instruction) {
+              markWarning("Sin instrucción");
+            } else {
+              badges.push({ label: "Checklist listo", tone: "valid" });
+            }
+            break;
+          }
+          case "PAUSE": {
+            const manual = node.data?.pauseType === "manual" || node.data?.manual !== false;
+            const duration = String(node.data?.durationSeconds ?? "").trim();
+            summary = manual
+              ? "Pausa manual hasta intervención del operador"
+              : `Pausa temporizada${duration ? ` · ${duration}s` : ""}`;
+            badges.push({
+              label: manual ? "Manual" : "Timer",
+              tone: "info",
+            });
+            if (!manual && !duration) {
+              markWarning("Sin duración");
+            }
+            break;
+          }
+          case "DECISION": {
+            const question = String(node.data?.question ?? "").trim();
+            const options = normalizeDecisionOptions(node.data?.options);
+            summary = question
+              ? `${question} · ${options.length} opción${options.length === 1 ? "" : "es"}`
+              : "Define la pregunta y sus rutas";
+            badges.push({ label: `${outgoingCount} ruta${outgoingCount === 1 ? "" : "s"}`, tone: "info" });
+            if (!question) markError("Sin pregunta");
+            if (options.length < 2) markError("Opciones insuficientes");
+            if (outgoingCount < 2) markError("Sin ramas mínimas");
+            if (outgoingCount > 0 && options.length > outgoingCount) markWarning("Faltan rutas");
+            break;
+          }
+          case "END":
+            summary = "Final de flujo";
+            badges.push({ label: "Cierre", tone: "info" });
+            if (outgoingCount > 0) markError("Tiene salidas");
+            break;
+          default:
+            break;
+        }
+
+        if (status === "valid" && !badges.some((badge) => badge.tone === "valid")) {
+          badges.unshift({ label: "Listo", tone: "valid" });
+        }
+
+        return {
+          ...node,
+          type: "narrative",
+          data: {
+            ...(node.data ?? {}),
+            builderSummary: summary,
+            builderStatus: status,
+            builderStatusLabel: statusLabel,
+            builderBadges: badges,
+          } as FlowNodeData,
+        };
+      }),
+    [audioMap, buttonMap, graphMetrics.incoming, graphMetrics.outgoing, nodes],
   );
 
   function addNode(type: NarrativeNodeType) {
@@ -621,7 +948,7 @@ try {
       })),
     );
     setSelectedNodeId(graph.nodes[0]?.id ?? null);
-    setSelectedNodeIds(graph.nodes.map((node) => node.id));
+    setSelectedNodeIds(graph.nodes[0]?.id ? [graph.nodes[0].id] : []);
     setMessage("Se copió la versión publicada al borrador local.");
   }
 
@@ -927,14 +1254,30 @@ if (loading) {
           </p>
           <div className="mt-1.5 grid gap-1 text-xs">
             <div className="flex items-center justify-between">
+              <span className="text-on-surface-variant">Narrativa</span>
+              <span className="max-w-[150px] truncate font-semibold text-on-surface">
+                {builder?.narrative.title ?? "Sin título"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
               <span className="text-on-surface-variant">Versión</span>
               <span className="font-semibold text-on-surface">
-                {selectedVersion ? `v${selectedVersion.versionNumber}` : "Ninguna"}
+                {versionLabel}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-on-surface-variant">Publicado</span>
+              <span className="font-semibold text-on-surface">
+                {builder?.publishedVersion ? `v${builder.publishedVersion.versionNumber}` : "Sin publicar"}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-on-surface-variant">Nodos</span>
               <span className="font-semibold text-on-surface">{nodes.length}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-on-surface-variant">Conexiones</span>
+              <span className="font-semibold text-on-surface">{edges.length}</span>
             </div>
           </div>
         </div>
@@ -1006,7 +1349,7 @@ if (loading) {
       {/* Canvas */}
       <section className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container shadow-elevation-1 flex flex-col min-h-[400px] lg:min-h-0">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-3 py-2 bg-surface/50">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/admin/narratives"
               className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-outline-variant bg-surface text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
@@ -1014,9 +1357,31 @@ if (loading) {
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <h2 className="text-sm font-semibold tracking-tight text-on-surface">
-              Lienzo de Narrativa
-            </h2>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
+                Narrative Builder
+              </p>
+              <h2 className="truncate text-sm font-semibold tracking-tight text-on-surface">
+                {builder?.narrative.title ?? "Lienzo de Narrativa"}
+              </h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName("info")}`}>
+                {builder?.narrative.status ?? "DRAFT"}
+              </span>
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName("info")}`}>
+                Borrador {versionLabel}
+              </span>
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(hasUnsavedChanges ? "warning" : "valid")}`}>
+                {hasUnsavedChanges ? "Cambios sin guardar" : "Guardado local al día"}
+              </span>
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(hasUnpublishedChanges ? "warning" : "valid")}`}>
+                {hasUnpublishedChanges ? "Cambios sin publicar" : "Draft alineado con publicada"}
+              </span>
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(validationTone)}`}>
+                {validation.valid ? "Validación OK" : `${validation.errors.length} observación(es)`}
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
@@ -1126,7 +1491,7 @@ if (loading) {
         </div>
 
         <div className="border-t border-outline-variant px-4 py-4">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
             <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
                 Validación
@@ -1144,6 +1509,14 @@ if (loading) {
                   </p>
                 )}
               </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(validationTone)}`}>
+                  {validation.valid ? "Publicable" : "Requiere revisión"}
+                </span>
+                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(hasUnsavedChanges ? "warning" : "valid")}`}>
+                  {hasUnsavedChanges ? "Pendiente de guardar" : "Sin cambios locales pendientes"}
+                </span>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
@@ -1158,8 +1531,24 @@ if (loading) {
                       v{selectedVersion.versionNumber} · {selectedVersion.status}
                     </p>
                     <p>
+                      <span className="font-semibold text-on-surface">Versión publicada:</span>{" "}
+                      {builder?.publishedVersion
+                        ? `v${builder.publishedVersion.versionNumber}`
+                        : "Aún no existe"}
+                    </p>
+                    <p>
                       <span className="font-semibold text-on-surface">Estado narrativa:</span>{" "}
                       {builder?.narrative.status}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-on-surface">Última actualización:</span>{" "}
+                      {builder?.narrative.updatedAt
+                        ? new Date(builder.narrative.updatedAt).toLocaleString("es-CO")
+                        : "Sin registro"}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-on-surface">Publicación pendiente:</span>{" "}
+                      {hasUnpublishedChanges ? "Sí" : "No"}
                     </p>
                   </div>
                 ) : (
