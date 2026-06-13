@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { createContext, useContext, type MouseEvent, type ReactNode } from "react";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "@xyflow/react";
 import {
   AlertCircle,
@@ -18,7 +18,6 @@ import {
   Square,
   Volume2,
 } from "lucide-react";
-import { api } from "@/lib/api";
 import type { NarrativeNodeType } from "@/types/narratives";
 
 export type PlayerNodeState =
@@ -48,6 +47,7 @@ export type PlayerFlowNodeData = {
   audioAssetId?: string;
   isRequired?: boolean;
   decisionChoices?: DecisionChoice[];
+  audioButtonDetail?: AudioButtonDetail | null;
 };
 
 export type AudioButtonDetail = {
@@ -266,13 +266,7 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
   const isCurrent = ctx?.currentNodeId === id;
   const isPlaying = isCurrent && ctx?.playbackState === "playing";
   const isPaused = isCurrent && ctx?.playbackState === "paused";
-  const [btnDetails, setBtnDetails] = useState<AudioButtonDetail | null>(null);
-
-  useEffect(() => {
-    if (!data.audioButtonId) return;
-    api<AudioButtonDetail>(`/audio-buttons/${data.audioButtonId}`).then(setBtnDetails).catch(() => setBtnDetails(null));
-  }, [data.audioButtonId]);
-
+  const btnDetails = data.audioButtonDetail ?? null;
   const label = btnDetails?.label || data.label || "Botón de audio";
   const category = btnDetails?.category?.name || "Narrativa";
 

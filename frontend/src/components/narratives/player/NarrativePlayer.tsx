@@ -191,6 +191,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [playbackState, setPlaybackState] = useState<AudioPlaybackState>("idle");
   const [selectedDecisionTarget, setSelectedDecisionTarget] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [audioButtonDetailsById, setAudioButtonDetailsById] = useState<Record<string, AudioButtonDetail>>({});
   const [currentButtonDetails, setCurrentButtonDetails] = useState<AudioButtonDetail | null>(null);
   const [buttonDetailsError, setButtonDetailsError] = useState<string | null>(null);
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
@@ -223,13 +224,32 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const currentNode = run?.currentNodeId ? nodeMap.get(run.currentNodeId) : undefined;
   const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : undefined;
   const actionNode = selectedNode ?? currentNode;
+
+  const playerLayoutOrigin = useMemo(() => {
+    const positionedNodes = nodes.filter((node) => node.position);
+    if (!positionedNodes.length) return { x: 0, y: 0 };
+    return {
+      x: Math.min(...positionedNodes.map((node) => node.position?.x ?? 0)),
+      y: Math.min(...positionedNodes.map((node) => node.position?.y ?? 0)),
+    };
+  }, [nodes]);
+
+  const playerNodePosition = useCallback((node: NodeMeta, index = 0) => {
+    const sourcePosition = node.position ?? { x: index * 360, y: index * 260 };
+    return {
+      x: (sourcePosition.x - playerLayoutOrigin.x) * 1.45,
+      y: (sourcePosition.y - playerLayoutOrigin.y) * 2.05,
+    };
+  }, [playerLayoutOrigin]);
+
   const centerNode = useCallback((node?: NodeMeta) => {
     if (!reactFlowRef.current || !node?.position) return;
-    reactFlowRef.current.setCenter(node.position.x + 120, node.position.y + 50, {
+    const position = playerNodePosition(node);
+    reactFlowRef.current.setCenter(position.x + 150, position.y + 90, {
       zoom: Math.max(reactFlowRef.current.getZoom(), 0.9),
       duration: 500,
     });
-  }, []);
+  }, [playerNodePosition]);
 
   useEffect(() => {
     if (currentNode?.id && currentNode.id !== selectedNodeId) {
@@ -241,12 +261,69 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     centerNode(currentNode);
   }, [centerNode, currentNode]);
 
+  const audioButtonIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const node of nodes) {
+      if (node.type === "AUDIO_BUTTON" && node.data?.audioButtonId) {
+        ids.add(String(node.data.audioButtonId));
+      }
+    }
+    return Array.from(ids);
+  }, [nodes]);
+
+  const audioButtonIdsKey = audioButtonIds.join("|");
+
   useEffect(() => {
-    if (actionNode?.type === "AUDIO_BUTTON" && actionNode.data?.audioButtonId) {
+    if (!audioButtonIds.length) return;
+    const missingIds = audioButtonIds.filter((id) => !audioButtonDetailsById[id]);
+    if (!missingIds.length) return;
+
+    let cancelled = false;
+    void Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          const detail = await api<AudioButtonDetail>(`/audio-buttons/${id}`);
+          return [id, detail] as const;
+        } catch {
+          return [id, null] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setAudioButtonDetailsById((previous) => {
+        const next = { ...previous };
+        for (const [id, detail] of entries) {
+          if (detail) next[id] = detail;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+    // `audioButtonDetailsById` is intentionally omitted to avoid refetch churn while nodes render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioButtonIdsKey]);
+
+  useEffect(() => {
+    const audioButtonId = actionNode?.type === "AUDIO_BUTTON" && actionNode.data?.audioButtonId
+      ? String(actionNode.data.audioButtonId)
+      : "";
+
+    if (audioButtonId) {
+      const cachedDetails = audioButtonDetailsById[audioButtonId];
+      if (cachedDetails) {
+        setCurrentButtonDetails(cachedDetails);
+        setButtonDetailsError(null);
+        return;
+      }
+
       setButtonDetailsError(null);
-      api<AudioButtonDetail>(`/audio-buttons/${actionNode.data.audioButtonId}`)
+      api<AudioButtonDetail>(`/audio-buttons/${audioButtonId}`)
         .then((res) => {
           setCurrentButtonDetails(res);
+          setAudioButtonDetailsById((previous) => ({ ...previous, [audioButtonId]: res }));
           setButtonDetailsError(null);
         })
         .catch((err) => {
@@ -258,7 +335,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       setCurrentButtonDetails(null);
       setButtonDetailsError(null);
     }
-  }, [actionNode]);
+  }, [actionNode, audioButtonDetailsById]);
 
   const completedIds = useMemo(() => {
     const ids = new Set<string>();
@@ -382,7 +459,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     return nodes.map((node, index) => ({
       id: node.id,
       type: node.type || "narrativeNode",
-      position: node.position ?? { x: index * 260, y: index * 140 },
+      position: playerNodePosition(node, index),
       draggable: false,
       selectable: true,
       sourcePosition: Position.Bottom,
@@ -396,6 +473,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         nodeData: node.data,
         audioButtonId: node.data?.audioButtonId as string | undefined,
         audioAssetId: node.data?.audioAssetId as string | undefined,
+        audioButtonDetail: node.data?.audioButtonId ? audioButtonDetailsById[String(node.data.audioButtonId)] ?? null : null,
         isRequired: node.data?.required !== false,
         decisionChoices: node.type === "DECISION"
           ? findOutgoingEdges(node.id, edges).map((edge, choiceIndex) => ({
@@ -405,7 +483,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           : undefined,
       },
     }));
-  }, [edges, nodeStates, nodes]);
+  }, [audioButtonDetailsById, edges, nodeStates, nodes, playerNodePosition]);
 
   const flowEdges = useMemo<Edge[]>(() => {
     const edgeState = (edge: NarrativeGraphEdge): PlayerEdgeState => {

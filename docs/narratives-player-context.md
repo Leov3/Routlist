@@ -192,3 +192,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
   - `minZoom` 0.6 y `maxZoom` 1.4.
   - `fitView` usa padding menor y `maxZoom` más cercano para flujos pequeños.
   - `defaultViewport` inicia cerca de 0.9 para evitar sensación de miniatura.
+
+## Performance And Spacing
+- Se elimina el fetch por nodo `AUDIO_BUTTON`; ahora el player centraliza una caché `audioButtonDetailsById` y pasa el detalle al widget mediante `data`.
+- El popup y la reproducción reutilizan la misma caché para evitar llamadas duplicadas a `/audio-buttons/:id`.
+- El player aplica una transformación visual de posiciones solo en ejecución:
+  - eje X: `1.45x`
+  - eje Y: `2.05x`
+- Esto separa nodos apiñados sin modificar el grafo publicado ni afectar el builder.
+- Build validado:
+  - `npm --prefix frontend run build`

@@ -602,3 +602,40 @@ Riesgos:
 
 Pendientes:
 - Validación manual en Docker local.
+
+## Hito 14
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Optimización del player canvas y separación visual de nodos. Se centraliza la carga de detalles de `AUDIO_BUTTON` en una caché del player para evitar fetches por cada nodo renderizado. Además, el player transforma las posiciones del grafo en modo ejecución para separar nodos grandes sin modificar el grafo publicado ni el builder.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `frontend/src/components/narratives/player/nodes/playerNodeTypes.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- Build frontend correcto.
+- Menos llamadas duplicadas a `/audio-buttons/:id`.
+- Nodos con mayor separación visual en el player.
+
+Riesgos:
+- Si una narrativa tiene posiciones manuales muy extremas, la expansión puede requerir ajuste fino posterior.
+
+Pendientes:
+- Validar visualmente en Docker local con narrativas cortas y ramificadas.
