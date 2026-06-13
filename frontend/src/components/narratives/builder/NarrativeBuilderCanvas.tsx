@@ -1143,6 +1143,29 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     }),
     [groupedValidation.errors, groupedValidation.suggestions, groupedValidation.warnings],
   );
+  const publishDiff = useMemo(() => {
+    const currentNodeIds = new Set(currentGraph.nodes.map((node) => node.id));
+    const publishedNodeIds = new Set(publishedGraph.nodes.map((node) => node.id));
+    const currentEdgeIds = new Set(currentGraph.edges.map((edge) => edge.id));
+    const publishedEdgeIds = new Set(publishedGraph.edges.map((edge) => edge.id));
+
+    const addedNodes = currentGraph.nodes.filter((node) => !publishedNodeIds.has(node.id));
+    const removedNodes = publishedGraph.nodes.filter((node) => !currentNodeIds.has(node.id));
+    const modifiedNodes = currentGraph.nodes.filter((node) => {
+      const previous = publishedGraph.nodes.find((item) => item.id === node.id);
+      return previous && JSON.stringify(node) !== JSON.stringify(previous);
+    });
+    const addedEdges = currentGraph.edges.filter((edge) => !publishedEdgeIds.has(edge.id));
+    const removedEdges = publishedGraph.edges.filter((edge) => !currentEdgeIds.has(edge.id));
+
+    return {
+      addedNodes: addedNodes.length,
+      removedNodes: removedNodes.length,
+      modifiedNodes: modifiedNodes.length,
+      addedEdges: addedEdges.length,
+      removedEdges: removedEdges.length,
+    };
+  }, [currentGraph.edges, currentGraph.nodes, publishedGraph.edges, publishedGraph.nodes]);
   const nodeIssues = useMemo(() => {
     const map = new Map<string, BuilderValidationIssue[]>();
     for (const issue of validationIssues) {
@@ -1606,6 +1629,22 @@ try {
   }
 
   async function publishGraph() {
+    if (effectiveValidation.errors.length > 0) {
+      setIsValidationPanelOpen(true);
+      setMessage("La publicación fue bloqueada por errores críticos.");
+      return;
+    }
+
+    if (effectiveValidation.warnings.length > 0 || effectiveValidation.suggestions.length > 0) {
+      const confirmPublish = window.confirm(
+        `Hay ${effectiveValidation.warnings.length} advertencia(s) y ${effectiveValidation.suggestions.length} sugerencia(s). ¿Publicar de todos modos?`,
+      );
+      if (!confirmPublish) {
+        setIsValidationPanelOpen(true);
+        return;
+      }
+    }
+
     setWorking(true);
     setMessage(null);
 
@@ -2620,6 +2659,19 @@ if (loading) {
                         <p>Sin versión cargada.</p>
                       )}
                     </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                    Diff contra publicada
+                  </p>
+                  <div className="mt-3 grid gap-2 text-sm text-on-surface-variant md:grid-cols-5">
+                    <p><span className="font-semibold text-on-surface">Nodos +:</span> {publishDiff.addedNodes}</p>
+                    <p><span className="font-semibold text-on-surface">Nodos ~:</span> {publishDiff.modifiedNodes}</p>
+                    <p><span className="font-semibold text-on-surface">Nodos -:</span> {publishDiff.removedNodes}</p>
+                    <p><span className="font-semibold text-on-surface">Rutas +:</span> {publishDiff.addedEdges}</p>
+                    <p><span className="font-semibold text-on-surface">Rutas -:</span> {publishDiff.removedEdges}</p>
                   </div>
                 </div>
 

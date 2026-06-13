@@ -148,3 +148,32 @@ Pendientes:
 - Integración de Hito 4 a `dev`.
 Próximo hito:
 - Hito 5
+
+## Hito 5
+
+Fecha: 2026-06-13
+Rama: `feature/narratives-builder-upgrade`
+Commit: pendiente
+Push: pendiente
+Resumen:
+- Se endureció la publicación desde el builder.
+- La publicación ahora se bloquea con errores críticos.
+- Si solo hay advertencias o sugerencias, se pide confirmación.
+- Se añadió un diff básico contra la versión publicada dentro del panel.
+Archivos modificados:
+- `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+- `docs/narratives-builder-context.md`
+- `docs/narratives-builder-implementation-log.md`
+Checks ejecutados:
+- `npm --prefix frontend run build`
+- `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+Resultado de checks:
+- `frontend build`: OK
+- `frontend lint` sobre el archivo del builder: OK
+Riesgos:
+- El diff es básico y está basado en comparación por ids/contenido serializado.
+Pendientes:
+- Commit y push del Hito 5.
+- Integración de Hito 5 a `dev`.
+Próximo hito:
+- Hito 6
