@@ -22,10 +22,11 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
   - publicación que congela draft y crea nuevo draft desde publicada
 
 ## Estado actual después del último hito
-- Hito 0 en progreso documental.
-- No hay cambios funcionales aplicados todavía.
-- Builds base ejecutados sobre el estado inicial:
+- Hito 0 completado y respaldado en feature + `dev`.
+- Hito 1 implementado en la rama feature, pendiente de commit e integración a `dev`.
+- Checks ejecutados sobre el estado actual:
   - `npm --prefix frontend run build`
+  - `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
   - `npm --prefix backend run build`
 
 ## Archivos revisados
@@ -40,6 +41,7 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 ## Archivos modificados
 - `docs/narratives-builder-context.md`
 - `docs/narratives-builder-implementation-log.md`
+- `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
 
 ## Decisiones técnicas tomadas
 - Se trabaja desde `dev`, pero cada hito se implementa primero en `feature/narratives-builder-upgrade`.
@@ -134,8 +136,21 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - Se documenta el estado inicial del módulo.
 - Se registra la estrategia por hitos y el flujo de integración a `dev`.
 
+### Hito 1
+- Se mejoran las tarjetas visuales de los nodos sin cambiar persistencia.
+- Cada nodo ahora muestra resumen funcional y badges de estado.
+- El canvas muestra estado visible del borrador:
+  - narrativa
+  - versión draft
+  - versión publicada
+  - cambios sin guardar
+  - cambios sin publicar
+  - resultado de validación
+- Se reemplazan IDs crudos por nombres visibles de audio y botón cuando los recursos están cargados.
+- La selección inicial tras cargar o copiar publicada ahora queda en el primer nodo, no en todos.
+
 ## Trabajo en progreso
-- Implementar Hito 1 en `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`.
+- Commit, push e integración a `dev` del Hito 1.
 
 ## Pendientes
 - Formalizar panel de validación con errores, advertencias y sugerencias.
@@ -183,13 +198,14 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 5. Antes de commitear, actualizar ambos documentos con el estado real.
 
 ## Último commit realizado
-- Pendiente en este hito.
+- `05d6d9b` - `docs(narratives): add builder implementation context`
 
 ## Último push realizado
-- Pendiente en este hito.
+- `feature/narratives-builder-upgrade` empujada con Hito 0.
+- `dev` actualizado con merge de Hito 0 en `a01b01a`.
 
 ## Próximo hito recomendado
-- Hito 1: mejoras visuales seguras del editor.
+- Cerrar Hito 1 en Git y pasar a Hito 2: panel de validación con foco y acciones de edición.
 
 ## Comandos útiles para correr el proyecto
 - `npm --prefix frontend run dev`
@@ -207,4 +223,3 @@ Nota: el lint de backend usa `--fix`, así que no se toma como check pasivo est�
 ## Comandos útiles para build
 - `npm --prefix frontend run build`
 - `npm --prefix backend run build`
-
