@@ -16,6 +16,8 @@ import {
   type NodeTypes,
   type ReactFlowInstance,
 } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+
 import {
   AlertCircle,
   ArrowRight,
@@ -69,6 +71,24 @@ type PlayerFlowNodeData = {
   status: PlayerNodeState;
   type: NarrativeNodeType;
 };
+
+type AudioButtonDetail = {
+  id?: string;
+  label?: string;
+  category?: { name?: string } | null;
+  shortcutKey?: string | null;
+  description?: string | null;
+  color?: string | null;
+  audioAsset?: { originalName?: string | null } | null;
+  audioAssetId?: string | null;
+};
+
+type DecisionChoice = {
+  label: string;
+  targetNodeId: string;
+};
+
+type AudioPlaybackState = "idle" | "playing" | "paused" | "stopped";
 
 function PlayerFlowNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const statusClass =
@@ -247,15 +267,15 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [runCompleted, setRunCompleted] = useState(false);
+  const [playbackState, setPlaybackState] = useState<AudioPlaybackState>("idle");
   const [selectedDecisionTarget, setSelectedDecisionTarget] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [currentButtonDetails, setCurrentButtonDetails] = useState<any>(null);
+  const [currentButtonDetails, setCurrentButtonDetails] = useState<AudioButtonDetail | null>(null);
   const [buttonDetailsError, setButtonDetailsError] = useState<string | null>(null);
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
+  const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
 
-  function handleApiError(error: unknown, fallbackMessage: string) {
+  const handleApiError = useCallback((error: unknown, fallbackMessage: string) => {
     if (error instanceof ApiError) {
       if (error.status === 401) {
         router.replace("/login");
@@ -268,7 +288,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
 
     return error instanceof Error ? error.message : fallbackMessage;
-  }
+  }, [router]);
 
   const { nodes, edges } = useMemo(() => readGraph(run?.narrativeVersion.graphJson ?? null), [run]);
   const nodeMap = useMemo(
@@ -288,10 +308,10 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }, []);
 
   useEffect(() => {
-    if (currentNode?.id) {
+    if (currentNode?.id && currentNode.id !== selectedNodeId) {
       setSelectedNodeId(currentNode.id);
     }
-  }, [currentNode?.id]);
+  }, [currentNode?.id, selectedNodeId]);
 
   useEffect(() => {
     centerNode(currentNode);
@@ -300,7 +320,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   useEffect(() => {
     if (actionNode?.type === "AUDIO_BUTTON" && actionNode.data?.audioButtonId) {
       setButtonDetailsError(null);
-      api(`/audio-buttons/${actionNode.data.audioButtonId}`)
+      api<AudioButtonDetail>(`/audio-buttons/${actionNode.data.audioButtonId}`)
         .then((res) => {
           setCurrentButtonDetails(res);
           setButtonDetailsError(null);
@@ -399,13 +419,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const actionNodeIsCurrent = actionNode?.id === currentNode?.id;
   const actionNodeIsInteractive = actionNodeIsCurrent && run?.status === "RUNNING";
   const outgoing = currentNode ? findOutgoingEdges(currentNode.id, edges) : [];
-  const currentDecisionLabels = readDecisionLabels(currentNode?.data?.options);
-  const decisionChoices = currentNode?.type === "DECISION"
-    ? outgoing.map((edge, index) => ({
-        label: edge.label?.trim() || currentDecisionLabels[index] || "Opción",
-        targetNodeId: edge.target,
-      }))
-    : [];
   const actionDecisionLabels = readDecisionLabels(actionNode?.data?.options);
   const actionNodeDecisionChoices = actionNode?.type === "DECISION"
     ? findOutgoingEdges(actionNode.id, edges).map((edge, index) => ({
@@ -497,14 +510,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     try {
       const detail = await api<NarrativeRunDetail>(`/narrative-runs/${runId}`);
       setRun(detail);
-      setRunCompleted(detail.status !== "RUNNING");
     } catch (error) {
       setMessage(handleApiError(error, "No se pudo cargar la ejecución."));
       setRun(null);
     } finally {
       setLoading(false);
     }
-  }, [runId, router]);
+  }, [handleApiError, runId]);
 
   useEffect(() => {
     void load();
@@ -530,7 +542,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
     }
-    setIsPlaying(false);
+      setPlaybackState("idle");
   }, [run?.currentNodeId]);
 
   useEffect(() => {
@@ -557,6 +569,31 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }, 1000);
     return () => window.clearTimeout(timer);
   }, [actionNodeIsCurrent, pauseRemainingSeconds]);
+
+  useEffect(() => {
+    if (!actionNodeIsInteractive || actionNode?.type !== "AUDIO_BUTTON") return;
+    
+    const shortcut = currentButtonDetails?.shortcutKey?.toLowerCase();
+    if (!shortcut) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement ||
+        document.activeElement instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      if (e.key.toLowerCase() === shortcut) {
+        e.preventDefault();
+        void startAudioPlayback();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionNodeIsInteractive, actionNode, currentButtonDetails]);
 
   async function syncCurrentNode(nextNodeId: string, eventType: NarrativeRunEventType, payload?: Record<string, unknown>) {
     if (!run) return;
@@ -619,14 +656,19 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }
 
   async function startAudioPlayback() {
-    if (!run || !currentNode) return;
-    
+    if (!run || !actionNode) return;
+
+    if (!actionNodeIsInteractive) {
+      setMessage("Selecciona el paso actual para reproducir audio.");
+      return;
+    }
+
     let audioAssetIdToPlay: string | undefined;
-    
-    if (currentNode.type === "AUDIO") {
-      audioAssetIdToPlay = currentNode.data?.audioAssetId as string | undefined;
-    } else if (currentNode.type === "AUDIO_BUTTON") {
-      audioAssetIdToPlay = currentButtonDetails?.audioAssetId;
+
+    if (actionNode.type === "AUDIO") {
+      audioAssetIdToPlay = actionNode.data?.audioAssetId as string | undefined;
+    } else if (actionNode.type === "AUDIO_BUTTON") {
+      audioAssetIdToPlay = currentButtonDetails?.audioAssetId ?? undefined;
     }
 
     if (!audioAssetIdToPlay) {
@@ -655,20 +697,25 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       const objectUrl = URL.createObjectURL(blob);
       objectUrlRef.current = objectUrl;
 
-      if (!audioRef.current) return;
+      if (!audioRef.current) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrlRef.current = null;
+        setMessage("No se pudo inicializar el reproductor de audio.");
+        return;
+      }
 
       audioRef.current.src = objectUrl;
       audioRef.current.volume = 1;
       await audioRef.current.play();
-      setIsPlaying(true);
+      setPlaybackState("playing");
 
       await api(`/narrative-runs/${run.id}/events`, {
         method: "POST",
         body: JSON.stringify({
           eventType: "AUDIO_PLAYED",
-          nodeId: currentNode.id,
-          payload: currentNode.type === "AUDIO_BUTTON" 
-            ? { audioButtonId: currentNode.data?.audioButtonId, audioAssetId: audioAssetIdToPlay }
+          nodeId: actionNode.id,
+          payload: actionNode.type === "AUDIO_BUTTON"
+            ? { audioButtonId: actionNode.data?.audioButtonId, audioAssetId: audioAssetIdToPlay }
             : { audioAssetId: audioAssetIdToPlay },
         }),
       });
@@ -682,20 +729,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   async function pauseAudio() {
     if (!audioRef.current) return;
     audioRef.current.pause();
-    setIsPlaying(false);
+    setPlaybackState("paused");
   }
 
   async function resumeAudio() {
     if (!audioRef.current) return;
     await audioRef.current.play();
-    setIsPlaying(true);
+    setPlaybackState("playing");
   }
 
   async function stopAudio() {
     if (!audioRef.current) return;
     audioRef.current.pause();
     audioRef.current.currentTime = 0;
-    setIsPlaying(false);
+    setPlaybackState("idle");
   }
 
   async function finishRun() {
@@ -707,7 +754,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         method: "POST",
       });
       await load();
-      setRunCompleted(true);
     } catch (error) {
       setMessage(handleApiError(error, "No se pudo finalizar la ejecución."));
     } finally {
@@ -724,7 +770,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         method: "POST",
       });
       await load();
-      setRunCompleted(true);
     } catch (error) {
       setMessage(handleApiError(error, "No se pudo cancelar la ejecución."));
     } finally {
@@ -732,7 +777,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
   }
 
-  const activeAudioNodeId = currentNode?.type === "AUDIO" || currentNode?.type === "AUDIO_BUTTON" ? currentNode.id : null;
   const audioAssetId = actionNode?.type === "AUDIO" 
     ? String(actionNode.data?.audioAssetId ?? "") 
     : actionNode?.type === "AUDIO_BUTTON" 
@@ -786,590 +830,539 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
   }
 
-  return (
-    <ReactFlowProvider>
-    <div className="space-y-4">
-      {message ? (
-        <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
-          {message}
-        </div>
-      ) : null}
-
-      <section className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-              Canvas de ejecución
-            </p>
-            <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
-              Flujo publicado en modo solo lectura
-            </h3>
+  function renderAudioControls(label: string) {
+    return (
+      <>
+        <audio
+          ref={audioRef}
+          onPlay={() => setPlaybackState("playing")}
+          onPause={() => setPlaybackState("paused")}
+          onEnded={() => {
+            setPlaybackState("idle");
+            setPlaybackProgress({ current: 0, duration: 0 });
+            if (actionNodeIsCurrent && actionNode?.data?.required !== false && outgoing.length <= 1) {
+              void completeCurrentNode(false);
+            }
+          }}
+          onLoadedMetadata={(e) => {
+            setMessage(null);
+            setPlaybackProgress({ current: 0, duration: e.currentTarget.duration });
+          }}
+          onTimeUpdate={(e) => {
+            setPlaybackProgress(prev => ({ ...prev, current: e.currentTarget.currentTime }));
+          }}
+          className="hidden"
+        />
+        <div className="space-y-4">
+          {playbackState !== "idle" && playbackProgress.duration > 0 ? (
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] font-semibold text-on-surface-variant">
+                <span>{Math.floor(playbackProgress.current)}s</span>
+                <span>{Math.floor(playbackProgress.duration)}s</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-variant/30">
+                <div 
+                  className="h-full bg-primary transition-all duration-200 ease-linear" 
+                  style={{ width: `${(playbackProgress.current / playbackProgress.duration) * 100}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void startAudioPlayback()}
+              disabled={working || !hasAudio || !actionNodeIsInteractive || playbackState === "playing"}
+              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Play className="h-4 w-4" />
+              {label}
+            </button>
+            <button
+              type="button"
+              onClick={() => void pauseAudio()}
+              disabled={!actionNodeIsInteractive || playbackState !== "playing"}
+              className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Pause className="h-4 w-4" />
+              Pausar
+            </button>
+            <button
+              type="button"
+              onClick={() => void resumeAudio()}
+              disabled={playbackState !== "paused" || !actionNodeIsInteractive}
+              className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Play className="h-4 w-4" />
+              Reanudar
+            </button>
+            <button
+              type="button"
+              onClick={() => void stopAudio()}
+              disabled={!actionNodeIsInteractive || playbackState === "idle"}
+              className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Square className="h-4 w-4" />
+              Detener
+            </button>
           </div>
+        </div>
+      </>
+    );
+  }
+
+  function renderActionContent() {
+    if (!actionNode) return null;
+
+    if (actionNode.type === "AUDIO") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Audio</p>
+          <p className="text-sm font-medium text-on-surface">{nodeSummary(actionNode)}</p>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
+              {boolLabel(isRequiredNode, "Requerido", "Opcional")}
+            </span>
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(canReplay ? "available" : "locked")}`}>
+              {boolLabel(canReplay, "Permite repetir", "Sin repetición")}
+            </span>
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(hasAudio ? "completed" : "error")}`}>
+              {boolLabel(hasAudio, "Audio listo", "Audio faltante")}
+            </span>
+          </div>
+          {audioDescription ? <p className="text-sm text-on-surface-variant">{audioDescription}</p> : null}
+          {operatorNotes ? (
+            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas de operador</p>
+              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+            </div>
+          ) : null}
+          {!hasAudio ? (
+            <div className="rounded-2xl border border-red-300/40 bg-red-500/10 px-3 py-3 text-sm text-red-700 dark:text-red-300">
+              Este nodo no tiene un audio válido asignado.
+            </div>
+          ) : null}
+          {renderAudioControls("Reproducir audio")}
+        </div>
+      );
+    }
+
+    if (actionNode.type === "AUDIO_BUTTON") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Botón de audio</p>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
+              {boolLabel(isRequiredNode, "Requerido", "Opcional")}
+            </span>
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(hasAudio ? "completed" : "error")}`}>
+              {boolLabel(hasAudio, "Audio asociado", "Audio faltante")}
+            </span>
+          </div>
+          {currentButtonDetails ? (
+            <div className="rounded-xl border border-outline-variant bg-surface p-3" style={{ borderLeftColor: currentButtonDetails.color ?? undefined, borderLeftWidth: 4 }}>
+              <p className="font-semibold text-on-surface">{currentButtonDetails.label}</p>
+              <p className="text-xs text-on-surface-variant">
+                Categoría: {currentButtonDetails.category?.name || "Sin categoría"} | Acceso directo: {currentButtonDetails.shortcutKey || "Ninguno"}
+              </p>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                Audio: {currentButtonDetails.audioAsset?.originalName || currentButtonDetails.audioAssetId || "No disponible"}
+              </p>
+              {currentButtonDetails.description ? <p className="mt-2 text-sm text-on-surface-variant">{currentButtonDetails.description}</p> : null}
+            </div>
+          ) : buttonDetailsError ? (
+            <div className="rounded-2xl border border-red-300/40 bg-red-500/10 px-3 py-3 text-sm text-red-700 dark:text-red-300">
+              {buttonDetailsError}
+            </div>
+          ) : (
+            <p className="text-sm text-on-surface-variant">Cargando detalles del botón...</p>
+          )}
+          {operatorNotes ? (
+            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas de operador</p>
+              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+            </div>
+          ) : null}
+          {renderAudioControls("Reproducir botón")}
+        </div>
+      );
+    }
+
+    if (actionNode.type === "SCRIPT_TEXT") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto para leer</p>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
+              {boolLabel(isRequiredNode, "Lectura requerida", "Lectura opcional")}
+            </span>
+          </div>
+          <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
+            {String(actionNode.data?.body ?? "Sin contenido")}
+          </p>
+          {operatorNotes ? (
+            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
+              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+            </div>
+          ) : null}
           <button
             type="button"
-            onClick={() => centerNode(currentNode)}
-            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+            onClick={() => void copyScriptText()}
+            className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
           >
-            <Crosshair className="h-4 w-4" />
-            Centrar paso actual
+            <Copy className="h-4 w-4" />
+            Copiar texto
           </button>
         </div>
+      );
+    }
 
-        <div className="h-[360px] overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c] md:h-[420px] xl:h-[520px]">
-          <ReactFlow
-            nodes={flowNodes}
-            edges={flowEdges}
-            nodeTypes={playerNodeTypes}
-            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-            onInit={(instance) => {
-              reactFlowRef.current = instance;
-              queueMicrotask(() => instance.fitView({ padding: 0.2, duration: 500 }));
-            }}
-            fitView
-            proOptions={{ hideAttribution: true }}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            nodesFocusable
-            elementsSelectable
-            zoomOnDoubleClick={false}
-            panOnDrag
-            selectionOnDrag={false}
-            elevateNodesOnSelect={false}
-          >
-            <MiniMap
-              pannable
-              zoomable
-              className="!bg-surface !border !border-outline-variant"
-              nodeStrokeColor={(node) =>
-                (node.data as PlayerFlowNodeData | undefined)?.status === "current"
-                  ? "rgb(168, 139, 250)"
-                  : "rgba(148, 163, 184, 0.6)"
-              }
-              nodeColor={(node) =>
-                (node.data as PlayerFlowNodeData | undefined)?.status === "completed"
-                  ? "rgba(16, 185, 129, 0.65)"
-                  : (node.data as PlayerFlowNodeData | undefined)?.status === "current"
-                    ? "rgba(168, 139, 250, 0.85)"
-                    : "rgba(51, 65, 85, 0.9)"
-              }
-            />
-            <Controls showInteractive={false} className="!bg-surface" />
-            <Background color="rgba(148,163,184,0.16)" gap={20} size={1.1} />
-          </ReactFlow>
-        </div>
-      </section>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                Narrativa en ejecución
-              </p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-on-surface">
-                {run.narrative.title}
-              </h2>
-              <p className="mt-1 max-w-2xl text-sm text-on-surface-variant">
-                {run.narrative.description || "Sin descripción"}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.22em] text-on-surface-variant">Estado</p>
-              <p className="mt-1 text-sm font-semibold text-on-surface">{run.status}</p>
-              <p className="text-xs text-on-surface-variant">
-                Inicio: {formatDateTime(run.startedAt)}
-              </p>
-            </div>
+    if (actionNode.type === "INSTRUCTION") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Instrucción operativa</p>
+          <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-4">
+            <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
+              {String(actionNode.data?.instruction ?? "Sin instrucción")}
+            </p>
           </div>
+          {operatorNotes ? (
+            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
+              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
 
-          <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                Resumen
+    if (actionNode.type === "PAUSE") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Pausa</p>
+          <p className="text-base leading-7 text-on-surface">
+            {actionNode.data?.manual === false || actionNode.data?.pauseType === "timer"
+              ? `Pausa temporizada de ${String(actionNode.data?.durationSeconds ?? "0")} segundos.`
+              : "Pausa manual. Espera la señal para continuar."}
+          </p>
+          {pauseRemainingSeconds !== null ? (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface">
+              <Clock3 className="h-4 w-4" />
+              {pauseRemainingSeconds > 0
+                ? `Continuar disponible en ${pauseRemainingSeconds}s`
+                : "Puedes continuar"}
+            </div>
+          ) : null}
+          {(actionNode.data?.manual === false || actionNode.data?.pauseType === "timer") &&
+          pauseRemainingSeconds === null ? (
+            <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-700 dark:text-amber-300">
+              La duración no es válida. Se mantiene fallback manual para continuar de forma segura.
+            </div>
+          ) : null}
+          {operatorNotes ? (
+            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
+              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (actionNode.type === "DECISION") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Decisión</p>
+          <p className="text-base leading-7 text-on-surface">
+            {String(actionNode.data?.question ?? "¿Qué sigue?")}
+          </p>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(actionNodeDecisionChoices.length >= 2 ? "available" : "error")}`}>
+              {actionNodeDecisionChoices.length} ruta(s)
+            </span>
+            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(actionNodeIsInteractive ? "current" : "locked")}`}>
+              {actionNodeIsInteractive ? "Selecciona una opción" : "Solo consulta"}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {actionNodeDecisionChoices.length > 0 ? (
+              actionNodeDecisionChoices.map((choice) => (
+                <button
+                  key={`${choice.targetNodeId}-${choice.label}`}
+                  type="button"
+                  onClick={() => actionNodeIsInteractive ? void handleDecision(choice.targetNodeId, choice.label) : undefined}
+                  disabled={working || !actionNodeIsInteractive}
+                  className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                    selectedDecisionTarget === choice.targetNodeId
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-outline-variant bg-surface text-on-surface hover:border-primary"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <ArrowRight className="h-4 w-4" />
+                  {choice.label}
+                </button>
+              ))
+            ) : (
+              <p className="text-sm text-on-surface-variant">
+                No hay salidas configuradas para esta decisión.
               </p>
-              <div className="mt-3 grid gap-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-on-surface-variant">Versión</span>
-                  <span className="font-semibold text-on-surface">v{run.narrativeVersion.versionNumber}</span>
+            )}
+          </div>
+          {selectedDecisionTargets.get(actionNode.id) ? (
+            <div className="rounded-2xl border border-primary/20 bg-primary/10 px-3 py-3 text-sm text-primary">
+              Ruta elegida registrada.
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (actionNode.type === "END") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Cierre</p>
+          <p className="text-base leading-7 text-on-surface">
+            La narrativa llegó al nodo final.
+          </p>
+          <div className="rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+            Este nodo habilita el cierre exitoso.
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <p className="text-sm text-on-surface-variant">
+        Sin contenido para mostrar.
+      </p>
+    );
+  }
+
+  function renderActionButtons() {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void completeCurrentNode(false)}
+          disabled={working || run?.status !== "RUNNING" || !actionNodeIsInteractive || actionNode?.type === "DECISION"}
+          className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <SkipForward className="h-4 w-4" />
+          Siguiente
+        </button>
+        <button
+          type="button"
+          onClick={() => void completeCurrentNode(true)}
+          disabled={
+            working ||
+            run?.status !== "RUNNING" ||
+            !actionNodeIsInteractive ||
+            actionNode?.data?.required !== false ||
+            actionNode?.type === "DECISION"
+          }
+          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Omitir
+        </button>
+        <button
+          type="button"
+          onClick={() => void finishRun()}
+          disabled={working || run?.status !== "RUNNING" || currentNode?.type !== "END"}
+          className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          Finalizar
+        </button>
+        <button
+          type="button"
+          onClick={() => void cancelRun()}
+          disabled={working || run?.status !== "RUNNING"}
+          className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300"
+        >
+          <StopCircle className="h-4 w-4" />
+          Cancelar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <ReactFlowProvider>
+      <div className="space-y-4">
+        {message ? (
+          <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
+            {message}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-4">
+          {/* Main Canvas Section */}
+          <section className="flex flex-col rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                  Canvas de ejecución
+                </p>
+                <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
+                  Flujo publicado en modo interactivo
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => centerNode(currentNode)}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+              >
+                <Crosshair className="h-4 w-4" />
+                Centrar paso actual
+              </button>
+            </div>
+
+            <div className="h-[calc(100vh-280px)] min-h-[500px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c]">
+              <ReactFlow
+                nodes={flowNodes}
+                edges={flowEdges}
+                nodeTypes={playerNodeTypes}
+                onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+                onInit={(instance) => {
+                  reactFlowRef.current = instance;
+                  queueMicrotask(() => instance.fitView({ padding: 0.2, duration: 500 }));
+                }}
+                fitView
+                proOptions={{ hideAttribution: true }}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                nodesFocusable
+                elementsSelectable
+                zoomOnDoubleClick={false}
+                zoomOnScroll={false}
+                preventScrolling={false}
+                panOnDrag
+                selectionOnDrag={false}
+                elevateNodesOnSelect={false}
+              >
+                <MiniMap
+                  pannable
+                  zoomable
+                  className="!bg-surface !border !border-outline-variant"
+                  nodeStrokeColor={(node) =>
+                    (node.data as PlayerFlowNodeData | undefined)?.status === "current"
+                      ? "rgb(168, 139, 250)"
+                      : "rgba(148, 163, 184, 0.6)"
+                  }
+                  nodeColor={(node) =>
+                    (node.data as PlayerFlowNodeData | undefined)?.status === "completed"
+                      ? "rgba(16, 185, 129, 0.65)"
+                      : (node.data as PlayerFlowNodeData | undefined)?.status === "current"
+                        ? "rgba(168, 139, 250, 0.85)"
+                        : "rgba(51, 65, 85, 0.9)"
+                  }
+                />
+                <Controls showInteractive={false} className="!bg-surface" />
+                <Background color="rgba(148,163,184,0.16)" gap={20} size={1.1} />
+              </ReactFlow>
+            </div>
+          </section>
+
+          {/* TEMPORARY ACTION PANEL UNTIL HITO 2/4 */}
+          {actionNode ? (
+            <section className="rounded-[28px] border border-primary/20 bg-primary/5 p-5 shadow-elevation-1">
+              <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                <div className="flex items-start gap-4">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${actionNodeIsCurrent ? "bg-primary text-on-primary" : "bg-surface text-on-surface shadow-sm"}`}>
+                    {actionNode.type.slice(0, 2)}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-on-surface">{nodeLabel(actionNode)}</h3>
+                    <p className="mt-1 text-sm text-on-surface-variant">{nodeSummary(actionNode)}</p>
+                    {actionNodeIsCurrent ? (
+                      <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                        Paso actual
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-on-surface-variant">Paso actual</span>
-                  <span className="font-semibold text-on-surface">{currentNode.type}</span>
+
+                <div className="flex-1 max-w-2xl rounded-2xl bg-surface p-4 shadow-sm">
+                   {renderActionContent()}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-on-surface-variant">Eventos</span>
-                  <span className="font-semibold text-on-surface">{run.events?.length ?? 0}</span>
+
+                <div className="flex shrink-0 flex-col gap-2">
+                   {renderActionButtons()}
                 </div>
               </div>
+            </section>
+          ) : null}
 
-              <div className="mt-4 rounded-2xl border border-outline-variant bg-surface-container p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
-                  Ruta
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Resumen */}
+            <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                    Narrativa en ejecución
+                  </p>
+                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-on-surface">
+                    {run.narrative.title}
+                  </h2>
+                </div>
+                <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.22em] text-on-surface-variant">Estado</p>
+                  <p className="mt-1 text-sm font-semibold text-on-surface">{run.status}</p>
+                </div>
+              </div>
+              <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                  Resumen de ruta
                 </p>
-                <div className="mt-3 space-y-2">
+                <div className="mt-4 space-y-2 max-h-[300px] overflow-y-auto pr-2">
                   {orderedNodes.map((node) => {
                     const status = nodeStates.get(node.id) ?? "locked";
                     return (
-                      <div
-                        key={node.id}
-                        className={`rounded-2xl border px-3 py-3 text-xs ${statusTone(status)}`}
-                      >
+                      <div key={node.id} className={`rounded-2xl border px-3 py-3 text-xs ${statusTone(status)}`}>
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-semibold text-on-surface">{nodeLabel(node)}</span>
                           <span className="uppercase tracking-[0.18em]">{node.type}</span>
                         </div>
-                        <p className="mt-1 line-clamp-2 text-[11px] text-on-surface-variant">
-                          {nodeSummary(node)}
-                        </p>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            </div>
-        </section>
+            </section>
 
-        <aside className="space-y-4">
-          <section className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-            <div className="flex items-start justify-between gap-3">
+            {/* Actividad */}
+            <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                  Panel de acción
+                  Actividad
                 </p>
                 <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
-                  {actionNode ? nodeLabel(actionNode) : "Nodo sin seleccionar"}
+                  Eventos recientes
                 </h3>
               </div>
-              {actionNode ? (
-                <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusTone(actionNodeState)}`}>
-                  {actionNodeState}
-                </span>
-              ) : null}
-            </div>
-
-            {actionNode ? (
-              <div className="mt-4 space-y-4">
-                <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${actionNodeIsCurrent ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface"}`}>
-                      {actionNode.type.slice(0, 2)}
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                {eventLog.length > 0 ? (
+                  eventLog.map((event) => (
+                    <div key={event.id} className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-on-surface">{event.eventType}</p>
+                        <span className="text-[11px] text-on-surface-variant">{formatDateTime(event.createdAt)}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-on-surface-variant">Nodo {event.nodeId}</p>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-on-surface">{actionNode.type}</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{nodeSummary(actionNode)}</p>
-                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-outline-variant px-4 py-8 text-center text-sm text-on-surface-variant">
+                    Todavía no hay eventos en esta ejecución.
                   </div>
-                </div>
-
-                {!actionNodeIsInteractive && actionNodeState === "locked" ? (
-                  <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4 text-sm text-on-surface-variant">
-                    <div className="flex items-start gap-3">
-                      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-on-surface-variant" />
-                      <p>Este nodo todavía no está disponible en la ruta actual. Puedes revisarlo, pero no ejecutarlo.</p>
-                    </div>
-                  </div>
-                ) : null}
-
-                {!actionNodeIsInteractive && actionNodeState !== "locked" ? (
-                  <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4 text-sm text-on-surface-variant">
-                    Estás revisando un nodo fuera del paso actual. El contenido es de solo consulta.
-                  </div>
-                ) : null}
-
-                <div className="rounded-[24px] border border-dashed border-outline-variant bg-surface-container px-4 py-4">
-                  {actionNode.type === "AUDIO" ? (
-                    <div className="space-y-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Audio</p>
-                      <p className="text-sm font-medium text-on-surface">{nodeSummary(actionNode)}</p>
-                      <div className="flex flex-wrap gap-2 text-[11px]">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
-                          {boolLabel(isRequiredNode, "Requerido", "Opcional")}
-                        </span>
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(canReplay ? "available" : "locked")}`}>
-                          {boolLabel(canReplay, "Permite repetir", "Sin repetición")}
-                        </span>
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(hasAudio ? "completed" : "error")}`}>
-                          {boolLabel(hasAudio, "Audio listo", "Audio faltante")}
-                        </span>
-                      </div>
-                      {audioDescription ? (
-                        <p className="text-sm text-on-surface-variant">{audioDescription}</p>
-                      ) : null}
-                      {operatorNotes ? (
-                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas de operador</p>
-                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-                        </div>
-                      ) : null}
-                      {!hasAudio ? (
-                        <div className="rounded-2xl border border-red-300/40 bg-red-500/10 px-3 py-3 text-sm text-red-700 dark:text-red-300">
-                          Este nodo no tiene un audio válido asignado.
-                        </div>
-                      ) : null}
-                      <audio
-                        ref={audioRef}
-                        onPlay={() => setIsPlaying(true)}
-                        onPause={() => setIsPlaying(false)}
-                        onEnded={() => setIsPlaying(false)}
-                        onLoadedMetadata={() => setMessage(null)}
-                        className="hidden"
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void startAudioPlayback()}
-                          disabled={working || !hasAudio || !actionNodeIsInteractive}
-                          className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Play className="h-4 w-4" />
-                          Reproducir audio
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void pauseAudio()}
-                          disabled={!isPlaying || !actionNodeIsInteractive}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Pause className="h-4 w-4" />
-                          Pausar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void resumeAudio()}
-                          disabled={isPlaying || !actionNodeIsInteractive}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Play className="h-4 w-4" />
-                          Reanudar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void stopAudio()}
-                          disabled={!actionNodeIsInteractive}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Square className="h-4 w-4" />
-                          Detener
-                        </button>
-                      </div>
-                    </div>
-                  ) : actionNode.type === "AUDIO_BUTTON" ? (
-                    <div className="space-y-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Botón de audio</p>
-                      <div className="flex flex-wrap gap-2 text-[11px]">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
-                          {boolLabel(isRequiredNode, "Requerido", "Opcional")}
-                        </span>
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(hasAudio ? "completed" : "error")}`}>
-                          {boolLabel(hasAudio, "Audio asociado", "Audio faltante")}
-                        </span>
-                      </div>
-                      {currentButtonDetails ? (
-                        <div className="rounded-xl border border-outline-variant bg-surface p-3" style={{ borderLeftColor: currentButtonDetails.color, borderLeftWidth: 4 }}>
-                          <p className="font-semibold text-on-surface">{currentButtonDetails.label}</p>
-                          <p className="text-xs text-on-surface-variant">
-                            Categoría: {currentButtonDetails.category?.name || "Sin categoría"} | Acceso directo: {currentButtonDetails.shortcutKey || "Ninguno"}
-                          </p>
-                          <p className="mt-1 text-xs text-on-surface-variant">
-                            Audio: {currentButtonDetails.audioAsset?.originalName || currentButtonDetails.audioAssetId || "No disponible"}
-                          </p>
-                          {currentButtonDetails.description ? (
-                            <p className="mt-2 text-sm text-on-surface-variant">{currentButtonDetails.description}</p>
-                          ) : null}
-                        </div>
-                      ) : buttonDetailsError ? (
-                        <div className="rounded-2xl border border-red-300/40 bg-red-500/10 px-3 py-3 text-sm text-red-700 dark:text-red-300">
-                          {buttonDetailsError}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-on-surface-variant">Cargando detalles del botón...</p>
-                      )}
-                      {operatorNotes ? (
-                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas de operador</p>
-                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-                        </div>
-                      ) : null}
-                      <audio
-                        ref={audioRef}
-                        onPlay={() => setIsPlaying(true)}
-                        onPause={() => setIsPlaying(false)}
-                        onEnded={() => setIsPlaying(false)}
-                        onLoadedMetadata={() => setMessage(null)}
-                        className="hidden"
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void startAudioPlayback()}
-                          disabled={working || !hasAudio || !actionNodeIsInteractive}
-                          className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Play className="h-4 w-4" />
-                          Reproducir botón
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void pauseAudio()}
-                          disabled={!isPlaying || !actionNodeIsInteractive}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Pause className="h-4 w-4" />
-                          Pausar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void resumeAudio()}
-                          disabled={isPlaying || !actionNodeIsInteractive}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Play className="h-4 w-4" />
-                          Reanudar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void stopAudio()}
-                          disabled={!actionNodeIsInteractive}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Square className="h-4 w-4" />
-                          Detener
-                        </button>
-                      </div>
-                    </div>
-                  ) : actionNode.type === "SCRIPT_TEXT" ? (
-                    <div className="space-y-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto para leer</p>
-                      <div className="flex flex-wrap gap-2 text-[11px]">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
-                          {boolLabel(isRequiredNode, "Lectura requerida", "Lectura opcional")}
-                        </span>
-                      </div>
-                      <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-                        {String(actionNode.data?.body ?? "Sin contenido")}
-                      </p>
-                      {operatorNotes ? (
-                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
-                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-                        </div>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => void copyScriptText()}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copiar texto
-                      </button>
-                    </div>
-                  ) : actionNode.type === "INSTRUCTION" ? (
-                    <div className="space-y-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Instrucción operativa</p>
-                      <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-4">
-                        <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-                          {String(actionNode.data?.instruction ?? "Sin instrucción")}
-                        </p>
-                      </div>
-                      {operatorNotes ? (
-                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
-                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : actionNode.type === "PAUSE" ? (
-                    <div className="space-y-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Pausa</p>
-                      <p className="text-base leading-7 text-on-surface">
-                        {actionNode.data?.manual === false || actionNode.data?.pauseType === "timer"
-                          ? `Pausa temporizada de ${String(actionNode.data?.durationSeconds ?? "0")} segundos.`
-                          : "Pausa manual. Espera la señal para continuar."}
-                      </p>
-                      {pauseRemainingSeconds !== null ? (
-                        <div className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface">
-                          <Clock3 className="h-4 w-4" />
-                          {pauseRemainingSeconds > 0
-                            ? `Continuar disponible en ${pauseRemainingSeconds}s`
-                            : "Puedes continuar"}
-                        </div>
-                      ) : null}
-                      {(actionNode.data?.manual === false || actionNode.data?.pauseType === "timer") &&
-                      pauseRemainingSeconds === null ? (
-                        <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-700 dark:text-amber-300">
-                          La duración no es válida. Se mantiene fallback manual para continuar de forma segura.
-                        </div>
-                      ) : null}
-                      {operatorNotes ? (
-                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
-                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : actionNode.type === "DECISION" ? (
-                    <div className="space-y-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Decisión</p>
-                      <p className="text-base leading-7 text-on-surface">
-                        {String(actionNode.data?.question ?? "¿Qué sigue?")}
-                      </p>
-                      <div className="flex flex-wrap gap-2 text-[11px]">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(actionNodeDecisionChoices.length >= 2 ? "available" : "error")}`}>
-                          {actionNodeDecisionChoices.length} ruta(s)
-                        </span>
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(actionNodeIsInteractive ? "current" : "locked")}`}>
-                          {actionNodeIsInteractive ? "Selecciona una opción" : "Solo consulta"}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {actionNodeDecisionChoices.length > 0 ? (
-                          actionNodeDecisionChoices.map((choice) => (
-                            <button
-                              key={`${choice.targetNodeId}-${choice.label}`}
-                              type="button"
-                              onClick={() => actionNodeIsInteractive ? void handleDecision(choice.targetNodeId, choice.label) : undefined}
-                              disabled={working || !actionNodeIsInteractive}
-                              className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                                selectedDecisionTarget === choice.targetNodeId
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : "border-outline-variant bg-surface text-on-surface hover:border-primary"
-                              } disabled:cursor-not-allowed disabled:opacity-60`}
-                            >
-                              <ArrowRight className="h-4 w-4" />
-                              {choice.label}
-                            </button>
-                          ))
-                        ) : (
-                          <p className="text-sm text-on-surface-variant">
-                            No hay salidas configuradas para esta decisión.
-                          </p>
-                        )}
-                      </div>
-                      {selectedDecisionTargets.get(actionNode.id) ? (
-                        <div className="rounded-2xl border border-primary/20 bg-primary/10 px-3 py-3 text-sm text-primary">
-                          Ruta elegida registrada.
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : actionNode.type === "END" ? (
-                    <div className="space-y-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Cierre</p>
-                      <p className="text-base leading-7 text-on-surface">
-                        La narrativa llegó al nodo final.
-                      </p>
-                      <div className="rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-700 dark:text-emerald-300">
-                        Este nodo habilita el cierre exitoso.
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-on-surface-variant">
-                      Sin contenido para mostrar.
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void completeCurrentNode(false)}
-                    disabled={working || run.status !== "RUNNING" || !actionNodeIsInteractive || actionNode?.type === "DECISION"}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <SkipForward className="h-4 w-4" />
-                    Siguiente
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void completeCurrentNode(true)}
-                    disabled={
-                      working ||
-                      run.status !== "RUNNING" ||
-                      !actionNodeIsInteractive ||
-                      actionNode?.data?.required !== false ||
-                      actionNode?.type === "DECISION"
-                    }
-                    className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Omitir
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void finishRun()}
-                    disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Finalizar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void cancelRun()}
-                    disabled={working || run.status !== "RUNNING"}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300"
-                  >
-                    <StopCircle className="h-4 w-4" />
-                    Cancelar
-                  </button>
-                </div>
-
-                {currentStatus === "current" && actionNodeIsCurrent ? (
-                  <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
-                    Estás en el paso actual de la narrativa.
-                  </div>
-                ) : null}
+                )}
               </div>
-            ) : (
-              <div className="mt-4 rounded-[24px] border border-outline-variant bg-surface px-4 py-6 text-sm text-on-surface-variant">
-                Selecciona un nodo del canvas para revisar su contenido.
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-              Actividad
-            </p>
-            <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
-              Eventos recientes
-            </h3>
+            </section>
           </div>
-
-          <div className="space-y-2">
-            {eventLog.length > 0 ? (
-              eventLog.map((event) => (
-                <div key={event.id} className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-on-surface">{event.eventType}</p>
-                    <span className="text-[11px] text-on-surface-variant">
-                      {formatDateTime(event.createdAt)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-on-surface-variant">
-                    Nodo {event.nodeId}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-outline-variant px-4 py-8 text-center text-sm text-on-surface-variant">
-                Todavía no hay eventos en esta ejecución.
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-4 text-sm text-on-surface-variant">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <p>
-                El player avanza por la ruta publicada y mantiene la ejecución asociada a esta sesión.
-              </p>
-            </div>
-          </div>
-          </section>
-        </aside>
+        </div>
       </div>
-    </div>
     </ReactFlowProvider>
   );
 }
