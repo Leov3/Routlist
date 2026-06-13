@@ -382,3 +382,37 @@ Pendientes:
 
 Próximo hito:
 - Cierre de la fase de modernización del player.
+
+## Hito 10
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+aa3f6e3
+
+Push:
+origin/dev
+
+Resumen:
+Se corrigió la funcionalidad de los botones de audio (`AUDIO_BUTTON`) en el canvas interactivo:
+1. **Labels Dinámicos:** Los nodos ahora resuelven y muestran el nombre real del botón de audio al que hacen referencia (consultando a `/audio-buttons/:id`) en lugar de mantener un texto genérico.
+2. **Reproducción Global Directa:** Se solucionaron problemas de "stale closure" al hacer click izquierdo directo sobre los nodos de audio al forzar la recepción del `nodeId` directo en `startAudioPlayback`. Además, el reproductor HTML `<audio>` se movió a la raíz del proveedor de contexto, garantizando que siempre esté disponible sin depender del panel lateral (que ya no existe) o de menús contextuales.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+
+Checks ejecutados:
+- `npm run build`
+
+Resultado:
+- Reproducción fluida y consistente en el canvas independientemente del tipo de selección previa.
+
+Riesgos:
+- Ninguno detectado.
+
+Pendientes:
+- Completar la fase de validación en entornos reales.
