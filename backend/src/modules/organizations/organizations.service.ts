@@ -8,6 +8,17 @@ import { UpdateOrganizationDto } from './dto/update-organization.dto';
 export class OrganizationsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private buildSlug(name: string, explicitSlug?: string) {
+    const source = explicitSlug?.trim() || name;
+    return source
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 64);
+  }
+
   list(user: AuthenticatedUser) {
     this.ensureGlobalOwner(user);
 
@@ -53,6 +64,7 @@ export class OrganizationsService {
     return this.prisma.organization.create({
       data: {
         name: dto.name,
+        slug: this.buildSlug(dto.name, dto.slug),
         status: dto.status ?? 'ACTIVE',
       },
       select: {
@@ -81,11 +93,15 @@ export class OrganizationsService {
       where: { id },
       data: {
         ...(dto.name ? { name: dto.name } : {}),
+        ...(dto.name || dto.slug
+          ? { slug: this.buildSlug(dto.name ?? '', dto.slug ?? dto.name) }
+          : {}),
         ...(dto.status ? { status: dto.status } : {}),
       },
       select: {
         id: true,
         name: true,
+        slug: true,
         status: true,
         createdAt: true,
         updatedAt: true,

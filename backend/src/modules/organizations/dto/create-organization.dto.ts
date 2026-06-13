@@ -13,4 +13,10 @@ export class CreateOrganizationDto {
   @IsOptional()
   @IsIn(ORGANIZATION_STATUSES)
   status?: (typeof ORGANIZATION_STATUSES)[number];
+
+  @ApiPropertyOptional({ example: 'routlis-demo-organization' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  slug?: string;
 }
