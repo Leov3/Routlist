@@ -7,6 +7,7 @@ export type NarrativeRunStatus = "RUNNING" | "COMPLETED" | "CANCELLED";
 export type NarrativeNodeType =
   | "START"
   | "AUDIO"
+  | "AUDIO_BUTTON"
   | "SCRIPT_TEXT"
   | "INSTRUCTION"
   | "PAUSE"

@@ -39,7 +39,10 @@ export function emptyGraphJson(): NarrativeGraphJson {
   return cloneGraphJson(EMPTY_NARRATIVE_GRAPH);
 }
 
-export function validateNarrativeGraph(input: unknown): GraphValidationResult {
+export function validateNarrativeGraph(
+  input: unknown,
+  options: { strict?: boolean } = { strict: true }
+): GraphValidationResult {
   const errors: string[] = [];
 
   if (!isRecord(input)) {
@@ -95,12 +98,14 @@ export function validateNarrativeGraph(input: unknown): GraphValidationResult {
   const startNodes = typedNodes.filter((node) => node.type === 'START');
   const endNodes = typedNodes.filter((node) => node.type === 'END');
 
-  if (startNodes.length !== 1) {
-    errors.push('Narrative must contain exactly one START node');
-  }
+  if (options.strict) {
+    if (startNodes.length !== 1) {
+      errors.push('Narrative must contain exactly one START node');
+    }
 
-  if (endNodes.length < 1) {
-    errors.push('Narrative must contain at least one END node');
+    if (endNodes.length < 1) {
+      errors.push('Narrative must contain at least one END node');
+    }
   }
 
   const outgoingByNode = new Map<string, typeof typedEdges>();
@@ -133,74 +138,76 @@ export function validateNarrativeGraph(input: unknown): GraphValidationResult {
     }
   }
 
-  for (const node of typedNodes) {
-    const incoming = incomingByNode.get(node.id) ?? [];
-    const outgoing = outgoingByNode.get(node.id) ?? [];
+  if (options.strict) {
+    for (const node of typedNodes) {
+      const incoming = incomingByNode.get(node.id) ?? [];
+      const outgoing = outgoingByNode.get(node.id) ?? [];
 
-    if (node.type === 'START') {
-      if (incoming.length > 0) {
-        errors.push('START node cannot have incoming edges');
+      if (node.type === 'START') {
+        if (incoming.length > 0) {
+          errors.push('START node cannot have incoming edges');
+        }
+
+        if (outgoing.length < 1) {
+          errors.push('START node must have at least one outgoing edge');
+        }
       }
 
-      if (outgoing.length < 1) {
-        errors.push('START node must have at least one outgoing edge');
-      }
-    }
-
-    if (node.type === 'END' && outgoing.length > 0) {
-      errors.push('END node cannot have outgoing edges');
-    }
-
-    if (node.type === 'DECISION') {
-      if (outgoing.length < 2) {
-        errors.push('DECISION node must have at least two outgoing edges');
+      if (node.type === 'END' && outgoing.length > 0) {
+        errors.push('END node cannot have outgoing edges');
       }
 
-      for (const edge of outgoing) {
-        if (!edge.label || !edge.label.trim()) {
-          errors.push(`DECISION node ${node.id} requires labeled outgoing edges`);
-          break;
+      if (node.type === 'DECISION') {
+        if (outgoing.length < 2) {
+          errors.push('DECISION node must have at least two outgoing edges');
+        }
+
+        for (const edge of outgoing) {
+          if (!edge.label || !edge.label.trim()) {
+            errors.push(`DECISION node ${node.id} requires labeled outgoing edges`);
+            break;
+          }
         }
       }
     }
-  }
 
-  if (startNodes.length === 1) {
-    const reachable = new Set<string>();
-    const visiting = new Set<string>();
-    let cycleFound = false;
+    if (startNodes.length === 1) {
+      const reachable = new Set<string>();
+      const visiting = new Set<string>();
+      let cycleFound = false;
 
-    const visit = (nodeId: string) => {
-      if (visiting.has(nodeId)) {
-        cycleFound = true;
-        return;
+      const visit = (nodeId: string) => {
+        if (visiting.has(nodeId)) {
+          cycleFound = true;
+          return;
+        }
+
+        if (reachable.has(nodeId)) {
+          return;
+        }
+
+        reachable.add(nodeId);
+        visiting.add(nodeId);
+
+        for (const edge of outgoingByNode.get(nodeId) ?? []) {
+          visit(edge.target);
+        }
+
+        visiting.delete(nodeId);
+      };
+
+      visit(startNodes[0].id);
+
+      if (cycleFound) {
+        errors.push('Narrative graph cannot contain cycles in the MVP');
       }
 
-      if (reachable.has(nodeId)) {
-        return;
+      const unreachableNodes = typedNodes.filter((node) => !reachable.has(node.id));
+      if (unreachableNodes.length > 0) {
+        errors.push(
+          `Narrative contains unreachable nodes: ${unreachableNodes.map((node) => node.id).join(', ')}`,
+        );
       }
-
-      reachable.add(nodeId);
-      visiting.add(nodeId);
-
-      for (const edge of outgoingByNode.get(nodeId) ?? []) {
-        visit(edge.target);
-      }
-
-      visiting.delete(nodeId);
-    };
-
-    visit(startNodes[0].id);
-
-    if (cycleFound) {
-      errors.push('Narrative graph cannot contain cycles in the MVP');
-    }
-
-    const unreachableNodes = typedNodes.filter((node) => !reachable.has(node.id));
-    if (unreachableNodes.length > 0) {
-      errors.push(
-        `Narrative contains unreachable nodes: ${unreachableNodes.map((node) => node.id).join(', ')}`,
-      );
     }
   }
 

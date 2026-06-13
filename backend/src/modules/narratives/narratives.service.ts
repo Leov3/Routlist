@@ -216,7 +216,7 @@ export class NarrativesService {
         })
       : null;
 
-    const validation = validateNarrativeGraph(draftVersion?.graphJson ?? emptyGraphJson());
+    const validation = validateNarrativeGraph(draftVersion?.graphJson ?? emptyGraphJson(), { strict: true });
 
     return {
       narrative,
@@ -232,7 +232,7 @@ export class NarrativesService {
     dto: SaveNarrativeGraphDto,
   ) {
     const narrative = await this.getNarrativeOrThrow(user, id);
-    const validation = validateNarrativeGraph(dto.graphJson);
+    const validation = validateNarrativeGraph(dto.graphJson, { strict: false });
 
     if (!validation.valid) {
       throw new BadRequestException(validation.errors);
@@ -270,7 +270,17 @@ export class NarrativesService {
     await this.getNarrativeOrThrow(user, id);
 
     const payload = graphJson ?? (await this.getEditableVersion(id, false))?.graphJson ?? emptyGraphJson();
-    return validateNarrativeGraph(payload);
+    const validation = validateNarrativeGraph(payload);
+    
+    if (validation.valid) {
+      const resourceValidation = await this.validateNarrativeResources(user, payload as NarrativeGraphJson);
+      if (!resourceValidation.valid) {
+        validation.valid = false;
+        validation.errors.push(...resourceValidation.errors);
+      }
+    }
+
+    return validation;
   }
 
   async publish(
@@ -288,6 +298,11 @@ export class NarrativesService {
     const validation = validateNarrativeGraph(draftVersion.graphJson);
     if (!validation.valid) {
       throw new BadRequestException(validation.errors);
+    }
+
+    const resourceValidation = await this.validateNarrativeResources(user, draftVersion.graphJson as NarrativeGraphJson);
+    if (!resourceValidation.valid) {
+      throw new BadRequestException(resourceValidation.errors);
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -438,5 +453,68 @@ export class NarrativesService {
         ) as Prisma.InputJsonValue,
       },
     });
+  }
+
+  private async validateNarrativeResources(
+    user: AuthenticatedUser,
+    graph: NarrativeGraphJson,
+  ): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+    const audioIds = new Set<string>();
+    const buttonIds = new Set<string>();
+
+    for (const node of graph.nodes) {
+      if (node.type === 'AUDIO') {
+        const audioAssetId = node.data?.audioAssetId;
+        if (!audioAssetId || typeof audioAssetId !== 'string') {
+          errors.push(`Node ${node.id} (AUDIO) requires audioAssetId`);
+        } else {
+          audioIds.add(audioAssetId);
+        }
+      } else if (node.type === 'AUDIO_BUTTON') {
+        const audioButtonId = node.data?.audioButtonId;
+        if (!audioButtonId || typeof audioButtonId !== 'string') {
+          errors.push(`Node ${node.id} (AUDIO_BUTTON) requires audioButtonId`);
+        } else {
+          buttonIds.add(audioButtonId);
+        }
+      }
+    }
+
+    if (audioIds.size > 0) {
+      const validAudios = await this.prisma.audioAsset.findMany({
+        where: {
+          id: { in: Array.from(audioIds) },
+          organizationId: user.organizationId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const validAudioIds = new Set(validAudios.map((a) => a.id));
+      for (const id of audioIds) {
+        if (!validAudioIds.has(id)) {
+          errors.push(`Audio asset ${id} is invalid, inactive, or belongs to another organization`);
+        }
+      }
+    }
+
+    if (buttonIds.size > 0) {
+      const validButtons = await this.prisma.audioButton.findMany({
+        where: {
+          id: { in: Array.from(buttonIds) },
+          organizationId: user.organizationId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const validButtonIds = new Set(validButtons.map((b) => b.id));
+      for (const id of buttonIds) {
+        if (!validButtonIds.has(id)) {
+          errors.push(`Audio button ${id} is invalid, inactive, or belongs to another organization`);
+        }
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
   }
 }

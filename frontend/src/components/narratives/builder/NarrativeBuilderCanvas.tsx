@@ -58,6 +58,7 @@ type FlowNodeData = {
   instruction?: string;
   nodeType: NarrativeNodeType;
   audioAssetId?: string;
+  audioButtonId?: string;
   description?: string;
   required?: boolean;
   allowReplay?: boolean;
@@ -79,6 +80,7 @@ type NodePaletteItem = {
 const NODE_PALETTE: NodePaletteItem[] = [
   { type: "START", label: "Inicio", description: "Punto de arranque único.", accent: "from-emerald-500 to-teal-500" },
   { type: "AUDIO", label: "Audio", description: "Reproduce un audio existente.", accent: "from-violet-500 to-fuchsia-500" },
+  { type: "AUDIO_BUTTON", label: "Botón de Audio", description: "Reproduce audio asociado a un botón.", accent: "from-indigo-500 to-blue-500" },
   { type: "SCRIPT_TEXT", label: "Texto / Guion", description: "Texto para leer al aire.", accent: "from-sky-500 to-cyan-500" },
   { type: "INSTRUCTION", label: "Instrucción", description: "Paso operativo interno.", accent: "from-amber-500 to-orange-500" },
   { type: "PAUSE", label: "Pausa", description: "Esperar o pausar manualmente.", accent: "from-slate-500 to-slate-700" },
@@ -96,6 +98,13 @@ const DEFAULT_NODE_DATA: Record<NarrativeNodeType, Record<string, unknown>> = {
     required: true,
     allowReplay: true,
     operatorNotes: "",
+  },
+  AUDIO_BUTTON: {
+    title: "Botón de audio",
+    label: "Botón",
+    audioButtonId: "",
+    operatorNotes: "",
+    required: true,
   },
   SCRIPT_TEXT: {
     title: "Guion",
@@ -146,6 +155,7 @@ function nodeSummary(node: Node<FlowNodeData>) {
   const nodeType = (node.data?.nodeType ?? node.type) as NarrativeNodeType;
   const data = node.data ?? { nodeType };
   if (nodeType === "AUDIO") return data.audioAssetId ? `Audio: ${String(data.audioAssetId)}` : "Audio sin asignar";
+  if (nodeType === "AUDIO_BUTTON") return data.audioButtonId ? `Botón: ${String(data.audioButtonId)}` : "Botón sin asignar";
   if (nodeType === "SCRIPT_TEXT") return data.body ? String(data.body).slice(0, 80) : "Sin texto";
   if (nodeType === "INSTRUCTION") return data.instruction ? String(data.instruction).slice(0, 80) : "Sin instrucción";
   if (nodeType === "PAUSE") return data.manual === false ? `Temporizada${data.durationSeconds ? ` · ${data.durationSeconds}s` : ""}` : "Pausa manual";
@@ -159,6 +169,8 @@ function nodeClassName(nodeType: NarrativeNodeType) {
       return "border-emerald-300 bg-emerald-500/15 text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-500/15 dark:text-emerald-100";
     case "AUDIO":
       return "border-violet-300 bg-violet-500/15 text-violet-950 dark:border-violet-900/60 dark:bg-violet-500/15 dark:text-violet-100";
+    case "AUDIO_BUTTON":
+      return "border-indigo-300 bg-indigo-500/15 text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-500/15 dark:text-indigo-100";
     case "SCRIPT_TEXT":
       return "border-sky-300 bg-sky-500/15 text-sky-950 dark:border-sky-900/60 dark:bg-sky-500/15 dark:text-sky-100";
     case "INSTRUCTION":
@@ -267,15 +279,23 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [nodes, setNodes] = useState<Node<FlowNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({
     valid: true,
     errors: [],
   });
+  const [audios, setAudios] = useState<{ id: string; name: string }[]>([]);
+  const [buttons, setButtons] = useState<{ id: string; label: string; category?: { name: string } }[]>([]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
+  );
+
+  const editingNode = useMemo(
+    () => nodes.find((node) => node.id === editingNodeId) ?? null,
+    [nodes, editingNodeId],
   );
 
   const selectedVersion = builder?.draftVersion ?? builder?.publishedVersion ?? null;
@@ -285,8 +305,16 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     setMessage(null);
 
     try {
-      const result = await api<NarrativeBuilderState>(`/narratives/${narrativeId}/builder`);
+      const [result, audiosRes, buttonsRes] = await Promise.all([
+        api<NarrativeBuilderState>(`/narratives/${narrativeId}/builder`),
+        api<any>("/audio-assets").catch(() => []),
+        api<any>("/audio-buttons").catch(() => []),
+      ]);
+      
       setBuilder(result);
+      setAudios(Array.isArray(audiosRes) ? audiosRes : ((audiosRes as any).data || (audiosRes as any).items || []));
+      setButtons(Array.isArray(buttonsRes) ? buttonsRes : ((buttonsRes as any).data || (buttonsRes as any).items || []));
+      
       const graph = graphFromVersions(result.draftVersion ?? result.publishedVersion);
 
       setNodes(
@@ -372,6 +400,16 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const onEdgesChange = useCallback((changes: Parameters<typeof applyEdgeChanges>[0]) => {
     setEdges((current) => applyEdgeChanges(changes, current));
   }, []);
+
+  function removeNode(nodeId: string) {
+    if (window.confirm("¿Seguro que deseas eliminar este nodo?")) {
+      setNodes((current) => current.filter((node) => node.id !== nodeId));
+      setEdges((current) => current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+      if (selectedNodeId === nodeId) {
+        setSelectedNodeId(null);
+      }
+    }
+  }
 
   const onConnect = useCallback((connection: Connection) => {
     const sourceNode = nodes.find((node) => node.id === connection.source);
@@ -519,193 +557,264 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     setMessage("Se copió la versión publicada al borrador local.");
   }
 
-  const inspectorPanel = selectedNode ? (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-semibold text-on-surface">Inspector</h3>
-        <p className="text-sm text-on-surface-variant">{selectedNode.data?.nodeType}</p>
-      </div>
-
-      <label className="grid gap-1.5">
-        <FieldLabel>Título / etiqueta</FieldLabel>
-        <input
-          value={String(selectedNode.data?.title ?? selectedNode.data?.label ?? "")}
-          onChange={(event) =>
-            saveNodePatch(selectedNode.id, {
-              title: event.target.value,
-              label: event.target.value,
-            })
-          }
-          className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
-        />
-      </label>
-
-      {selectedNode.data?.nodeType === "AUDIO" && (
-        <>
-          <label className="grid gap-1.5">
-            <FieldLabel>Audio ID</FieldLabel>
-            <input
-              value={String(selectedNode.data.audioAssetId ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { audioAssetId: event.target.value })}
-              placeholder="audio-uuid"
-              className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <label className="grid gap-1.5">
-            <FieldLabel>Descripción</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.description ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { description: event.target.value })}
-              className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <label className="grid gap-1.5">
-            <FieldLabel>Notas para operador</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.operatorNotes ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { operatorNotes: event.target.value })}
-              className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <BooleanPill
-              value={Boolean(selectedNode.data.required)}
-              onChange={(value) => saveNodePatch(selectedNode.id, { required: value })}
-              label="Obligatorio"
-            />
-            <BooleanPill
-              value={Boolean(selectedNode.data.allowReplay)}
-              onChange={(value) => saveNodePatch(selectedNode.id, { allowReplay: value })}
-              label="Permitir repetir"
-            />
+  const modalPanel = editingNode ? (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[32px] bg-surface-container p-6 shadow-elevation-3 border border-outline-variant">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+              Configurar Nodo
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-on-surface">
+              {editingNode.data?.nodeType}
+            </h2>
           </div>
-        </>
-      )}
-
-      {selectedNode.data?.nodeType === "SCRIPT_TEXT" && (
-        <>
-          <label className="grid gap-1.5">
-            <FieldLabel>Texto del guion</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.body ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { body: event.target.value })}
-              className="min-h-28 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <label className="grid gap-1.5">
-            <FieldLabel>Notas internas</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.notes ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { notes: event.target.value })}
-              className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <BooleanPill
-            value={Boolean(selectedNode.data.required)}
-            onChange={(value) => saveNodePatch(selectedNode.id, { required: value })}
-            label="Obligatorio"
-          />
-        </>
-      )}
-
-      {selectedNode.data?.nodeType === "INSTRUCTION" && (
-        <>
-          <label className="grid gap-1.5">
-            <FieldLabel>Instrucción</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.instruction ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { instruction: event.target.value })}
-              className="min-h-28 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <label className="grid gap-1.5">
-            <FieldLabel>Notas internas</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.notes ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { notes: event.target.value })}
-              className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-        </>
-      )}
-
-      {selectedNode.data?.nodeType === "PAUSE" && (
-        <div className="grid gap-3">
-          <label className="grid gap-1.5">
-            <FieldLabel>Tipo de pausa</FieldLabel>
-            <select
-              value={String(selectedNode.data.pauseType ?? "manual")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { pauseType: event.target.value })}
-              className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
-            >
-              <option value="manual">Manual</option>
-              <option value="timer">Temporizada</option>
-            </select>
-          </label>
-          <label className="grid gap-1.5">
-            <FieldLabel>Duración en segundos</FieldLabel>
-            <input
-              value={String(selectedNode.data.durationSeconds ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { durationSeconds: event.target.value })}
-              type="number"
-              min="0"
-              className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <BooleanPill
-            value={Boolean(selectedNode.data.manual)}
-            onChange={(value) => saveNodePatch(selectedNode.id, { manual: value })}
-            label="Pausa manual"
-          />
+          <button 
+            type="button" 
+            onClick={() => setEditingNodeId(null)}
+            className="rounded-full p-2 text-on-surface-variant hover:bg-surface hover:text-on-surface transition-colors"
+          >
+            ✕
+          </button>
         </div>
-      )}
 
-      {selectedNode.data?.nodeType === "DECISION" && (
-        <>
+        <div className="space-y-4">
           <label className="grid gap-1.5">
-            <FieldLabel>Pregunta</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.question ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { question: event.target.value })}
-              className="min-h-24 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+            <FieldLabel>Título / etiqueta</FieldLabel>
+            <input
+              value={String(editingNode.data?.title ?? editingNode.data?.label ?? "")}
+              onChange={(event) =>
+                saveNodePatch(editingNode.id, {
+                  title: event.target.value,
+                  label: event.target.value,
+                })
+              }
+              className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
             />
           </label>
-          <label className="grid gap-1.5">
-            <FieldLabel>Opciones separadas por |</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.options ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { options: event.target.value })}
-              className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <label className="grid gap-1.5">
-            <FieldLabel>Notas para operador</FieldLabel>
-            <textarea
-              value={String(selectedNode.data.operatorNotes ?? "")}
-              onChange={(event) => saveNodePatch(selectedNode.id, { operatorNotes: event.target.value })}
-              className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-        </>
-      )}
 
-      {selectedNode.data?.nodeType === "START" && (
-        <p className="text-sm text-on-surface-variant">
-          El nodo de inicio no recibe entradas y debe conectar al primer paso del flujo.
-        </p>
-      )}
+          {editingNode.data?.nodeType === "AUDIO" && (
+            <>
+              <label className="grid gap-1.5">
+                <FieldLabel>Audio a reproducir</FieldLabel>
+                <select
+                  value={String(editingNode.data.audioAssetId ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { audioAssetId: event.target.value })}
+                  className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                >
+                  <option value="">Selecciona un audio...</option>
+                  {audios.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1.5">
+                <FieldLabel>Descripción</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.description ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { description: event.target.value })}
+                  className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <label className="grid gap-1.5">
+                <FieldLabel>Notas para operador</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.operatorNotes ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { operatorNotes: event.target.value })}
+                  className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <BooleanPill
+                  value={Boolean(editingNode.data.required)}
+                  onChange={(value) => saveNodePatch(editingNode.id, { required: value })}
+                  label="Obligatorio"
+                />
+                <BooleanPill
+                  value={Boolean(editingNode.data.allowReplay)}
+                  onChange={(value) => saveNodePatch(editingNode.id, { allowReplay: value })}
+                  label="Permitir repetir"
+                />
+              </div>
+            </>
+          )}
 
-      {selectedNode.data?.nodeType === "END" && (
-        <p className="text-sm text-on-surface-variant">
-          El nodo final cierra la narrativa y no debe tener salidas.
-        </p>
-      )}
+          {editingNode.data?.nodeType === "AUDIO_BUTTON" && (
+            <>
+              <label className="grid gap-1.5">
+                <FieldLabel>Botón a reproducir</FieldLabel>
+                <select
+                  value={String(editingNode.data.audioButtonId ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { audioButtonId: event.target.value })}
+                  className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                >
+                  <option value="">Selecciona un botón...</option>
+                  {buttons.map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.label} {b.category?.name ? `(${b.category.name})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1.5">
+                <FieldLabel>Notas para operador</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.operatorNotes ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { operatorNotes: event.target.value })}
+                  className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <BooleanPill
+                value={Boolean(editingNode.data.required)}
+                onChange={(value) => saveNodePatch(editingNode.id, { required: value })}
+                label="Obligatorio"
+              />
+            </>
+          )}
+
+          {editingNode.data?.nodeType === "SCRIPT_TEXT" && (
+            <>
+              <label className="grid gap-1.5">
+                <FieldLabel>Texto del guion</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.body ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { body: event.target.value })}
+                  className="min-h-28 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <label className="grid gap-1.5">
+                <FieldLabel>Notas internas</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.notes ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { notes: event.target.value })}
+                  className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <BooleanPill
+                value={Boolean(editingNode.data.required)}
+                onChange={(value) => saveNodePatch(editingNode.id, { required: value })}
+                label="Obligatorio"
+              />
+            </>
+          )}
+
+          {editingNode.data?.nodeType === "INSTRUCTION" && (
+            <>
+              <label className="grid gap-1.5">
+                <FieldLabel>Instrucción</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.instruction ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { instruction: event.target.value })}
+                  className="min-h-28 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <label className="grid gap-1.5">
+                <FieldLabel>Notas internas</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.notes ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { notes: event.target.value })}
+                  className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+            </>
+          )}
+
+          {editingNode.data?.nodeType === "PAUSE" && (
+            <div className="grid gap-3">
+              <label className="grid gap-1.5">
+                <FieldLabel>Tipo de pausa</FieldLabel>
+                <select
+                  value={String(editingNode.data.pauseType ?? "manual")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { pauseType: event.target.value })}
+                  className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                >
+                  <option value="manual">Manual</option>
+                  <option value="timer">Temporizada</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5">
+                <FieldLabel>Duración en segundos</FieldLabel>
+                <input
+                  value={String(editingNode.data.durationSeconds ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { durationSeconds: event.target.value })}
+                  type="number"
+                  min="0"
+                  className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <BooleanPill
+                value={Boolean(editingNode.data.manual)}
+                onChange={(value) => saveNodePatch(editingNode.id, { manual: value })}
+                label="Pausa manual"
+              />
+            </div>
+          )}
+
+          {editingNode.data?.nodeType === "DECISION" && (
+            <>
+              <label className="grid gap-1.5">
+                <FieldLabel>Pregunta</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.question ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { question: event.target.value })}
+                  className="min-h-24 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <label className="grid gap-1.5">
+                <FieldLabel>Opciones separadas por |</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.options ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { options: event.target.value })}
+                  className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <label className="grid gap-1.5">
+                <FieldLabel>Notas para operador</FieldLabel>
+                <textarea
+                  value={String(editingNode.data.operatorNotes ?? "")}
+                  onChange={(event) => saveNodePatch(editingNode.id, { operatorNotes: event.target.value })}
+                  className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+            </>
+          )}
+
+          {editingNode.data?.nodeType === "START" && (
+            <p className="text-sm text-on-surface-variant">
+              El nodo de inicio no recibe entradas y debe conectar al primer paso del flujo.
+            </p>
+          )}
+
+          {editingNode.data?.nodeType === "END" && (
+            <p className="text-sm text-on-surface-variant">
+              El nodo final cierra la narrativa y no debe tener salidas.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-8 flex items-center justify-between border-t border-outline-variant pt-5">
+          <button
+            type="button"
+            onClick={() => {
+              removeNode(editingNode.id);
+              setEditingNodeId(null);
+            }}
+            className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-50/50 px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+          >
+            Eliminar nodo
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setEditingNodeId(null)}
+            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-2.5 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.02]"
+          >
+            Guardar y cerrar
+          </button>
+        </div>
+      </div>
     </div>
-  ) : (
-    <div className="rounded-2xl border border-dashed border-outline-variant p-5 text-sm text-on-surface-variant">
-      Selecciona un nodo para editar sus propiedades.
-    </div>
-  );
+  ) : null;
 
   if (loading) {
     return (
@@ -716,7 +825,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
+    <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)] relative">
       {/* Palette */}
       <aside className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1">
         <div>
@@ -836,6 +945,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+            onNodeDoubleClick={(_, node) => setEditingNodeId(node.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             fitView
             defaultEdgeOptions={{
@@ -920,19 +1030,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         </div>
       </section>
 
-      {/* Inspector */}
-      <aside className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-            Propiedades
-          </p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
-            Inspector
-          </h2>
-        </div>
-
-        {inspectorPanel}
-      </aside>
+      {modalPanel}
     </div>
   );
 }
