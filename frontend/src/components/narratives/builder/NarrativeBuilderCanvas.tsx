@@ -14,6 +14,7 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
+  SelectionMode,
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
@@ -291,6 +292,13 @@ function updateNodeData(node: Node<FlowNodeData>, patch: Record<string, unknown>
   };
 }
 
+function sameStringSet(left: string[], right: string[]) {
+  if (left.length !== right.length) return false;
+  const leftSorted = [...left].sort();
+  const rightSorted = [...right].sort();
+  return leftSorted.every((value, index) => value === rightSorted[index]);
+}
+
 export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -298,6 +306,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [builder, setBuilder] = useState<NarrativeBuilderState | null>(null);
   const [nodes, setNodes] = useState<Node<FlowNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -311,6 +320,16 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const editingNode = useMemo(
     () => nodes.find((node) => node.id === editingNodeId) ?? null,
     [nodes, editingNodeId],
+  );
+
+  const selectedNode = useMemo(
+    () => nodes.find((node) => node.id === selectedNodeId) ?? null,
+    [nodes, selectedNodeId],
+  );
+
+  const selectedNodes = useMemo(
+    () => nodes.filter((node) => selectedNodeIds.includes(node.id)),
+    [nodes, selectedNodeIds],
   );
 
   const selectedVersion = builder?.draftVersion ?? builder?.publishedVersion ?? null;
@@ -365,14 +384,16 @@ try {
         })),
       );
       setValidation(result.validation);
-      if (graph.nodes.length > 0) {
-        setSelectedNodeId(graph.nodes[0].id);
-      }
+      setSelectedNodeIds(graph.nodes.map((node) => node.id));
+      setSelectedNodeId(graph.nodes[0]?.id ?? null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo cargar la narrativa.");
       setBuilder(null);
       setNodes([]);
       setEdges([]);
+      setSelectedNodeIds([]);
+      setSelectedNodeId(null);
+      setEditingNodeId(null);
     } finally {
       setLoading(false);
     }
@@ -411,6 +432,7 @@ try {
     };
 
     setNodes((current) => [...current, node]);
+    setSelectedNodeIds([id]);
     setSelectedNodeId(id);
   }
 
@@ -428,14 +450,27 @@ try {
     setEdges((current) => applyEdgeChanges(changes, current));
   }, []);
 
-  function removeNode(nodeId: string) {
-    if (window.confirm("¿Seguro que deseas eliminar este nodo?")) {
-      setNodes((current) => current.filter((node) => node.id !== nodeId));
-      setEdges((current) => current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-      if (selectedNodeId === nodeId) {
+  function removeNodes(nodeIds: string[]) {
+    if (nodeIds.length === 0) return;
+
+    const label = nodeIds.length === 1 ? "este nodo" : `estos ${nodeIds.length} nodos`;
+    if (window.confirm(`¿Seguro que deseas eliminar ${label}?`)) {
+      setNodes((current) => current.filter((node) => !nodeIds.includes(node.id)));
+      setEdges((current) =>
+        current.filter((edge) => !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)),
+      );
+      if (selectedNodeId && nodeIds.includes(selectedNodeId)) {
         setSelectedNodeId(null);
       }
+      if (editingNodeId && nodeIds.includes(editingNodeId)) {
+        setEditingNodeId(null);
+      }
+      setSelectedNodeIds((current) => current.filter((id) => !nodeIds.includes(id)));
     }
+  }
+
+  function removeNode(nodeId: string) {
+    removeNodes([nodeId]);
   }
 
   function autoLayoutNodes() {
@@ -585,6 +620,8 @@ try {
         type: "smoothstep",
       })),
     );
+    setSelectedNodeId(graph.nodes[0]?.id ?? null);
+    setSelectedNodeIds(graph.nodes.map((node) => node.id));
     setMessage("Se copió la versión publicada al borrador local.");
   }
 
@@ -901,6 +938,69 @@ if (loading) {
             </div>
           </div>
         </div>
+
+        <div className="rounded-xl border border-outline-variant bg-surface px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-on-surface-variant">
+            Selección
+          </p>
+          {selectedNodes.length > 0 ? (
+            <div className="mt-2 space-y-2">
+              <div>
+                <p className="text-sm font-semibold text-on-surface">
+                  {selectedNodes.length === 1
+                    ? String(selectedNode?.data?.title ?? selectedNode?.data?.label ?? selectedNode?.id)
+                    : `${selectedNodes.length} nodos seleccionados`}
+                </p>
+                <p className="text-xs text-on-surface-variant">
+                  {selectedNodes.length === 1
+                    ? String(selectedNode?.data?.nodeType ?? selectedNode?.type)
+                    : "Selección múltiple"}
+                </p>
+              </div>
+              {selectedNodes.length === 1 ? (
+                <p className="text-xs leading-relaxed text-on-surface-variant">
+                  {selectedNode ? nodeSummary(selectedNode) : ""}
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-xs leading-relaxed text-on-surface-variant">
+                    Puedes mover los nodos seleccionados juntos o eliminarlos en bloque.
+                  </p>
+                  <ul className="max-h-24 overflow-y-auto text-xs text-on-surface-variant">
+                    {selectedNodes.slice(0, 8).map((node) => (
+                      <li key={node.id}>
+                        • {String(node.data?.title ?? node.data?.label ?? node.id)}
+                      </li>
+                    ))}
+                    {selectedNodes.length > 8 ? <li>• ...</li> : null}
+                  </ul>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {selectedNodes.length === 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingNodeId(selectedNode?.id ?? null)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                  >
+                    Editar
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => removeNodes(selectedNodeIds)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+                >
+                  Eliminar selección
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
+              Haz clic sobre un nodo del lienzo para seleccionarlo y ver sus detalles.
+            </p>
+          )}
+        </div>
       </aside>
 
       {/* Canvas */}
@@ -982,9 +1082,24 @@ if (loading) {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-            onNodeDoubleClick={(_, node) => setEditingNodeId(node.id)}
-            onPaneClick={() => setSelectedNodeId(null)}
+            onNodeDoubleClick={(_, node) => {
+              setSelectedNodeId(node.id);
+              setEditingNodeId(node.id);
+            }}
+            onSelectionChange={({ nodes: selectedFlowNodes }) => {
+              const ids = selectedFlowNodes.map((node) => node.id);
+              setSelectedNodeIds((current) => (sameStringSet(current, ids) ? current : ids));
+              setSelectedNodeId((current) => (current === ids[0] ? current : ids[0] ?? null));
+            }}
+            onPaneClick={() => {
+              setSelectedNodeIds((current) => (current.length === 0 ? current : []));
+              setSelectedNodeId((current) => (current === null ? current : null));
+              setEditingNodeId(null);
+            }}
             fitView
+            selectionOnDrag
+            selectionMode={SelectionMode.Partial}
+            panOnDrag={false}
             defaultEdgeOptions={{
               type: "smoothstep",
               style: { strokeWidth: 2 },
