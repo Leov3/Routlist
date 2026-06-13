@@ -79,10 +79,12 @@ type ContextMenuState = {
 };
 
 type PlayerFlowNodeData = {
+  id: string;
   label: string;
   summary: string;
   status: PlayerNodeState;
   type: NarrativeNodeType;
+  nodeData?: any;
 };
 
 type AudioButtonDetail = {
@@ -175,17 +177,19 @@ function AudioNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   );
 }
 
-function AudioButtonNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData & { nodeData?: any }>>) {
+function AudioButtonNode({ data }: NodeProps<Node<PlayerFlowNodeData>>) {
   const btn: BoardAudioButton = {
-    id: data.id || "temp",
+    id: data.id,
     label: data.label,
+    sortOrder: 0,
+    category: { id: "narrative", name: "Narrativa" },
     audioUrl: "",
-    imageUrl: "",
-    categoryId: "narrative",
-    durationSeconds: 0,
-    tags: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    audioAsset: {
+      id: "placeholder",
+      originalName: data.label,
+      mimeType: "audio/mpeg",
+      createdAt: new Date().toISOString(),
+    },
   };
 
   return (
