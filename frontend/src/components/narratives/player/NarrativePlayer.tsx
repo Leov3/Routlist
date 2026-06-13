@@ -48,12 +48,6 @@ type NarrativePlayerProps = {
   onReloadRequest?: () => void;
 };
 
-type NodeActionState = {
-  label: string;
-  targetNodeId?: string;
-  eventType?: NarrativeRunEventType;
-};
-
 type PlayerNodeState =
   | "current"
   | "completed"
@@ -228,6 +222,22 @@ function boolLabel(value: unknown, truthy: string, falsy: string) {
   return value ? truthy : falsy;
 }
 
+function readDecisionLabels(value: unknown) {
+  if (typeof value === "string") {
+    return value.split("|").map((item) => item.trim()).filter(Boolean);
+  }
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) =>
+      typeof item === "string"
+        ? item.trim()
+        : item && typeof item === "object" && "label" in item
+          ? String(item.label ?? "").trim()
+          : "",
+    )
+    .filter(Boolean);
+}
+
 export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -269,12 +279,23 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const currentNode = run?.currentNodeId ? nodeMap.get(run.currentNodeId) : undefined;
   const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : undefined;
   const actionNode = selectedNode ?? currentNode;
+  const centerNode = useCallback((node?: NodeMeta) => {
+    if (!reactFlowRef.current || !node?.position) return;
+    reactFlowRef.current.setCenter(node.position.x + 120, node.position.y + 50, {
+      zoom: Math.max(reactFlowRef.current.getZoom(), 0.9),
+      duration: 500,
+    });
+  }, []);
 
   useEffect(() => {
     if (currentNode?.id) {
-      setSelectedNodeId((previous) => previous ?? currentNode.id);
+      setSelectedNodeId(currentNode.id);
     }
   }, [currentNode?.id]);
+
+  useEffect(() => {
+    centerNode(currentNode);
+  }, [centerNode, currentNode]);
 
   useEffect(() => {
     if (actionNode?.type === "AUDIO_BUTTON" && actionNode.data?.audioButtonId) {
@@ -378,15 +399,17 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const actionNodeIsCurrent = actionNode?.id === currentNode?.id;
   const actionNodeIsInteractive = actionNodeIsCurrent && run?.status === "RUNNING";
   const outgoing = currentNode ? findOutgoingEdges(currentNode.id, edges) : [];
+  const currentDecisionLabels = readDecisionLabels(currentNode?.data?.options);
   const decisionChoices = currentNode?.type === "DECISION"
-    ? outgoing.map((edge) => ({
-        label: edge.label?.trim() || "Opción",
+    ? outgoing.map((edge, index) => ({
+        label: edge.label?.trim() || currentDecisionLabels[index] || "Opción",
         targetNodeId: edge.target,
       }))
     : [];
+  const actionDecisionLabels = readDecisionLabels(actionNode?.data?.options);
   const actionNodeDecisionChoices = actionNode?.type === "DECISION"
-    ? findOutgoingEdges(actionNode.id, edges).map((edge) => ({
-        label: edge.label?.trim() || "Opción",
+    ? findOutgoingEdges(actionNode.id, edges).map((edge, index) => ({
+        label: edge.label?.trim() || actionDecisionLabels[index] || "Opción",
         targetNodeId: edge.target,
       }))
     : [];
@@ -784,13 +807,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           </div>
           <button
             type="button"
-            onClick={() => {
-              if (!reactFlowRef.current || !currentNode?.position) return;
-              reactFlowRef.current.setCenter(currentNode.position.x + 120, currentNode.position.y + 50, {
-                zoom: Math.max(reactFlowRef.current.getZoom(), 0.9),
-                duration: 500,
-              });
-            }}
+            onClick={() => centerNode(currentNode)}
             className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
           >
             <Crosshair className="h-4 w-4" />
@@ -798,7 +815,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           </button>
         </div>
 
-        <div className="h-[420px] overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c]">
+        <div className="h-[360px] overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c] md:h-[420px] xl:h-[520px]">
           <ReactFlow
             nodes={flowNodes}
             edges={flowEdges}
@@ -842,7 +859,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         </div>
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -1196,6 +1213,14 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                       <p className="text-base leading-7 text-on-surface">
                         {String(actionNode.data?.question ?? "¿Qué sigue?")}
                       </p>
+                      <div className="flex flex-wrap gap-2 text-[11px]">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(actionNodeDecisionChoices.length >= 2 ? "available" : "error")}`}>
+                          {actionNodeDecisionChoices.length} ruta(s)
+                        </span>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(actionNodeIsInteractive ? "current" : "locked")}`}>
+                          {actionNodeIsInteractive ? "Selecciona una opción" : "Solo consulta"}
+                        </span>
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {actionNodeDecisionChoices.length > 0 ? (
                           actionNodeDecisionChoices.map((choice) => (
@@ -1220,6 +1245,11 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                           </p>
                         )}
                       </div>
+                      {selectedDecisionTargets.get(actionNode.id) ? (
+                        <div className="rounded-2xl border border-primary/20 bg-primary/10 px-3 py-3 text-sm text-primary">
+                          Ruta elegida registrada.
+                        </div>
+                      ) : null}
                     </div>
                   ) : actionNode.type === "END" ? (
                     <div className="space-y-3">
@@ -1227,6 +1257,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                       <p className="text-base leading-7 text-on-surface">
                         La narrativa llegó al nodo final.
                       </p>
+                      <div className="rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+                        Este nodo habilita el cierre exitoso.
+                      </div>
                     </div>
                   ) : (
                     <p className="text-sm text-on-surface-variant">
@@ -1263,7 +1296,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                   <button
                     type="button"
                     onClick={() => void finishRun()}
-                    disabled={working || run.status !== "RUNNING"}
+                    disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
                     className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300"
                   >
                     <CheckCircle2 className="h-4 w-4" />

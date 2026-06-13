@@ -93,20 +93,33 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - `INSTRUCTION` queda visualmente separado como acción operativa.
 - `PAUSE` muestra temporizador cuando aplica y fallback manual cuando la duración no es válida.
 
+### Hito 6
+- `DECISION` usa labels de aristas y opciones legacy para presentar rutas accionables.
+- Al avanzar, el panel vuelve al nodo actual y el canvas recentra el flujo.
+- La decisión seleccionada deja feedback visible en el panel y en las aristas.
+
+### Hito 7
+- El cierre exitoso queda restringido al nodo `END`.
+- El panel de `END` informa explícitamente cuándo la ejecución ya puede completarse.
+
+### Hito 8
+- Ajuste responsive básico del canvas y ancho del panel contextual.
+- Se conserva el tema actual sin reabrir el diseño general.
+
 ## Cómo continuar si se corta la sesión
-1. Confirmar rama actual: `feature/narratives-player-canvas`.
+1. Confirmar rama actual: `dev`.
 2. Leer este archivo y `docs/narratives-player-implementation-log.md`.
 3. Revisar `git status`.
 4. Continuar desde el próximo hito recomendado.
 
 ## Último commit realizado
-- `98ec465` `feat(narratives-player): support audio and audio button actions in canvas`
+- `4e02793` `merge: narratives player canvas hitos 0-5`
 
 ## Último push realizado
-- `origin/feature/narratives-player-canvas` después de `98ec465`
+- `origin/dev` después de `4e02793`
 
 ## Próximo hito recomendado
-- `Hito 6`: soportar `DECISION` como enrutamiento guiado del canvas y marcar rutas no tomadas.
+- Validación manual del flujo completo en `dev` y cierre fino de UX si aparece algún borde.
 
 ## Comandos útiles
 - `git status --short --branch`

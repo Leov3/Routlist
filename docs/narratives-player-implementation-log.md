@@ -210,10 +210,10 @@ Rama:
 feature/narratives-player-canvas
 
 Commit:
-Pendiente
+281d48c
 
 Push:
-Pendiente
+origin/feature/narratives-player-canvas
 
 Resumen:
 Se mejora la experiencia contextual de `SCRIPT_TEXT`, `INSTRUCTION` y `PAUSE` con lectura clara, copia, notas y fallback seguro para pausas temporizadas inválidas.
@@ -239,3 +239,114 @@ Pendientes:
 
 Próximo hito:
 - `feat(narratives-player): support decision routing in canvas player`
+
+## Hito 6
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+`DECISION` toma labels de aristas y opciones legacy, recentra el canvas al nodo actual y deja feedback visible sobre la ruta elegida.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- El flujo guiado por decisión se percibe mejor en canvas.
+
+Riesgos:
+- Sigue faltando validación manual con narrativas que tengan decisiones complejas.
+
+Pendientes:
+- Cerrar `END` y polish final.
+
+Próximo hito:
+- `feat(narratives-player): improve end node completion flow`
+
+## Hito 7
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+La finalización exitosa queda restringida al nodo `END` y el panel de cierre lo comunica explícitamente.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- Ya no se finaliza exitosamente fuera del cierre del flujo.
+
+Riesgos:
+- Requiere validación manual con runs reales para confirmar UX esperada.
+
+Pendientes:
+- Ajuste responsive y documentación final.
+
+Próximo hito:
+- `chore(narratives-player): polish canvas player and document compatibility`
+
+## Hito 8
+
+Fecha:
+2026-06-13
+
+Rama:
+dev
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Ajuste responsive menor del canvas y del panel contextual, con documentación alineada al estado final en `dev`.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- El player queda operativo en `dev` con canvas read-only guiado hasta Hito 8.
+
+Riesgos:
+- Falta prueba manual final en el navegador con Docker levantado desde `dev`.
+
+Pendientes:
+- Validación manual de la ruta completa.
+
+Próximo hito:
+- Ninguno dentro del alcance actual.
