@@ -63,7 +63,7 @@ Próximo hito:
 
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
-Commit: pendiente
+Commit: `ef9daf5` en feature, `0f91d88` en `dev`
 Push: pendiente
 Resumen:
 - Se añadió un panel de validación con errores, advertencias y sugerencias.
@@ -85,7 +85,7 @@ Riesgos:
 - La clasificación de issues todavía vive en frontend y debe consolidarse en un contrato compartido más adelante.
 - Algunas inferencias de errores del backend siguen siendo heurísticas basadas en texto.
 Pendientes:
-- Commit y push del Hito 2.
-- Integración de Hito 2 a `dev`.
+- Push de feature.
+- Push de `dev`.
 Próximo hito:
 - Hito 3

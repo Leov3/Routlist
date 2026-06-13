@@ -163,7 +163,7 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - El builder ahora muestra conteos visibles de errores, advertencias y sugerencias.
 
 ## Trabajo en progreso
-- Commit, push e integración a `dev` del Hito 2.
+- Push e integración final documentada del Hito 2.
 
 ## Pendientes
 - Formalizar panel de validación con errores, advertencias y sugerencias.
@@ -212,7 +212,8 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 5. Antes de commitear, actualizar ambos documentos con el estado real.
 
 ## Último commit realizado
-- `6416afd` - `feat(narratives-builder): improve node cards and status badges`
+- `ef9daf5` - `feat(narratives-builder): add validation panel with node focus` en feature
+- `0f91d88` - `feat(narratives-builder): add validation panel with node focus` en `dev`
 
 ## Último push realizado
 - `feature/narratives-builder-upgrade` empujada con Hito 0.
