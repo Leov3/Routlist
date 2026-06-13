@@ -15,6 +15,8 @@ import { AudioButtonsModule } from './modules/audio-buttons/audio-buttons.module
 import { PlaybackModule } from './modules/playback/playback.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { BoardPreferencesModule } from './modules/board-preferences/board-preferences.module';
+import { NarrativesModule } from './modules/narratives/narratives.module';
+import { NarrativeRunsModule } from './modules/narrative-runs/narrative-runs.module';
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { BoardPreferencesModule } from './modules/board-preferences/board-prefer
     PlaybackModule,
     AuditModule,
     BoardPreferencesModule,
+    NarrativesModule,
+    NarrativeRunsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -29,6 +29,12 @@ export const PERMISSIONS = [
   'button:delete',
   'board:use',
   'history:read',
+  'narratives:view',
+  'narratives:create',
+  'narratives:update',
+  'narratives:publish',
+  'narratives:archive',
+  'narratives:run',
 ] as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[number];
@@ -57,6 +63,12 @@ export const ROLE_PERMISSIONS: Record<RoleName, PermissionKey[]> = {
     'button:delete',
     'board:use',
     'history:read',
+    'narratives:view',
+    'narratives:create',
+    'narratives:update',
+    'narratives:publish',
+    'narratives:archive',
+    'narratives:run',
   ],
   SUPERVISOR: [
     'organization:read',
@@ -68,6 +80,16 @@ export const ROLE_PERMISSIONS: Record<RoleName, PermissionKey[]> = {
     'button:read',
     'board:use',
     'history:read',
+    'narratives:view',
+    'narratives:update',
+    'narratives:run',
   ],
-  OPERATOR: ['audio:read', 'category:read', 'button:read', 'board:use'],
+  OPERATOR: [
+    'audio:read',
+    'category:read',
+    'button:read',
+    'board:use',
+    'narratives:view',
+    'narratives:run',
+  ],
 };

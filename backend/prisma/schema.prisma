@@ -13,13 +13,15 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members         OrganizationMember[]
-  audioAssets     AudioAsset[]
-  audioCategories AudioCategory[]
-  audioButtons    AudioButton[]
-  playbackEvents  PlaybackEvent[]
-  boardPreferences UserBoardPreference[]
+  members              OrganizationMember[]
+  audioAssets          AudioAsset[]
+  audioCategories      AudioCategory[]
+  audioButtons         AudioButton[]
+  playbackEvents       PlaybackEvent[]
+  boardPreferences     UserBoardPreference[]
   audioButtonFavorites AudioButtonFavorite[]
+  narratives           Narrative[]
+  narrativeRuns        NarrativeRun[]
 }
 
 model User {
@@ -31,11 +33,15 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships    OrganizationMember[]
-  createdAudios  AudioAsset[]
-  playbackEvents PlaybackEvent[]
-  boardPreferences UserBoardPreference[]
-  audioButtonFavorites AudioButtonFavorite[]
+  memberships                OrganizationMember[]
+  createdAudios              AudioAsset[]
+  playbackEvents             PlaybackEvent[]
+  boardPreferences           UserBoardPreference[]
+  audioButtonFavorites       AudioButtonFavorite[]
+  narrativesCreated          Narrative[]           @relation("NarrativeCreatedBy")
+  narrativesUpdated          Narrative[]           @relation("NarrativeUpdatedBy")
+  narrativeVersionsPublished NarrativeVersion[]    @relation("NarrativeVersionPublishedBy")
+  narrativeRunsStarted       NarrativeRun[]        @relation("NarrativeRunStartedBy")
 }
 
 model OrganizationMember {
@@ -127,27 +133,27 @@ model AudioAsset {
 }
 
 model AudioButton {
-  id             String   @id @default(uuid())
-  organizationId String
-  categoryId     String
-  audioAssetId   String
-  label          String
-  description    String?
-  color          String?
-  shortcutKey    String?
-  sortOrder      Int      @default(0)
-  imageFileName  String?
-  imageMimeType  String?
-  imageSizeBytes Int?
+  id              String   @id @default(uuid())
+  organizationId  String
+  categoryId      String
+  audioAssetId    String
+  label           String
+  description     String?
+  color           String?
+  shortcutKey     String?
+  sortOrder       Int      @default(0)
+  imageFileName   String?
+  imageMimeType   String?
+  imageSizeBytes  Int?
   imageStorageKey String?
   imagePublicUrl  String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  organization Organization    @relation(fields: [organizationId], references: [id])
-  category     AudioCategory   @relation(fields: [categoryId], references: [id])
-  audioAsset   AudioAsset      @relation(fields: [audioAssetId], references: [id])
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  category     AudioCategory         @relation(fields: [categoryId], references: [id])
+  audioAsset   AudioAsset            @relation(fields: [audioAssetId], references: [id])
   events       PlaybackEvent[]
   favorites    AudioButtonFavorite[]
 
@@ -207,4 +213,109 @@ model PlaybackEvent {
 
   @@index([organizationId, startedAt])
   @@index([userId, startedAt])
+}
+
+model Narrative {
+  id                 String          @id @default(uuid())
+  organizationId     String
+  title              String
+  description        String?
+  status             NarrativeStatus @default(DRAFT)
+  createdByUserId    String
+  updatedByUserId    String?
+  publishedVersionId String?         @unique
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  organization     Organization       @relation(fields: [organizationId], references: [id])
+  createdBy        User               @relation("NarrativeCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy        User?              @relation("NarrativeUpdatedBy", fields: [updatedByUserId], references: [id])
+  publishedVersion NarrativeVersion?  @relation("NarrativePublishedVersion", fields: [publishedVersionId], references: [id])
+  versions         NarrativeVersion[] @relation("NarrativeVersions")
+  runs             NarrativeRun[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+model NarrativeVersion {
+  id                String                 @id @default(uuid())
+  narrativeId       String
+  versionNumber     Int
+  status            NarrativeVersionStatus @default(DRAFT)
+  graphJson         Json
+  publishedAt       DateTime?
+  publishedByUserId String?
+  createdAt         DateTime               @default(now())
+
+  narrative          Narrative      @relation("NarrativeVersions", fields: [narrativeId], references: [id])
+  publishedBy        User?          @relation("NarrativeVersionPublishedBy", fields: [publishedByUserId], references: [id])
+  publishedNarrative Narrative?     @relation("NarrativePublishedVersion")
+  runs               NarrativeRun[]
+
+  @@unique([narrativeId, versionNumber])
+  @@index([narrativeId, status])
+}
+
+model NarrativeRun {
+  id                 String             @id @default(uuid())
+  narrativeId        String
+  narrativeVersionId String
+  organizationId     String
+  startedByUserId    String
+  status             NarrativeRunStatus @default(RUNNING)
+  currentNodeId      String?
+  startedAt          DateTime           @default(now())
+  finishedAt         DateTime?
+
+  narrative        Narrative           @relation(fields: [narrativeId], references: [id])
+  narrativeVersion NarrativeVersion    @relation(fields: [narrativeVersionId], references: [id])
+  organization     Organization        @relation(fields: [organizationId], references: [id])
+  startedBy        User                @relation("NarrativeRunStartedBy", fields: [startedByUserId], references: [id])
+  events           NarrativeRunEvent[]
+
+  @@index([organizationId, startedAt])
+  @@index([startedByUserId, startedAt])
+}
+
+model NarrativeRunEvent {
+  id             String                @id @default(uuid())
+  narrativeRunId String
+  nodeId         String
+  eventType      NarrativeRunEventType
+  payload        Json?
+  createdAt      DateTime              @default(now())
+
+  run NarrativeRun @relation(fields: [narrativeRunId], references: [id])
+
+  @@index([narrativeRunId, createdAt])
+  @@index([nodeId, createdAt])
+}
+
+enum NarrativeStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum NarrativeVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum NarrativeRunStatus {
+  RUNNING
+  COMPLETED
+  CANCELLED
+}
+
+enum NarrativeRunEventType {
+  NODE_STARTED
+  NODE_COMPLETED
+  NODE_SKIPPED
+  AUDIO_PLAYED
+  DECISION_SELECTED
+  RUN_COMPLETED
+  RUN_CANCELLED
 }

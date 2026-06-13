@@ -36,6 +36,10 @@ async function main() {
 
   if (shouldReset) {
     await prisma.$transaction([
+      prisma.narrativeRunEvent.deleteMany({}),
+      prisma.narrativeRun.deleteMany({}),
+      prisma.narrativeVersion.deleteMany({}),
+      prisma.narrative.deleteMany({}),
       prisma.audioButtonFavorite.deleteMany({}),
       prisma.playbackEvent.deleteMany({}),
       prisma.audioButton.deleteMany({}),
