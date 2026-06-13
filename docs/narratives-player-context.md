@@ -76,8 +76,12 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - Los nodos ahora distinguen `current`, `completed`, `available`, `locked`, `skipped`, `error` y `decision-selected`.
 - Las aristas distinguen `active`, `traversed`, `pending` y `not-taken`.
 
-### Trabajo en progreso
-- Validar y consolidar Hito 2 como commit aislado.
+### Hito 3
+- El player ahora prioriza un panel lateral contextual ligado al nodo seleccionado en el canvas.
+- Si no hay selección explícita, el panel usa el nodo actual de la ejecución.
+- Los nodos bloqueados muestran explicación de acceso restringido.
+- Los nodos fuera del paso actual quedan en modo consulta, sin ejecutar acciones.
+- La actividad reciente se mueve a un bloque separado para no competir con el canvas.
 
 ## Cómo continuar si se corta la sesión
 1. Confirmar rama actual: `feature/narratives-player-canvas`.
@@ -86,13 +90,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 4. Continuar desde el próximo hito recomendado.
 
 ## Último commit realizado
-- `a9db25f` `feat(narratives-player): add read-only canvas view`
+- `79a0149` `feat(narratives-player): add guided node and edge states`
 
 ## Último push realizado
-- `origin/feature/narratives-player-canvas` después de `a9db25f`
+- `origin/feature/narratives-player-canvas` después de `79a0149`
 
 ## Próximo hito recomendado
-- `Hito 3`: crear panel lateral derecho de ejecución y desacoplarlo del bloque lineal actual.
+- `Hito 4`: consolidar acciones y metadata de `AUDIO` y `AUDIO_BUTTON` dentro del panel contextual.
 
 ## Comandos útiles
 - `git status --short --branch`

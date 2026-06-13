@@ -94,10 +94,10 @@ Rama:
 feature/narratives-player-canvas
 
 Commit:
-Pendiente
+79a0149
 
 Push:
-Pendiente
+origin/feature/narratives-player-canvas
 
 Resumen:
 Se agregan estados guiados del flujo para nodos y aristas a partir de la ejecución real, incluyendo decisiones tomadas, nodos omitidos y rutas activas o no tomadas.
@@ -119,7 +119,46 @@ Riesgos:
 - El panel contextual sigue siendo el bloque lineal existente.
 
 Pendientes:
-- Commit y push de Hito 2.
+- Separar la operación del nodo seleccionado en un panel lateral contextual.
 
 Próximo hito:
 - `feat(narratives-player): add contextual node action panel`
+
+## Hito 3
+
+Fecha:
+2026-06-13
+
+Rama:
+feature/narratives-player-canvas
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Se reemplaza el bloque lineal principal de ejecución por un panel lateral contextual asociado al nodo seleccionado o al nodo actual del flujo.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- El canvas ya controla la selección de nodos.
+- El panel contextual separa revisión y ejecución.
+- La actividad reciente queda desacoplada del área principal.
+
+Riesgos:
+- El panel todavía comparte parte de la lógica específica de audio y texto que se refinará en los hitos siguientes.
+
+Pendientes:
+- Completar el detalle operativo de `AUDIO` y `AUDIO_BUTTON`.
+
+Próximo hito:
+- `feat(narratives-player): support audio and audio button actions in canvas`

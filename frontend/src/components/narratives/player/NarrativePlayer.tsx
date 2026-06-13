@@ -19,8 +19,11 @@ import {
 import {
   AlertCircle,
   ArrowRight,
+  Copy,
   Crosshair,
   CheckCircle2,
+  Clock3,
+  Lock,
   Play,
   Pause,
   RotateCcw,
@@ -233,7 +236,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [isPlaying, setIsPlaying] = useState(false);
   const [runCompleted, setRunCompleted] = useState(false);
   const [selectedDecisionTarget, setSelectedDecisionTarget] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [currentButtonDetails, setCurrentButtonDetails] = useState<any>(null);
+  const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
 
   function handleApiError(error: unknown, fallbackMessage: string) {
     if (error instanceof ApiError) {
@@ -257,16 +262,24 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   );
 
   const currentNode = run?.currentNodeId ? nodeMap.get(run.currentNodeId) : undefined;
-  
+  const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : undefined;
+  const actionNode = selectedNode ?? currentNode;
+
   useEffect(() => {
-    if (currentNode?.type === "AUDIO_BUTTON" && currentNode.data?.audioButtonId) {
-      api(`/audio-buttons/${currentNode.data.audioButtonId}`)
+    if (currentNode?.id) {
+      setSelectedNodeId((previous) => previous ?? currentNode.id);
+    }
+  }, [currentNode?.id]);
+
+  useEffect(() => {
+    if (actionNode?.type === "AUDIO_BUTTON" && actionNode.data?.audioButtonId) {
+      api(`/audio-buttons/${actionNode.data.audioButtonId}`)
         .then(res => setCurrentButtonDetails(res))
         .catch(err => console.error("Error loading button details", err));
     } else {
       setCurrentButtonDetails(null);
     }
-  }, [currentNode]);
+  }, [actionNode]);
 
   const completedIds = useMemo(() => {
     const ids = new Set<string>();
@@ -347,9 +360,18 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }, [availableIds, completedIds, edges, nodes, run?.currentNodeId, selectedDecisionTargets, skippedIds]);
 
   const currentStatus = currentNode ? nodeStates.get(currentNode.id) ?? "locked" : "locked";
+  const actionNodeState = actionNode ? nodeStates.get(actionNode.id) ?? "locked" : "locked";
+  const actionNodeIsCurrent = actionNode?.id === currentNode?.id;
+  const actionNodeIsInteractive = actionNodeIsCurrent && run?.status === "RUNNING";
   const outgoing = currentNode ? findOutgoingEdges(currentNode.id, edges) : [];
   const decisionChoices = currentNode?.type === "DECISION"
     ? outgoing.map((edge) => ({
+        label: edge.label?.trim() || "Opción",
+        targetNodeId: edge.target,
+      }))
+    : [];
+  const actionNodeDecisionChoices = actionNode?.type === "DECISION"
+    ? findOutgoingEdges(actionNode.id, edges).map((edge) => ({
         label: edge.label?.trim() || "Opción",
         targetNodeId: edge.target,
       }))
@@ -473,6 +495,31 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
     setIsPlaying(false);
   }, [run?.currentNodeId]);
+
+  useEffect(() => {
+    if (!actionNodeIsCurrent || actionNode?.type !== "PAUSE") {
+      setPauseRemainingSeconds(null);
+      return;
+    }
+
+    const isTimerPause = actionNode.data?.manual === false || actionNode.data?.pauseType === "timer";
+    const duration = Number(actionNode.data?.durationSeconds ?? 0);
+
+    if (!isTimerPause || !Number.isFinite(duration) || duration <= 0) {
+      setPauseRemainingSeconds(null);
+      return;
+    }
+
+    setPauseRemainingSeconds(duration);
+  }, [actionNode, actionNodeIsCurrent]);
+
+  useEffect(() => {
+    if (pauseRemainingSeconds === null || pauseRemainingSeconds <= 0 || !actionNodeIsCurrent) return;
+    const timer = window.setTimeout(() => {
+      setPauseRemainingSeconds((value) => (value === null ? value : Math.max(value - 1, 0)));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [actionNodeIsCurrent, pauseRemainingSeconds]);
 
   async function syncCurrentNode(nextNodeId: string, eventType: NarrativeRunEventType, payload?: Record<string, unknown>) {
     if (!run) return;
@@ -649,9 +696,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }
 
   const activeAudioNodeId = currentNode?.type === "AUDIO" || currentNode?.type === "AUDIO_BUTTON" ? currentNode.id : null;
-  const audioAssetId = currentNode?.type === "AUDIO" 
-    ? String(currentNode.data?.audioAssetId ?? "") 
-    : currentNode?.type === "AUDIO_BUTTON" 
+  const audioAssetId = actionNode?.type === "AUDIO" 
+    ? String(actionNode.data?.audioAssetId ?? "") 
+    : actionNode?.type === "AUDIO_BUTTON" 
       ? String(currentButtonDetails?.audioAssetId ?? "") 
       : "";
   const hasAudio = Boolean(audioAssetId);
@@ -683,6 +730,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }
 
   const eventLog = [...(run.events ?? [])].slice().reverse().slice(0, 10);
+
+  async function copyScriptText() {
+    const text = String(actionNode?.data?.body ?? "");
+    if (!text) {
+      setMessage("Este nodo no tiene texto para copiar.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("Texto copiado al portapapeles.");
+    } catch {
+      setMessage("No se pudo copiar el texto.");
+    }
+  }
 
   return (
     <ReactFlowProvider>
@@ -724,6 +785,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             nodes={flowNodes}
             edges={flowEdges}
             nodeTypes={playerNodeTypes}
+            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onInit={(instance) => {
               reactFlowRef.current = instance;
               queueMicrotask(() => instance.fitView({ padding: 0.2, duration: 500 }));
@@ -762,7 +824,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         </div>
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -786,256 +848,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[1.1fr_.9fr]">
-            <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                Paso actual
-              </p>
-              <div className="mt-3 flex items-start gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-on-primary">
-                  {currentNode.type.slice(0, 2)}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-lg font-semibold tracking-tight text-on-surface">
-                    {nodeLabel(currentNode)}
-                  </h3>
-                  <p className="text-sm text-on-surface-variant">
-                    {currentNode.type}
-                    {currentNode.type === "AUDIO" && hasAudio ? ` · Audio ${audioAssetId}` : ""}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-dashed border-outline-variant bg-surface-container px-4 py-4">
-                {currentNode.type === "AUDIO" ? (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium text-on-surface">{nodeSummary(currentNode)}</p>
-                    <audio
-                      ref={audioRef}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      onEnded={() => setIsPlaying(false)}
-                      onLoadedMetadata={() => setMessage(null)}
-                      className="hidden"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void startAudioPlayback()}
-                        disabled={working || !hasAudio}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Play className="h-4 w-4" />
-                        Reproducir audio
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void pauseAudio()}
-                        disabled={!isPlaying}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Pause className="h-4 w-4" />
-                        Pausar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void resumeAudio()}
-                        disabled={isPlaying}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Play className="h-4 w-4" />
-                        Reanudar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void stopAudio()}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-                      >
-                        <Square className="h-4 w-4" />
-                        Detener
-                      </button>
-                    </div>
-                    <p className="text-xs text-on-surface-variant">
-                      {isPlaying ? "Reproducción activa" : "Audio listo para reproducirse"}
-                    </p>
-                  </div>
-                ) : currentNode.type === "AUDIO_BUTTON" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Botón de audio asignado</p>
-                    {currentButtonDetails ? (
-                      <div className="rounded-xl border border-outline-variant bg-surface p-3" style={{ borderLeftColor: currentButtonDetails.color, borderLeftWidth: 4 }}>
-                        <p className="font-semibold text-on-surface">{currentButtonDetails.label}</p>
-                        <p className="text-xs text-on-surface-variant">
-                          Categoría: {currentButtonDetails.category?.name || "Sin categoría"} | Acceso directo: {currentButtonDetails.shortcutKey || "Ninguno"}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-on-surface-variant">Cargando detalles del botón...</p>
-                    )}
-                    <audio
-                      ref={audioRef}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      onEnded={() => setIsPlaying(false)}
-                      onLoadedMetadata={() => setMessage(null)}
-                      className="hidden"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void startAudioPlayback()}
-                        disabled={working || !hasAudio}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Play className="h-4 w-4" />
-                        Reproducir botón
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void pauseAudio()}
-                        disabled={!isPlaying}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Pause className="h-4 w-4" />
-                        Pausar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void resumeAudio()}
-                        disabled={isPlaying}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Play className="h-4 w-4" />
-                        Reanudar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void stopAudio()}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-                      >
-                        <Square className="h-4 w-4" />
-                        Detener
-                      </button>
-                    </div>
-                    <p className="text-xs text-on-surface-variant">
-                      {isPlaying ? "Reproducción activa" : "Botón listo para ejecutarse"}
-                    </p>
-                  </div>
-                ) : currentNode.type === "SCRIPT_TEXT" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto para leer</p>
-                    <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-                      {String(currentNode.data?.body ?? "Sin contenido")}
-                    </p>
-                  </div>
-                ) : currentNode.type === "INSTRUCTION" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Instrucción operativa</p>
-                    <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-                      {String(currentNode.data?.instruction ?? "Sin instrucción")}
-                    </p>
-                  </div>
-                ) : currentNode.type === "PAUSE" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Pausa</p>
-                    <p className="text-base leading-7 text-on-surface">
-                      {currentNode.data?.manual === false
-                        ? `Pausa temporizada de ${String(currentNode.data?.durationSeconds ?? "0")} segundos.`
-                        : "Pausa manual. Espera la señal para continuar."}
-                    </p>
-                  </div>
-                ) : currentNode.type === "DECISION" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Decisión</p>
-                    <p className="text-base leading-7 text-on-surface">
-                      {String(currentNode.data?.question ?? "¿Qué sigue?")}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {decisionChoices.length > 0 ? (
-                        decisionChoices.map((choice) => (
-                          <button
-                            key={`${choice.targetNodeId}-${choice.label}`}
-                            type="button"
-                            onClick={() => void handleDecision(choice.targetNodeId, choice.label)}
-                            disabled={working}
-                            className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                              selectedDecisionTarget === choice.targetNodeId
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-outline-variant bg-surface text-on-surface hover:border-primary"
-                            }`}
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                            {choice.label}
-                          </button>
-                        ))
-                      ) : (
-                        <p className="text-sm text-on-surface-variant">
-                          No hay salidas configuradas para esta decisión.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ) : currentNode.type === "END" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Cierre</p>
-                    <p className="text-base leading-7 text-on-surface">
-                      La narrativa llegó al nodo final.
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-on-surface-variant">
-                    Sin contenido para mostrar.
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void completeCurrentNode(false)}
-                  disabled={working || run.status !== "RUNNING"}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <SkipForward className="h-4 w-4" />
-                  Siguiente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void completeCurrentNode(true)}
-                  disabled={working || run.status !== "RUNNING" || currentNode.data?.required !== false}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Omitir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void finishRun()}
-                  disabled={working || run.status !== "RUNNING"}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Finalizar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void cancelRun()}
-                  disabled={working || run.status !== "RUNNING"}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300"
-                >
-                  <StopCircle className="h-4 w-4" />
-                  Cancelar
-                </button>
-              </div>
-
-              {currentStatus === "current" ? (
-                <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
-                  Estás en el paso actual de la narrativa.
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
+          <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
                 Resumen
               </p>
@@ -1079,10 +892,310 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 </div>
               </div>
             </div>
-          </div>
         </section>
 
-        <aside className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+        <aside className="space-y-4">
+          <section className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                  Panel de acción
+                </p>
+                <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
+                  {actionNode ? nodeLabel(actionNode) : "Nodo sin seleccionar"}
+                </h3>
+              </div>
+              {actionNode ? (
+                <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusTone(actionNodeState)}`}>
+                  {actionNodeState}
+                </span>
+              ) : null}
+            </div>
+
+            {actionNode ? (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${actionNodeIsCurrent ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface"}`}>
+                      {actionNode.type.slice(0, 2)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-on-surface">{actionNode.type}</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">{nodeSummary(actionNode)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {!actionNodeIsInteractive && actionNodeState === "locked" ? (
+                  <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4 text-sm text-on-surface-variant">
+                    <div className="flex items-start gap-3">
+                      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-on-surface-variant" />
+                      <p>Este nodo todavía no está disponible en la ruta actual. Puedes revisarlo, pero no ejecutarlo.</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {!actionNodeIsInteractive && actionNodeState !== "locked" ? (
+                  <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4 text-sm text-on-surface-variant">
+                    Estás revisando un nodo fuera del paso actual. El contenido es de solo consulta.
+                  </div>
+                ) : null}
+
+                <div className="rounded-[24px] border border-dashed border-outline-variant bg-surface-container px-4 py-4">
+                  {actionNode.type === "AUDIO" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Audio</p>
+                      <p className="text-sm font-medium text-on-surface">{nodeSummary(actionNode)}</p>
+                      <audio
+                        ref={audioRef}
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                        onEnded={() => setIsPlaying(false)}
+                        onLoadedMetadata={() => setMessage(null)}
+                        className="hidden"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void startAudioPlayback()}
+                          disabled={working || !hasAudio || !actionNodeIsInteractive}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Play className="h-4 w-4" />
+                          Reproducir audio
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void pauseAudio()}
+                          disabled={!isPlaying || !actionNodeIsInteractive}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Pause className="h-4 w-4" />
+                          Pausar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void resumeAudio()}
+                          disabled={isPlaying || !actionNodeIsInteractive}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Play className="h-4 w-4" />
+                          Reanudar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void stopAudio()}
+                          disabled={!actionNodeIsInteractive}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Square className="h-4 w-4" />
+                          Detener
+                        </button>
+                      </div>
+                    </div>
+                  ) : actionNode.type === "AUDIO_BUTTON" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Botón de audio</p>
+                      {currentButtonDetails ? (
+                        <div className="rounded-xl border border-outline-variant bg-surface p-3" style={{ borderLeftColor: currentButtonDetails.color, borderLeftWidth: 4 }}>
+                          <p className="font-semibold text-on-surface">{currentButtonDetails.label}</p>
+                          <p className="text-xs text-on-surface-variant">
+                            Categoría: {currentButtonDetails.category?.name || "Sin categoría"} | Acceso directo: {currentButtonDetails.shortcutKey || "Ninguno"}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-on-surface-variant">Cargando detalles del botón...</p>
+                      )}
+                      <audio
+                        ref={audioRef}
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                        onEnded={() => setIsPlaying(false)}
+                        onLoadedMetadata={() => setMessage(null)}
+                        className="hidden"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void startAudioPlayback()}
+                          disabled={working || !hasAudio || !actionNodeIsInteractive}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Play className="h-4 w-4" />
+                          Reproducir botón
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void pauseAudio()}
+                          disabled={!isPlaying || !actionNodeIsInteractive}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Pause className="h-4 w-4" />
+                          Pausar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void resumeAudio()}
+                          disabled={isPlaying || !actionNodeIsInteractive}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Play className="h-4 w-4" />
+                          Reanudar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void stopAudio()}
+                          disabled={!actionNodeIsInteractive}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Square className="h-4 w-4" />
+                          Detener
+                        </button>
+                      </div>
+                    </div>
+                  ) : actionNode.type === "SCRIPT_TEXT" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto para leer</p>
+                      <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
+                        {String(actionNode.data?.body ?? "Sin contenido")}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void copyScriptText()}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copiar texto
+                      </button>
+                    </div>
+                  ) : actionNode.type === "INSTRUCTION" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Instrucción operativa</p>
+                      <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
+                        {String(actionNode.data?.instruction ?? "Sin instrucción")}
+                      </p>
+                    </div>
+                  ) : actionNode.type === "PAUSE" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Pausa</p>
+                      <p className="text-base leading-7 text-on-surface">
+                        {actionNode.data?.manual === false || actionNode.data?.pauseType === "timer"
+                          ? `Pausa temporizada de ${String(actionNode.data?.durationSeconds ?? "0")} segundos.`
+                          : "Pausa manual. Espera la señal para continuar."}
+                      </p>
+                      {pauseRemainingSeconds !== null ? (
+                        <div className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface">
+                          <Clock3 className="h-4 w-4" />
+                          {pauseRemainingSeconds > 0
+                            ? `Continuar disponible en ${pauseRemainingSeconds}s`
+                            : "Puedes continuar"}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : actionNode.type === "DECISION" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Decisión</p>
+                      <p className="text-base leading-7 text-on-surface">
+                        {String(actionNode.data?.question ?? "¿Qué sigue?")}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {actionNodeDecisionChoices.length > 0 ? (
+                          actionNodeDecisionChoices.map((choice) => (
+                            <button
+                              key={`${choice.targetNodeId}-${choice.label}`}
+                              type="button"
+                              onClick={() => actionNodeIsInteractive ? void handleDecision(choice.targetNodeId, choice.label) : undefined}
+                              disabled={working || !actionNodeIsInteractive}
+                              className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                                selectedDecisionTarget === choice.targetNodeId
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-outline-variant bg-surface text-on-surface hover:border-primary"
+                              } disabled:cursor-not-allowed disabled:opacity-60`}
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                              {choice.label}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="text-sm text-on-surface-variant">
+                            No hay salidas configuradas para esta decisión.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : actionNode.type === "END" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Cierre</p>
+                      <p className="text-base leading-7 text-on-surface">
+                        La narrativa llegó al nodo final.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-on-surface-variant">
+                      Sin contenido para mostrar.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void completeCurrentNode(false)}
+                    disabled={working || run.status !== "RUNNING" || !actionNodeIsInteractive || actionNode?.type === "DECISION"}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <SkipForward className="h-4 w-4" />
+                    Siguiente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void completeCurrentNode(true)}
+                    disabled={
+                      working ||
+                      run.status !== "RUNNING" ||
+                      !actionNodeIsInteractive ||
+                      actionNode?.data?.required !== false ||
+                      actionNode?.type === "DECISION"
+                    }
+                    className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Omitir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void finishRun()}
+                    disabled={working || run.status !== "RUNNING"}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Finalizar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void cancelRun()}
+                    disabled={working || run.status !== "RUNNING"}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300"
+                  >
+                    <StopCircle className="h-4 w-4" />
+                    Cancelar
+                  </button>
+                </div>
+
+                {currentStatus === "current" && actionNodeIsCurrent ? (
+                  <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
+                    Estás en el paso actual de la narrativa.
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-[24px] border border-outline-variant bg-surface px-4 py-6 text-sm text-on-surface-variant">
+                Selecciona un nodo del canvas para revisar su contenido.
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
               Actividad
@@ -1122,6 +1235,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               </p>
             </div>
           </div>
+          </section>
         </aside>
       </div>
     </div>
