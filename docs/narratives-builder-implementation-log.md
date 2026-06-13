@@ -93,7 +93,7 @@ Próximo hito:
 
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
-Commit: pendiente
+Commit: `e7ae699` en feature, `f7ada79` en `dev`
 Push: pendiente
 Resumen:
 - Se reorganizó el modal por secciones lógicas para cada tipo de nodo.
@@ -114,7 +114,7 @@ Riesgos:
 - El modal sigue editando el contrato legacy del nodo; la normalización profunda queda para hitos posteriores.
 - `DECISION` todavía usa edición de opciones por texto separado por `|`.
 Pendientes:
-- Commit y push del Hito 3.
-- Integración de Hito 3 a `dev`.
+- Push de feature.
+- Push de `dev`.
 Próximo hito:
 - Hito 4

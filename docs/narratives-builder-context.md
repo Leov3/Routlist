@@ -176,7 +176,7 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - Los nodos `AUDIO` y `AUDIO_BUTTON` muestran estado visible del recurso asociado dentro del modal.
 
 ## Trabajo en progreso
-- Commit, push e integración a `dev` del Hito 3.
+- Push y cierre documental del Hito 3.
 
 ## Pendientes
 - Formalizar panel de validación con errores, advertencias y sugerencias.
@@ -225,8 +225,8 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 5. Antes de commitear, actualizar ambos documentos con el estado real.
 
 ## Último commit realizado
-- `ef9daf5` - `feat(narratives-builder): add validation panel with node focus` en feature
-- `0f91d88` - `feat(narratives-builder): add validation panel with node focus` en `dev`
+- `e7ae699` - `feat(narratives-builder): improve node configuration modals` en feature
+- `f7ada79` - `feat(narratives-builder): improve node configuration modals` en `dev`
 
 ## Último push realizado
 - `feature/narratives-builder-upgrade` empujada con Hito 0.
