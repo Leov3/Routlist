@@ -64,7 +64,7 @@ Próximo hito:
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
 Commit: `ef9daf5` en feature, `0f91d88` en `dev`
-Push: pendiente
+Push: `origin/feature/narratives-builder-upgrade`, `origin/dev`
 Resumen:
 - Se añadió un panel de validación con errores, advertencias y sugerencias.
 - Cada issue permite centrar el canvas en el nodo afectado.
@@ -85,7 +85,36 @@ Riesgos:
 - La clasificación de issues todavía vive en frontend y debe consolidarse en un contrato compartido más adelante.
 - Algunas inferencias de errores del backend siguen siendo heurísticas basadas en texto.
 Pendientes:
-- Push de feature.
-- Push de `dev`.
+- Ninguno dentro del alcance del hito.
 Próximo hito:
 - Hito 3
+
+## Hito 3
+
+Fecha: 2026-06-13
+Rama: `feature/narratives-builder-upgrade`
+Commit: pendiente
+Push: pendiente
+Resumen:
+- Se reorganizó el modal por secciones lógicas para cada tipo de nodo.
+- Se añadió un bloque de validación contextual dentro del popup.
+- `AUDIO` y `AUDIO_BUTTON` muestran el recurso actualmente asociado dentro del modal.
+- La configuración sigue en popup tipo n8n, sin inspector lateral.
+Archivos modificados:
+- `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+- `docs/narratives-builder-context.md`
+- `docs/narratives-builder-implementation-log.md`
+Checks ejecutados:
+- `npm --prefix frontend run build`
+- `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+Resultado de checks:
+- `frontend build`: OK
+- `frontend lint` sobre el archivo del builder: OK
+Riesgos:
+- El modal sigue editando el contrato legacy del nodo; la normalización profunda queda para hitos posteriores.
+- `DECISION` todavía usa edición de opciones por texto separado por `|`.
+Pendientes:
+- Commit y push del Hito 3.
+- Integración de Hito 3 a `dev`.
+Próximo hito:
+- Hito 4
