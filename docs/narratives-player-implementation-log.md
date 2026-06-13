@@ -339,6 +339,47 @@ Resultado:
 Riesgos:
 - La usabilidad en dispositivos muy pequeños podría ser incómoda con el clic derecho.
 
+## UI Polish — Bloque 1
+
+Fecha:
+2026-06-13
+
+Rama:
+feature/narratives-player-ui-polish
+
+Commit:
+Pendiente
+
+Push:
+Pendiente
+
+Resumen:
+Se aplica el primer bloque de pulido integral de UI/UX: header operativo compacto, canvas protagonista, controles flotantes dark, minimap oculto, dock inferior operacional y nodos más expresivos con acceso directo a acciones.
+
+Archivos modificados:
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
+
+Checks ejecutados:
+- `npm --prefix frontend run build`
+
+Resultado:
+- El player ya no depende de títulos redundantes.
+- El canvas empieza más arriba y ocupa más pantalla.
+- La actividad deja de competir con el canvas y pasa al dock inferior.
+- Los nodos tienen mejor jerarquía visual y botón de acciones.
+
+Riesgos:
+- Falta validación visual manual sobre narrativa real con Docker.
+- Puede requerir un segundo pase fino de spacing/contraste tras revisión visual.
+
+Pendientes:
+- QA visual final y ajustes menores de tema/responsive.
+
+Próximo hito:
+- Commit/push del bloque y validación manual en navegador.
+
 Pendientes:
 - Cierre fino y pulido de UX final.
 

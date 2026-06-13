@@ -144,3 +144,15 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 - Subflows
 - Analytics avanzados
 - Reescritura total del backend
+
+## UI/UX Polish Branch
+- Rama activa para polish visual: `feature/narratives-player-ui-polish`.
+- En esta fase no se cambia la lógica de runs ni contratos backend.
+- Estado actual aplicado sobre esta rama:
+  - header operativo compacto sin títulos redundantes
+  - canvas más alto y protagonista
+  - controles flotantes dark
+  - minimap oculto
+  - dock inferior compacto para leyenda, estado y actividad
+  - nodos `START`, `END`, `SCRIPT_TEXT`, `INSTRUCTION`, `AUDIO`, `AUDIO_BUTTON`, `PAUSE` y `DECISION` con mayor expresividad visual
+  - botón de tres puntos en nodos para abrir acciones como fallback al clic derecho
