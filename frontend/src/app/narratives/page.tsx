@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, History, Play, RefreshCw, Workflow } from "lucide-react";
 import { ProtectedPage } from "@/components/layout/ProtectedPage";
 import { DataState } from "@/components/ui/DataState";
@@ -9,14 +10,17 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
 import type {
   NarrativeListItem,
+  NarrativeRunDetail,
   NarrativeRunSummary,
 } from "@/types/narratives";
 
 export default function NarrativesPage() {
+  const router = useRouter();
   const [narratives, setNarratives] = useState<NarrativeListItem[]>([]);
   const [runs, setRuns] = useState<NarrativeRunSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [startingNarrativeId, setStartingNarrativeId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -40,6 +44,21 @@ export default function NarrativesPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  async function startNarrative(narrativeId: string) {
+    setStartingNarrativeId(narrativeId);
+    setMessage(null);
+    try {
+      const run = await api<NarrativeRunDetail>(`/narratives/${narrativeId}/runs`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      router.push(`/narratives/${narrativeId}/run?run=${run.id}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo iniciar la narrativa.");
+      setStartingNarrativeId(null);
+    }
+  }
 
   const activeCount = useMemo(() => narratives.length, [narratives]);
 
@@ -121,13 +140,15 @@ export default function NarrativesPage() {
                           <p>Actualizada {new Date(narrative.updatedAt).toLocaleDateString("es-CO")}</p>
                         </div>
 
-                        <Link
-                          href={`/narratives/${narrative.id}/run`}
-                          className="inline-flex h-10 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01]"
+                        <button
+                          type="button"
+                          onClick={() => void startNarrative(narrative.id)}
+                          disabled={startingNarrativeId === narrative.id}
+                          className="inline-flex h-10 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-70"
                         >
-                          Iniciar
+                          {startingNarrativeId === narrative.id ? "Iniciando..." : "Iniciar"}
                           <ArrowRight className="h-4 w-4" />
-                        </Link>
+                        </button>
                       </div>
                     </article>
                   ))}

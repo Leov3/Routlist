@@ -3,8 +3,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Background,
+  Controls,
+  Handle,
+  MiniMap,
+  Position,
+  ReactFlow,
+  ReactFlowProvider,
+  type Edge,
+  type Node,
+  type NodeProps,
+  type NodeTypes,
+  type ReactFlowInstance,
+} from "@xyflow/react";
+import {
   AlertCircle,
   ArrowRight,
+  Crosshair,
   CheckCircle2,
   Play,
   Pause,
@@ -40,6 +55,55 @@ type StepStatus = "completed" | "current" | "pending";
 
 type NodeMeta = NarrativeGraphNode & {
   data?: Record<string, unknown>;
+};
+
+type PlayerFlowNodeData = {
+  label: string;
+  summary: string;
+  status: StepStatus;
+  type: NarrativeNodeType;
+};
+
+function PlayerFlowNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const statusClass =
+    data.status === "current"
+      ? "border-primary bg-primary/12 shadow-[0_0_0_1px_rgba(168,139,250,0.28)]"
+      : data.status === "completed"
+        ? "border-emerald-400/40 bg-emerald-500/8"
+        : "border-outline-variant bg-surface";
+
+  return (
+    <div
+      className={`min-w-[220px] rounded-2xl border px-4 py-3 text-left shadow-elevation-1 transition-colors ${statusClass} ${
+        selected ? "ring-2 ring-primary/30" : ""
+      }`}
+    >
+      <Handle type="target" position={Position.Top} className="opacity-0" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+            {data.type}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-on-surface">{data.label}</p>
+        </div>
+        <span
+          className={`inline-flex h-2.5 w-2.5 rounded-full ${
+            data.status === "current"
+              ? "bg-primary"
+              : data.status === "completed"
+                ? "bg-emerald-400"
+                : "bg-slate-500"
+          }`}
+        />
+      </div>
+      <p className="mt-2 line-clamp-3 text-xs text-on-surface-variant">{data.summary || "Sin resumen"}</p>
+      <Handle type="source" position={Position.Bottom} className="opacity-0" />
+    </div>
+  );
+}
+
+const playerNodeTypes: NodeTypes = {
+  playerNode: PlayerFlowNode,
 };
 
 function readGraph(graphJson?: NarrativeGraphJson | null) {
@@ -130,6 +194,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const reactFlowRef = useRef<ReactFlowInstance<Node<PlayerFlowNodeData>, Edge> | null>(null);
   const [run, setRun] = useState<NarrativeRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -217,6 +282,40 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
     return result;
   }, [edges, nodes]);
+
+  const flowNodes = useMemo<Node<PlayerFlowNodeData>[]>(() => {
+    return nodes.map((node, index) => ({
+      id: node.id,
+      type: "playerNode",
+      position: node.position ?? { x: index * 260, y: index * 140 },
+      draggable: false,
+      selectable: true,
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
+      data: {
+        label: nodeLabel(node),
+        summary: nodeSummary(node),
+        status: nodeStatus(node.id, completedIds, run?.currentNodeId),
+        type: node.type,
+      },
+    }));
+  }, [completedIds, nodes, run?.currentNodeId]);
+
+  const flowEdges = useMemo<Edge[]>(() => {
+    return edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      label: edge.label ?? undefined,
+      animated: run?.currentNodeId === edge.source,
+      selectable: false,
+      style:
+        completedIds.has(edge.source) || run?.currentNodeId === edge.source
+          ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.2 }
+          : { stroke: "rgba(148, 163, 184, 0.45)", strokeWidth: 1.4 },
+      labelStyle: { fill: "rgb(148, 163, 184)", fontSize: 11, fontWeight: 600 },
+    }));
+  }, [completedIds, edges, run?.currentNodeId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -471,12 +570,82 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const eventLog = [...(run.events ?? [])].slice().reverse().slice(0, 10);
 
   return (
+    <ReactFlowProvider>
     <div className="space-y-4">
       {message ? (
         <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
           {message}
         </div>
       ) : null}
+
+      <section className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+              Canvas de ejecución
+            </p>
+            <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
+              Flujo publicado en modo solo lectura
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!reactFlowRef.current || !currentNode?.position) return;
+              reactFlowRef.current.setCenter(currentNode.position.x + 120, currentNode.position.y + 50, {
+                zoom: Math.max(reactFlowRef.current.getZoom(), 0.9),
+                duration: 500,
+              });
+            }}
+            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+          >
+            <Crosshair className="h-4 w-4" />
+            Centrar paso actual
+          </button>
+        </div>
+
+        <div className="h-[420px] overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c]">
+          <ReactFlow
+            nodes={flowNodes}
+            edges={flowEdges}
+            nodeTypes={playerNodeTypes}
+            onInit={(instance) => {
+              reactFlowRef.current = instance;
+              queueMicrotask(() => instance.fitView({ padding: 0.2, duration: 500 }));
+            }}
+            fitView
+            proOptions={{ hideAttribution: true }}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            nodesFocusable
+            elementsSelectable
+            zoomOnDoubleClick={false}
+            panOnDrag
+            selectionOnDrag={false}
+            elevateNodesOnSelect={false}
+          >
+            <MiniMap
+              pannable
+              zoomable
+              className="!bg-surface !border !border-outline-variant"
+              nodeStrokeColor={(node) =>
+                (node.data as PlayerFlowNodeData | undefined)?.status === "current"
+                  ? "rgb(168, 139, 250)"
+                  : "rgba(148, 163, 184, 0.6)"
+              }
+              nodeColor={(node) =>
+                (node.data as PlayerFlowNodeData | undefined)?.status === "completed"
+                  ? "rgba(16, 185, 129, 0.65)"
+                  : (node.data as PlayerFlowNodeData | undefined)?.status === "current"
+                    ? "rgba(168, 139, 250, 0.85)"
+                    : "rgba(51, 65, 85, 0.9)"
+              }
+            />
+            <Controls showInteractive={false} className="!bg-surface" />
+            <Background color="rgba(148,163,184,0.16)" gap={20} size={1.1} />
+          </ReactFlow>
+        </div>
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
         <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
@@ -841,5 +1010,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         </aside>
       </div>
     </div>
+    </ReactFlowProvider>
   );
 }

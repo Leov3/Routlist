@@ -66,8 +66,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 ### Hito 0
 - Documentación inicial y baseline de trabajo.
 
+### Hito 1
+- Se incorpora un canvas read-only de React Flow dentro del player.
+- El canvas usa el grafo publicado y conserva la lógica actual de ejecución.
+- Se agregan `fitView`, `MiniMap`, `Controls` y botón `Centrar paso actual`.
+
 ### Trabajo en progreso
-- Próximo: Hito 1, canvas read-only base sobre la ejecución actual.
+- Validar y consolidar Hito 1 como commit aislado.
 
 ## Cómo continuar si se corta la sesión
 1. Confirmar rama actual: `feature/narratives-player-canvas`.
@@ -76,13 +81,13 @@ Evolucionar el player de Narratives desde una pantalla lineal de ejecución a un
 4. Continuar desde el próximo hito recomendado.
 
 ## Último commit realizado
-- Baseline del repo antes del trabajo del player: `4e51fc7` `fix(backend): align organization schema with seeded platform data`
+- `9cdeb91` `docs(narratives-player): add canvas player implementation context`
 
 ## Último push realizado
-- Pendiente en esta rama de player.
+- `origin/feature/narratives-player-canvas` después de `9cdeb91`
 
 ## Próximo hito recomendado
-- `Hito 1`: montar canvas read-only del grafo publicado dentro de `NarrativePlayer`, preservando la lógica actual de ejecución.
+- `Hito 2`: derivar estados visuales de nodos y aristas desde `run.currentNodeId` y `run.events`.
 
 ## Comandos útiles
 - `git status --short --branch`
