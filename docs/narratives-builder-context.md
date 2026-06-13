@@ -27,7 +27,8 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - Hito 2 completado y respaldado en feature + `dev`.
 - Hito 3 completado y respaldado en feature + `dev`.
 - Hito 4 completado y respaldado en feature + `dev`.
-- Hito 5 implementado en la rama feature, pendiente de commit e integración a `dev`.
+- Hito 5 completado y respaldado en feature + `dev`.
+- Hito 6 implementado en la rama feature, pendiente de commit e integración a `dev`.
 - Checks ejecutados sobre el estado actual:
   - `npm --prefix frontend run build`
   - `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
@@ -205,8 +206,15 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
   - rutas agregadas
   - rutas eliminadas
 
+### Hito 6
+- Se puede duplicar un nodo desde el panel de selección.
+- El borrado ahora avisa cuántas conexiones se perderán.
+- Se añadió buscador local por nombre, texto, tipo y referencias básicas.
+- Los resultados del buscador centran el canvas en el nodo encontrado.
+- El panel de selección ahora incluye acción directa para centrar el nodo.
+
 ## Trabajo en progreso
-- Commit, push e integración a `dev` del Hito 5.
+- Commit, push e integración a `dev` del Hito 6.
 
 ## Pendientes
 - Formalizar panel de validación con errores, advertencias y sugerencias.
@@ -255,15 +263,15 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 5. Antes de commitear, actualizar ambos documentos con el estado real.
 
 ## Último commit realizado
-- `072cb01` - `refactor(narratives): normalize decision options` en feature
-- `9711da2` - `refactor(narratives): normalize decision options` en `dev`
+- `09a755c` - `feat(narratives-builder): improve publish validation flow` en feature
+- `3aeea4b` - `feat(narratives-builder): improve publish validation flow` en `dev`
 
 ## Último push realizado
-- `feature/narratives-builder-upgrade` actualizada hasta `072cb01`.
-- `dev` actualizado hasta `9711da2`.
+- `feature/narratives-builder-upgrade` actualizada hasta `09a755c`.
+- `dev` actualizado hasta `3aeea4b`.
 
 ## Próximo hito recomendado
-- Cerrar Hito 5 en Git y pasar a Hito 6: productividad incremental del editor.
+- Cerrar Hito 6 en Git y pasar a Hito 7: limpieza de tipos y normalización compatible.
 
 ## Comandos útiles para correr el proyecto
 - `npm --prefix frontend run dev`
