@@ -521,6 +521,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
+  const [showBottomDock, setShowBottomDock] = useState(false);
   const [showActivityDock, setShowActivityDock] = useState(false);
 
   const handleApiError = useCallback((error: unknown, fallbackMessage: string) => {
@@ -1523,73 +1524,73 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         }}
         className="hidden"
       />
-      <div className="space-y-3">
+      <div className="space-y-2">
         {message ? (
           <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
             {message}
           </div>
         ) : null}
 
-        <section className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 shadow-elevation-1">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <section className="rounded-[22px] border border-outline-variant bg-surface-container px-3.5 py-2 shadow-elevation-1">
+          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
                 Narrativas / {run.narrative.title}
               </p>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold tracking-tight text-on-surface">{run.narrative.title}</h1>
-                <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <h1 className="text-lg font-semibold tracking-tight text-on-surface">{run.narrative.title}</h1>
+                <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
                   {run.status}
                 </span>
-                <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
                   v{run.narrativeVersion.versionNumber}
                 </span>
-                <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
                   Paso {Math.min(progressedNodes, actionableNodes)} / {actionableNodes || 0}
                 </span>
-                <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
                   {currentNode.type}
                 </span>
                 {elapsedLabel ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
-                    <Timer className="h-3.5 w-3.5" />
+                  <span className="inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+                    <Timer className="h-3 w-3" />
                     {elapsedLabel}
                   </span>
                 ) : null}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => centerNode(currentNode)}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
               >
-                <Crosshair className="h-4 w-4" />
+                <Crosshair className="h-3.5 w-3.5" />
                 Centrar
               </button>
               <button
                 type="button"
                 onClick={() => void cancelRun()}
                 disabled={working || run.status !== "RUNNING"}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-red-300/30 bg-red-500/10 px-4 text-sm font-semibold text-red-300 transition-colors hover:border-red-400 disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-red-300/30 bg-red-500/10 px-3 text-xs font-semibold text-red-300 transition-colors hover:border-red-400 disabled:opacity-50"
               >
-                <StopCircle className="h-4 w-4" />
+                <StopCircle className="h-3.5 w-3.5" />
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={() => void finishRun()}
                 disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-300 transition-colors hover:border-emerald-400 disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:border-emerald-400 disabled:opacity-50"
               >
-                <CheckCircle2 className="h-4 w-4" />
+                <CheckCircle2 className="h-3.5 w-3.5" />
                 Finalizar
               </button>
               <button
                 type="button"
                 onClick={() => router.push("/narratives")}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
               >
                 Volver
               </button>
@@ -1647,7 +1648,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
         <div className="flex flex-col gap-3">
           <section className="flex flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1">
-            <div className="relative h-[calc(100vh-270px)] min-h-[520px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c]">
+            <div className="relative h-[calc(100vh-345px)] min-h-[420px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c] xl:h-[calc(100vh-355px)]">
               <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-primary/20 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
                   {nodeLabel(currentNode)}
@@ -1940,14 +1941,31 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                   </span>
                   <button
                     type="button"
-                    onClick={() => setShowActivityDock((value) => !value)}
+                    onClick={() => setShowBottomDock((value) => !value)}
                     className="rounded-full border border-outline-variant bg-surface px-3 py-1 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
                   >
-                    {showActivityDock ? "Ocultar actividad" : "Ver actividad"}
+                    {showBottomDock ? "Ocultar panel" : "Abrir panel"}
                   </button>
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Estado operacional</p>
+                    <p className="mt-1 text-sm font-semibold text-on-surface">
+                      Actual: {nodeLabel(currentNode)} · Última acción: {eventLog[0]?.eventType ?? "Sin eventos"}
+                    </p>
+                  </div>
+                  <p className="text-xs text-on-surface-variant">
+                    Ruta: {orderedNodes.slice(0, 3).map((node) => nodeLabel(node)).join(" → ")}
+                    {orderedNodes.length > 3 ? " ..." : ""}
+                  </p>
+                </div>
+              </div>
+
+              {showBottomDock ? (
+                <>
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)]">
                 <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Estado operacional</p>
@@ -2006,6 +2024,8 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                     </div>
                   </div>
                 </div>
+              ) : null}
+                </>
               ) : null}
             </div>
           </section>

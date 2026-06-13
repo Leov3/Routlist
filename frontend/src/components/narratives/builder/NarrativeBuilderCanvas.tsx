@@ -623,6 +623,8 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [isValidationPanelOpen, setIsValidationPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -659,6 +661,30 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     () => nodes.filter((node) => selectedNodeIds.includes(node.id)),
     [nodes, selectedNodeIds],
   );
+  const selectedEdges = useMemo(
+    () => edges.filter((edge) => selectedEdgeIds.includes(edge.id)),
+    [edges, selectedEdgeIds],
+  );
+  const selectedEdge = useMemo(
+    () => edges.find((edge) => edge.id === selectedEdgeId) ?? null,
+    [edges, selectedEdgeId],
+  );
+  const nodeLookup = useMemo(
+    () => new Map(nodes.map((node) => [node.id, node])),
+    [nodes],
+  );
+  const selectedEdgeDetails = useMemo(() => {
+    if (!selectedEdge) return null;
+
+    const sourceNode = nodeLookup.get(selectedEdge.source);
+    const targetNode = nodeLookup.get(selectedEdge.target);
+
+    return {
+      label: String(selectedEdge.label ?? "").trim() || "Conexión sin etiqueta",
+      sourceLabel: sourceNode ? getNodeDisplayName(sourceNode) : selectedEdge.source,
+      targetLabel: targetNode ? getNodeDisplayName(targetNode) : selectedEdge.target,
+    };
+  }, [nodeLookup, selectedEdge]);
   const filteredNodes = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return [];
@@ -1215,6 +1241,8 @@ try {
       setValidation(result.validation);
       setSelectedNodeIds(graph.nodes[0]?.id ? [graph.nodes[0].id] : []);
       setSelectedNodeId(graph.nodes[0]?.id ?? null);
+      setSelectedEdgeIds([]);
+      setSelectedEdgeId(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo cargar la narrativa.");
       setBuilder(null);
@@ -1222,6 +1250,8 @@ try {
       setEdges([]);
       setSelectedNodeIds([]);
       setSelectedNodeId(null);
+      setSelectedEdgeIds([]);
+      setSelectedEdgeId(null);
       setEditingNodeId(null);
     } finally {
       setLoading(false);
@@ -1415,6 +1445,8 @@ try {
     setNodes((current) => [...current, node]);
     setSelectedNodeIds([id]);
     setSelectedNodeId(id);
+    setSelectedEdgeIds([]);
+    setSelectedEdgeId(null);
   }
 
   function saveNodePatch(nodeId: string, patch: Record<string, unknown>) {
@@ -1482,13 +1514,18 @@ try {
     const label = nodeIds.length === 1 ? "este nodo" : `estos ${nodeIds.length} nodos`;
     const affectedEdges = edges.filter(
       (edge) => nodeIds.includes(edge.source) || nodeIds.includes(edge.target),
-    ).length;
-    const warning = affectedEdges > 0 ? ` Esto también eliminará ${affectedEdges} conexión(es).` : "";
+    );
+    const affectedEdgeIds = new Set(affectedEdges.map((edge) => edge.id));
+    const affectedEdgeCount = affectedEdges.length;
+    const warning = affectedEdgeCount > 0 ? ` Esto también eliminará ${affectedEdgeCount} conexión(es).` : "";
     if (window.confirm(`¿Seguro que deseas eliminar ${label}?${warning}`)) {
       setNodes((current) => current.filter((node) => !nodeIds.includes(node.id)));
       setEdges((current) =>
         current.filter((edge) => !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)),
       );
+      const nextSelectedEdgeIds = selectedEdgeIds.filter((id) => !affectedEdgeIds.has(id));
+      setSelectedEdgeIds(nextSelectedEdgeIds);
+      setSelectedEdgeId(nextSelectedEdgeIds[0] ?? null);
       if (selectedNodeId && nodeIds.includes(selectedNodeId)) {
         setSelectedNodeId(null);
       }
@@ -1501,6 +1538,36 @@ try {
 
   function removeNode(nodeId: string) {
     removeNodes([nodeId]);
+  }
+
+  function removeEdges(edgeIds: string[]) {
+    if (edgeIds.length === 0) return;
+
+    const edgeSet = new Set(edgeIds);
+    const affectedEdges = edges.filter((edge) => edgeSet.has(edge.id));
+    if (affectedEdges.length === 0) return;
+
+    const label = affectedEdges.length === 1 ? "esta conexión" : `estas ${affectedEdges.length} conexiones`;
+    const preview = affectedEdges
+      .slice(0, 3)
+      .map((edge) => {
+        const sourceNode = nodeLookup.get(edge.source);
+        const targetNode = nodeLookup.get(edge.target);
+        const sourceLabel = sourceNode ? getNodeDisplayName(sourceNode) : edge.source;
+        const targetLabel = targetNode ? getNodeDisplayName(targetNode) : edge.target;
+        const edgeLabel = String(edge.label ?? "").trim() || "Sin etiqueta";
+        return `${edgeLabel} (${sourceLabel} → ${targetLabel})`;
+      })
+      .join(", ");
+    const overflow = affectedEdges.length > 3 ? ` y ${affectedEdges.length - 3} más` : "";
+    const warning = preview ? `\n\nSe borrarán: ${preview}${overflow}.` : "";
+
+    if (window.confirm(`¿Seguro que deseas eliminar ${label}?${warning}`)) {
+      setEdges((current) => current.filter((edge) => !edgeSet.has(edge.id)));
+      const nextSelectedEdgeIds = selectedEdgeIds.filter((id) => !edgeSet.has(id));
+      setSelectedEdgeIds(nextSelectedEdgeIds);
+      setSelectedEdgeId(nextSelectedEdgeIds[0] ?? null);
+    }
   }
 
   function duplicateNode(nodeId: string) {
@@ -1527,6 +1594,8 @@ try {
     setNodes((current) => [...current, duplicatedNode]);
     setSelectedNodeIds([nextId]);
     setSelectedNodeId(nextId);
+    setSelectedEdgeIds([]);
+    setSelectedEdgeId(null);
     setMessage("Nodo duplicado.");
   }
 
@@ -1712,6 +1781,8 @@ try {
     );
     setSelectedNodeId(graph.nodes[0]?.id ?? null);
     setSelectedNodeIds(graph.nodes[0]?.id ? [graph.nodes[0].id] : []);
+    setSelectedEdgeIds([]);
+    setSelectedEdgeId(null);
     setMessage("Se copió la versión publicada al borrador local.");
   }
 
@@ -1721,6 +1792,8 @@ try {
 
     setSelectedNodeIds([nodeId]);
     setSelectedNodeId(nodeId);
+    setSelectedEdgeIds([]);
+    setSelectedEdgeId(null);
 
     if (options?.openEditor) {
       setEditingNodeId(nodeId);
@@ -2401,77 +2474,135 @@ if (loading) {
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-on-surface-variant">
             Selección
           </p>
-          {selectedNodes.length > 0 ? (
-            <div className="mt-2 space-y-2">
-              <div>
-                <p className="text-sm font-semibold text-on-surface">
-                  {selectedNodes.length === 1
-                    ? String(selectedNode?.data?.title ?? selectedNode?.data?.label ?? selectedNode?.id)
-                    : `${selectedNodes.length} nodos seleccionados`}
-                </p>
-                <p className="text-xs text-on-surface-variant">
-                  {selectedNodes.length === 1
-                    ? String(selectedNode?.data?.nodeType ?? selectedNode?.type)
-                    : "Selección múltiple"}
-                </p>
-              </div>
-              {selectedNodes.length === 1 ? (
-                <p className="text-xs leading-relaxed text-on-surface-variant">
-                  {selectedNode ? nodeSummary(selectedNode) : ""}
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-xs leading-relaxed text-on-surface-variant">
-                    Puedes mover los nodos seleccionados juntos o eliminarlos en bloque.
-                  </p>
-                  <ul className="max-h-24 overflow-y-auto text-xs text-on-surface-variant">
-                    {selectedNodes.slice(0, 8).map((node) => (
-                      <li key={node.id}>
-                        • {String(node.data?.title ?? node.data?.label ?? node.id)}
-                      </li>
-                    ))}
-                    {selectedNodes.length > 8 ? <li>• ...</li> : null}
-                  </ul>
+          {selectedNodes.length > 0 || selectedEdges.length > 0 ? (
+            <div className="mt-2 space-y-4">
+              {selectedNodes.length > 0 ? (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">
+                      {selectedNodes.length === 1
+                        ? String(selectedNode?.data?.title ?? selectedNode?.data?.label ?? selectedNode?.id)
+                        : `${selectedNodes.length} nodos seleccionados`}
+                    </p>
+                    <p className="text-xs text-on-surface-variant">
+                      {selectedNodes.length === 1
+                        ? String(selectedNode?.data?.nodeType ?? selectedNode?.type)
+                        : "Selección múltiple"}
+                    </p>
+                  </div>
+                  {selectedNodes.length === 1 ? (
+                    <p className="text-xs leading-relaxed text-on-surface-variant">
+                      {selectedNode ? nodeSummary(selectedNode) : ""}
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-xs leading-relaxed text-on-surface-variant">
+                        Puedes mover los nodos seleccionados juntos o eliminarlos en bloque.
+                      </p>
+                      <ul className="max-h-24 overflow-y-auto text-xs text-on-surface-variant">
+                        {selectedNodes.slice(0, 8).map((node) => (
+                          <li key={node.id}>
+                            • {String(node.data?.title ?? node.data?.label ?? node.id)}
+                          </li>
+                        ))}
+                        {selectedNodes.length > 8 ? <li>• ...</li> : null}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {selectedNodes.length === 1 ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => focusNode(selectedNode?.id ?? "")}
+                          className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        >
+                          Centrar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingNodeId(selectedNode?.id ?? null)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => selectedNode && duplicateNode(selectedNode.id)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        >
+                          Duplicar
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => removeNodes(selectedNodeIds)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+                    >
+                      Eliminar selección
+                    </button>
+                  </div>
                 </div>
-              )}
-              <div className="flex flex-wrap gap-2 pt-1">
-                {selectedNodes.length === 1 ? (
-                  <>
+              ) : null}
+
+              {selectedEdges.length > 0 ? (
+                <div className={`space-y-2 ${selectedNodes.length > 0 ? "border-t border-outline-variant pt-4" : ""}`}>
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">
+                      {selectedEdges.length === 1
+                        ? selectedEdgeDetails?.label ?? "Conexión sin etiqueta"
+                        : `${selectedEdges.length} conexiones seleccionadas`}
+                    </p>
+                    <p className="text-xs text-on-surface-variant">
+                      {selectedEdges.length === 1 && selectedEdgeDetails
+                        ? `${selectedEdgeDetails.sourceLabel} → ${selectedEdgeDetails.targetLabel}`
+                        : "Selección de líneas"}
+                    </p>
+                  </div>
+                  {selectedEdges.length === 1 ? (
+                    <p className="text-xs leading-relaxed text-on-surface-variant">
+                      Selecciona la línea y pulsa <code>Backspace</code> o <code>Delete</code>, o elimínala
+                      con el botón inferior.
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-xs leading-relaxed text-on-surface-variant">
+                        Puedes eliminar varias líneas a la vez.
+                      </p>
+                      <ul className="max-h-24 overflow-y-auto text-xs text-on-surface-variant">
+                        {selectedEdges.slice(0, 8).map((edge) => {
+                          const sourceNode = nodeLookup.get(edge.source);
+                          const targetNode = nodeLookup.get(edge.target);
+                          const sourceLabel = sourceNode ? getNodeDisplayName(sourceNode) : edge.source;
+                          const targetLabel = targetNode ? getNodeDisplayName(targetNode) : edge.target;
+                          const edgeLabel = String(edge.label ?? "").trim() || "Sin etiqueta";
+                          return (
+                            <li key={edge.id}>
+                              • {edgeLabel} ({sourceLabel} → {targetLabel})
+                            </li>
+                          );
+                        })}
+                        {selectedEdges.length > 8 ? <li>• ...</li> : null}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => focusNode(selectedNode?.id ?? "")}
-                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                      onClick={() => removeEdges(selectedEdgeIds)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
                     >
-                      Centrar
+                      {selectedEdges.length === 1 ? "Eliminar conexión" : "Eliminar conexiones"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingNodeId(selectedNode?.id ?? null)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => selectedNode && duplicateNode(selectedNode.id)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-                    >
-                      Duplicar
-                    </button>
-                  </>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => removeNodes(selectedNodeIds)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
-                >
-                  Eliminar selección
-                </button>
-              </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
-              Haz clic sobre un nodo del lienzo para seleccionarlo y ver sus detalles.
+              Haz clic sobre un nodo o una línea del lienzo para seleccionarlos y ver sus detalles.
+              Las líneas también se pueden borrar con <code>Backspace</code> o <code>Delete</code>.
             </p>
           )}
         </div>
@@ -2588,20 +2719,34 @@ if (loading) {
               setSelectedNodeId(node.id);
               setEditingNodeId(node.id);
             }}
-            onSelectionChange={({ nodes: selectedFlowNodes }) => {
+            onSelectionChange={({ nodes: selectedFlowNodes, edges: selectedFlowEdges }) => {
               const ids = selectedFlowNodes.map((node) => node.id);
+              const edgeIds = selectedFlowEdges.map((edge) => edge.id);
               setSelectedNodeIds((current) => (sameStringSet(current, ids) ? current : ids));
               setSelectedNodeId((current) => (current === ids[0] ? current : ids[0] ?? null));
+              setSelectedEdgeIds((current) => (sameStringSet(current, edgeIds) ? current : edgeIds));
+              setSelectedEdgeId((current) => (current === edgeIds[0] ? current : edgeIds[0] ?? null));
             }}
             onPaneClick={() => {
               setSelectedNodeIds((current) => (current.length === 0 ? current : []));
               setSelectedNodeId((current) => (current === null ? current : null));
+              setSelectedEdgeIds((current) => (current.length === 0 ? current : []));
+              setSelectedEdgeId((current) => (current === null ? current : null));
               setEditingNodeId(null);
+            }}
+            onDelete={({ nodes: deletedNodes, edges: deletedEdges }) => {
+              if (deletedNodes.length === 0 && deletedEdges.length === 0) return;
+              setSelectedNodeIds([]);
+              setSelectedNodeId(null);
+              setSelectedEdgeIds([]);
+              setSelectedEdgeId(null);
             }}
             fitView
             selectionOnDrag
             selectionMode={SelectionMode.Partial}
             panOnDrag={false}
+            edgesFocusable
+            deleteKeyCode={["Backspace", "Delete"]}
             defaultEdgeOptions={{
               type: "smoothstep",
               style: { strokeWidth: 2 },

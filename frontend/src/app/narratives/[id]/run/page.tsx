@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Play } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 import { ProtectedPage } from "@/components/layout/ProtectedPage";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
 import { NarrativePlayer } from "@/components/narratives/player/NarrativePlayer";
 
@@ -69,21 +67,7 @@ export default function NarrativeRunPage() {
 
   return (
     <ProtectedPage requiredPermissions={["narratives:run"]}>
-      <div className="space-y-6">
-        <PageHeader
-          title="Player narrativo"
-          description="Ejecuta el flujo guiado paso a paso para la operación diaria."
-          action={
-            <Link
-              href="/narratives"
-              className="inline-flex h-11 items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Volver
-            </Link>
-          }
-        />
-
+      <div className="space-y-3">
         {message ? (
           <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
             {message}
