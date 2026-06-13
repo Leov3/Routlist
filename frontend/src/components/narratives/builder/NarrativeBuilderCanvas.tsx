@@ -652,6 +652,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [isValidationPanelOpen, setIsValidationPanelOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({
     valid: true,
@@ -685,6 +686,24 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     () => nodes.filter((node) => selectedNodeIds.includes(node.id)),
     [nodes, selectedNodeIds],
   );
+  const filteredNodes = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return [];
+    return nodes.filter((node) => {
+      const text = [
+        getNodeDisplayName(node),
+        String(node.data?.nodeType ?? node.type),
+        String(node.data?.body ?? ""),
+        String(node.data?.instruction ?? ""),
+        String(node.data?.question ?? ""),
+        String(node.data?.audioAssetId ?? ""),
+        String(node.data?.audioButtonId ?? ""),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return text.includes(query);
+    });
+  }, [nodes, searchTerm]);
 
   const selectedVersion = builder?.draftVersion ?? builder?.publishedVersion ?? null;
   const currentGraph = useMemo<NarrativeGraphJson>(
@@ -1488,7 +1507,11 @@ try {
     if (nodeIds.length === 0) return;
 
     const label = nodeIds.length === 1 ? "este nodo" : `estos ${nodeIds.length} nodos`;
-    if (window.confirm(`¿Seguro que deseas eliminar ${label}?`)) {
+    const affectedEdges = edges.filter(
+      (edge) => nodeIds.includes(edge.source) || nodeIds.includes(edge.target),
+    ).length;
+    const warning = affectedEdges > 0 ? ` Esto también eliminará ${affectedEdges} conexión(es).` : "";
+    if (window.confirm(`¿Seguro que deseas eliminar ${label}?${warning}`)) {
       setNodes((current) => current.filter((node) => !nodeIds.includes(node.id)));
       setEdges((current) =>
         current.filter((edge) => !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)),
@@ -1505,6 +1528,33 @@ try {
 
   function removeNode(nodeId: string) {
     removeNodes([nodeId]);
+  }
+
+  function duplicateNode(nodeId: string) {
+    const sourceNode = nodes.find((node) => node.id === nodeId);
+    if (!sourceNode) return;
+
+    const nextId = makeNodeId((sourceNode.data?.nodeType ?? sourceNode.type) as NarrativeNodeType);
+    const duplicatedNode: Node<FlowNodeData> = {
+      ...sourceNode,
+      id: nextId,
+      position: {
+        x: sourceNode.position.x + 56,
+        y: sourceNode.position.y + 56,
+      },
+      data: normalizeBuilderNodeData(
+        (sourceNode.data?.nodeType ?? sourceNode.type) as NarrativeNodeType,
+        serializeNodeData(
+          (sourceNode.data?.nodeType ?? sourceNode.type) as NarrativeNodeType,
+          (sourceNode.data ?? {}) as FlowNodeData,
+        ) as Record<string, unknown>,
+      ),
+    };
+
+    setNodes((current) => [...current, duplicatedNode]);
+    setSelectedNodeIds([nextId]);
+    setSelectedNodeId(nextId);
+    setMessage("Nodo duplicado.");
   }
 
   function autoLayoutNodes() {
@@ -2341,6 +2391,41 @@ if (loading) {
 
         <div className="rounded-xl border border-outline-variant bg-surface px-3 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-on-surface-variant">
+            Buscar
+          </p>
+          <div className="mt-2 space-y-2">
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Nombre, texto, tipo, audio..."
+              className="h-10 w-full rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+            />
+            {searchTerm.trim() ? (
+              <div className="max-h-40 space-y-1 overflow-y-auto">
+                {filteredNodes.length > 0 ? (
+                  filteredNodes.slice(0, 8).map((node) => (
+                    <button
+                      key={node.id}
+                      type="button"
+                      onClick={() => focusNode(node.id)}
+                      className="block w-full rounded-xl border border-outline-variant bg-surface px-3 py-2 text-left transition-colors hover:border-primary"
+                    >
+                      <p className="text-xs font-semibold text-on-surface">{getNodeDisplayName(node)}</p>
+                      <p className="text-[11px] text-on-surface-variant">
+                        {String(node.data?.nodeType ?? node.type)}
+                      </p>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-on-surface-variant">Sin resultados.</p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-outline-variant bg-surface px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-on-surface-variant">
             Selección
           </p>
           {selectedNodes.length > 0 ? (
@@ -2378,13 +2463,29 @@ if (loading) {
               )}
               <div className="flex flex-wrap gap-2 pt-1">
                 {selectedNodes.length === 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => setEditingNodeId(selectedNode?.id ?? null)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-                  >
-                    Editar
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => focusNode(selectedNode?.id ?? "")}
+                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                    >
+                      Centrar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingNodeId(selectedNode?.id ?? null)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectedNode && duplicateNode(selectedNode.id)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                    >
+                      Duplicar
+                    </button>
+                  </>
                 ) : null}
                 <button
                   type="button"

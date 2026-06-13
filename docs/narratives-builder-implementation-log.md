@@ -177,3 +177,33 @@ Pendientes:
 - Integración de Hito 5 a `dev`.
 Próximo hito:
 - Hito 6
+
+## Hito 6
+
+Fecha: 2026-06-13
+Rama: `feature/narratives-builder-upgrade`
+Commit: pendiente
+Push: pendiente
+Resumen:
+- Se añadió duplicación de nodo.
+- El borrado ahora confirma el impacto sobre conexiones.
+- Se añadió buscador interno para localizar nodos y centrar el canvas.
+- El panel de selección ahora permite centrar rápidamente el nodo activo.
+Archivos modificados:
+- `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+- `docs/narratives-builder-context.md`
+- `docs/narratives-builder-implementation-log.md`
+Checks ejecutados:
+- `npm --prefix frontend run build`
+- `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+Resultado de checks:
+- `frontend build`: OK
+- `frontend lint` sobre el archivo del builder: OK
+Riesgos:
+- No se implementó undo/redo.
+- No se duplican ramas completas, solo nodos individuales.
+Pendientes:
+- Commit y push del Hito 6.
+- Integración de Hito 6 a `dev`.
+Próximo hito:
+- Hito 7
