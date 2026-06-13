@@ -110,7 +110,29 @@ Entorno local recomendado:
 
 ## Arranque local
 
-Levantar todo el stack:
+Bootstrap local rapido:
+
+```bash
+bash scripts/setup-local-dev.sh
+```
+
+Ese script:
+
+- levanta PostgreSQL local
+- espera salud de la base
+- instala dependencias del backend
+- genera Prisma
+- aplica migraciones
+- ejecuta el seed demo
+
+Luego inicia los servicios de desarrollo:
+
+```bash
+cd backend && npm run start:dev
+cd frontend && npm install && npm run dev
+```
+
+Levantar todo el stack con Docker Compose:
 
 ```bash
 docker compose up -d --build
