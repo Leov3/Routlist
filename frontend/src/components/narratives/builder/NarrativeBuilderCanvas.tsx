@@ -40,8 +40,11 @@ import {
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type {
+  BuilderNodeBadge,
+  DecisionOption,
   NarrativeBuilderState,
   NarrativeGraphJson,
+  NarrativeBuilderNodeData,
   NarrativeNodeType,
   NarrativeVersion,
 } from "@/types/narratives";
@@ -65,38 +68,7 @@ type AudioButtonOption = {
 
 type ApiCollection<T> = T[] | { data?: T[]; items?: T[] };
 
-type DecisionOption = {
-  id: string;
-  label: string;
-  description?: string;
-};
-
-type FlowNodeData = {
-  title?: string;
-  label?: string;
-  body?: string;
-  question?: string;
-  instruction?: string;
-  nodeType: NarrativeNodeType;
-  audioAssetId?: string;
-  audioButtonId?: string;
-  description?: string;
-  required?: boolean;
-  allowReplay?: boolean;
-  operatorNotes?: string;
-  notes?: string;
-  pauseType?: string;
-  durationSeconds?: string | number;
-  manual?: boolean;
-  options?: string | string[] | DecisionOption[];
-  builderSummary?: string;
-  builderStatus?: "valid" | "warning" | "error" | "info";
-  builderStatusLabel?: string;
-  builderBadges?: Array<{
-    label: string;
-    tone: "valid" | "warning" | "error" | "info";
-  }>;
-};
+type FlowNodeData = NarrativeBuilderNodeData;
 
 type NodePaletteItem = {
   type: NarrativeNodeType;
@@ -182,10 +154,7 @@ function makeDecisionOptionId() {
 
 import dagre from "dagre";
 
-type BuilderBadge = {
-  label: string;
-  tone: "valid" | "warning" | "error" | "info";
-};
+type BuilderBadge = BuilderNodeBadge;
 
 type BuilderIssueLevel = "error" | "warning" | "suggestion";
 
@@ -232,7 +201,7 @@ function nodeSummary(node: Node<FlowNodeData>) {
   if (nodeType === "AUDIO_BUTTON") return data.audioButtonId ? `Botón: ${String(data.audioButtonId)}` : "Botón sin asignar";
   if (nodeType === "SCRIPT_TEXT") return data.body ? String(data.body).slice(0, 80) : "Sin texto";
   if (nodeType === "INSTRUCTION") return data.instruction ? String(data.instruction).slice(0, 80) : "Sin instrucción";
-  if (nodeType === "PAUSE") return data.manual === false ? `Temporizada${data.durationSeconds ? ` · ${data.durationSeconds}s` : ""}` : "Pausa manual";
+  if (nodeType === "PAUSE") return getPauseMode(data) === "timer" ? `Temporizada${data.durationSeconds ? ` · ${data.durationSeconds}s` : ""}` : "Pausa manual";
   if (nodeType === "DECISION") return data.question ? String(data.question) : "Sin pregunta";
   return NODE_PALETTE.find((item) => item.type === nodeType)?.description || "";
 }
@@ -579,6 +548,10 @@ function issueTone(level: BuilderIssueLevel) {
   if (level === "error") return "error";
   if (level === "warning") return "warning";
   return "info";
+}
+
+function getPauseMode(data: Pick<FlowNodeData, "pauseType" | "manual">) {
+  return data.pauseType === "manual" || data.manual !== false ? "manual" : "timer";
 }
 
 function issueIcon(level: BuilderIssueLevel) {
@@ -939,7 +912,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
       }
 
       if (nodeType === "PAUSE") {
-        const isManual = node.data?.pauseType === "manual" || node.data?.manual !== false;
+        const isManual = getPauseMode(node.data ?? { nodeType }) === "manual";
         const duration = Number(node.data?.durationSeconds ?? 0);
         if (!isManual && (!Number.isFinite(duration) || duration <= 0)) {
           issues.push({
@@ -1362,7 +1335,7 @@ try {
             break;
           }
           case "PAUSE": {
-            const manual = node.data?.pauseType === "manual" || node.data?.manual !== false;
+            const manual = getPauseMode(node.data ?? { nodeType }) === "manual";
             const duration = String(node.data?.durationSeconds ?? "").trim();
             summary = manual
               ? "Pausa manual hasta intervención del operador"

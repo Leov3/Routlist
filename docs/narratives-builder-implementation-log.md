@@ -207,3 +207,32 @@ Pendientes:
 - Integración de Hito 6 a `dev`.
 Próximo hito:
 - Hito 7
+
+## Hito 7
+
+Fecha: 2026-06-13
+Rama: `feature/narratives-builder-upgrade`
+Commit: pendiente
+Push: pendiente
+Resumen:
+- Se extrajeron tipos del builder a `frontend/src/types/narratives.ts`.
+- Se formalizó el contrato compartido de `NarrativeBuilderNodeData`.
+- Se encapsuló la normalización de pausa para reducir ambigüedad legacy.
+Archivos modificados:
+- `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+- `frontend/src/types/narratives.ts`
+- `docs/narratives-builder-context.md`
+- `docs/narratives-builder-implementation-log.md`
+Checks ejecutados:
+- `npm --prefix frontend run build`
+- `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx src/types/narratives.ts`
+Resultado de checks:
+- `frontend build`: OK
+- `frontend lint`: OK
+Riesgos:
+- La estructura completa por subtipos sigue conviviendo dentro de un contrato unificado por compatibilidad.
+Pendientes:
+- Commit y push del Hito 7.
+- Integración de Hito 7 a `dev`.
+Próximo hito:
+- Cierre de fase actual
