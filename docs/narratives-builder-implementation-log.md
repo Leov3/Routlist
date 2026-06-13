@@ -33,8 +33,8 @@ Próximo hito:
 
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
-Commit: pendiente
-Push: pendiente
+Commit: `6416afd`
+Push: `origin/feature/narratives-builder-upgrade`, luego merge a `dev`
 Resumen:
 - Se enriquecieron las tarjetas de nodos con resúmenes útiles y badges visuales.
 - La cabecera del builder ahora expone estado de borrador, publicación y validación.
@@ -55,7 +55,37 @@ Riesgos:
 - Los badges de estado del nodo usan heurísticas locales del frontend; todavía no existe un modelo enriquecido de issues compartido con backend.
 - `DECISION.options` sigue siendo legacy y solo se normaliza para mostrar mejor el resumen.
 Pendientes:
-- Commit y push del Hito 1.
-- Integración de Hito 1 a `dev`.
+- Ninguno dentro del alcance del hito.
 Próximo hito:
 - Hito 2
+
+## Hito 2
+
+Fecha: 2026-06-13
+Rama: `feature/narratives-builder-upgrade`
+Commit: pendiente
+Push: pendiente
+Resumen:
+- Se añadió un panel de validación con errores, advertencias y sugerencias.
+- Cada issue permite centrar el canvas en el nodo afectado.
+- Cada issue con nodo asociado permite abrir el modal de edición.
+- Se incorporó validación local estructurada para mejorar la experiencia del builder.
+- Los errores planos del backend se traducen a issues accionables cuando es posible.
+Archivos modificados:
+- `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+- `docs/narratives-builder-context.md`
+- `docs/narratives-builder-implementation-log.md`
+Checks ejecutados:
+- `npm --prefix frontend run build`
+- `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+Resultado de checks:
+- `frontend build`: OK
+- `frontend lint` sobre el archivo del builder: OK
+Riesgos:
+- La clasificación de issues todavía vive en frontend y debe consolidarse en un contrato compartido más adelante.
+- Algunas inferencias de errores del backend siguen siendo heurísticas basadas en texto.
+Pendientes:
+- Commit y push del Hito 2.
+- Integración de Hito 2 a `dev`.
+Próximo hito:
+- Hito 3

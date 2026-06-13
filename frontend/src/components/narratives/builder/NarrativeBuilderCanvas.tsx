@@ -13,6 +13,7 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  type ReactFlowInstance,
   ReactFlowProvider,
   SelectionMode,
   addEdge,
@@ -171,6 +172,18 @@ import dagre from "dagre";
 type BuilderBadge = {
   label: string;
   tone: "valid" | "warning" | "error" | "info";
+};
+
+type BuilderIssueLevel = "error" | "warning" | "suggestion";
+
+type BuilderValidationIssue = {
+  id: string;
+  level: BuilderIssueLevel;
+  message: string;
+  nodeId?: string;
+  nodeLabel?: string;
+  issueType: string;
+  source: "local" | "backend";
 };
 
 function autoLayout(nodes: Node<FlowNodeData>[], edges: Edge[]) {
@@ -417,6 +430,81 @@ function sameStringSet(left: string[], right: string[]) {
   return leftSorted.every((value, index) => value === rightSorted[index]);
 }
 
+function getNodeDisplayName(node: Node<FlowNodeData>) {
+  return String(
+    node.data?.title ??
+      node.data?.label ??
+      NODE_PALETTE.find((item) => item.type === (node.data?.nodeType ?? node.type))?.label ??
+      node.id,
+  );
+}
+
+function issueTone(level: BuilderIssueLevel) {
+  if (level === "error") return "error";
+  if (level === "warning") return "warning";
+  return "info";
+}
+
+function issueIcon(level: BuilderIssueLevel) {
+  if (level === "error") return AlertCircle;
+  if (level === "warning") return TriangleAlert;
+  return CheckCircle2;
+}
+
+function inferBackendIssue(
+  error: string,
+  nodeLookup: Map<string, Node<FlowNodeData>>,
+): BuilderValidationIssue {
+  const unreachableMatch = error.match(/Narrative contains unreachable nodes:\s*(.+)$/);
+  if (unreachableMatch) {
+    const firstNodeId = unreachableMatch[1].split(",")[0]?.trim();
+    const node = firstNodeId ? nodeLookup.get(firstNodeId) : undefined;
+    return {
+      id: `backend-unreachable-${firstNodeId ?? error}`,
+      level: "error",
+      message: node
+        ? `El nodo "${getNodeDisplayName(node)}" quedó fuera del recorrido desde START.`
+        : error,
+      nodeId: node?.id,
+      nodeLabel: node ? getNodeDisplayName(node) : undefined,
+      issueType: "reachability",
+      source: "backend",
+    };
+  }
+
+  const decisionMatch = error.match(/DECISION node ([\w-]+) requires labeled outgoing edges/);
+  if (decisionMatch) {
+    const node = nodeLookup.get(decisionMatch[1]);
+    return {
+      id: `backend-decision-label-${decisionMatch[1]}`,
+      level: "error",
+      message: node
+        ? `La decisión "${getNodeDisplayName(node)}" tiene salidas sin etiqueta.`
+        : error,
+      nodeId: node?.id,
+      nodeLabel: node ? getNodeDisplayName(node) : undefined,
+      issueType: "decision-label",
+      source: "backend",
+    };
+  }
+
+  const nodeIdMatch =
+    error.match(/node ([\w-]+)/i) ??
+    error.match(/source node ([\w-]+)/i) ??
+    error.match(/target node ([\w-]+)/i);
+  const node = nodeIdMatch ? nodeLookup.get(nodeIdMatch[1]) : undefined;
+
+  return {
+    id: `backend-${error}`,
+    level: "error",
+    message: node ? `${error} (${getNodeDisplayName(node)})` : error,
+    nodeId: node?.id,
+    nodeLabel: node ? getNodeDisplayName(node) : undefined,
+    issueType: "backend-validation",
+    source: "backend",
+  };
+}
+
 export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -434,6 +522,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   });
   const [audios, setAudios] = useState<{ id: string; name: string }[]>([]);
   const [buttons, setButtons] = useState<{ id: string; label: string; category?: { name: string } }[]>([]);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
 
   const audioMap = useMemo(
     () => new Map(audios.map((audio) => [audio.id, audio])),
@@ -497,7 +586,6 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
 
     return graphSignature(currentGraph) !== graphSignature(publishedGraph);
   }, [builder?.publishedVersion, currentGraph, publishedGraph]);
-  const validationTone = validation.valid ? "valid" : "warning";
   const versionLabel = selectedVersion ? `v${selectedVersion.versionNumber}` : "Sin versión";
 
   const graphMetrics = useMemo(() => {
@@ -516,6 +604,379 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
 
     return { incoming, outgoing };
   }, [edges, nodes]);
+
+  const localValidationIssues = useMemo<BuilderValidationIssue[]>(() => {
+    const issues: BuilderValidationIssue[] = [];
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const startNodes = nodes.filter((node) => (node.data?.nodeType ?? node.type) === "START");
+    const endNodes = nodes.filter((node) => (node.data?.nodeType ?? node.type) === "END");
+
+    if (startNodes.length !== 1) {
+      issues.push({
+        id: "graph-start-count",
+        level: "error",
+        message: "La narrativa debe tener exactamente un nodo START.",
+        issueType: "start-count",
+        source: "local",
+      });
+    }
+
+    if (endNodes.length < 1) {
+      issues.push({
+        id: "graph-end-count",
+        level: "error",
+        message: "La narrativa debe tener al menos un nodo END.",
+        issueType: "end-count",
+        source: "local",
+      });
+    }
+
+    for (const node of nodes) {
+      const nodeType = (node.data?.nodeType ?? node.type) as NarrativeNodeType;
+      const nodeLabel = getNodeDisplayName(node);
+      const incomingCount = graphMetrics.incoming.get(node.id) ?? 0;
+      const outgoingCount = graphMetrics.outgoing.get(node.id) ?? 0;
+
+      if (nodeType === "START") {
+        if (incomingCount > 0) {
+          issues.push({
+            id: `start-incoming-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" no puede recibir entradas.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "start-incoming",
+            source: "local",
+          });
+        }
+
+        if (outgoingCount < 1) {
+          issues.push({
+            id: `start-outgoing-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" debe tener al menos una salida.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "start-outgoing",
+            source: "local",
+          });
+        }
+      }
+
+      if (nodeType === "END") {
+        if (outgoingCount > 0) {
+          issues.push({
+            id: `end-outgoing-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" no puede tener salidas.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "end-outgoing",
+            source: "local",
+          });
+        }
+
+        if (nodeLabel.length < 4) {
+          issues.push({
+            id: `end-label-${node.id}`,
+            level: "suggestion",
+            message: `Conviene dar un nombre más descriptivo al cierre "${nodeLabel}".`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "end-label",
+            source: "local",
+          });
+        }
+      }
+
+      if (nodeType === "AUDIO") {
+        const assetId = String(node.data?.audioAssetId ?? "").trim();
+        if (!assetId) {
+          issues.push({
+            id: `audio-missing-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" no tiene audio seleccionado.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "audio-required",
+            source: "local",
+          });
+        } else if (!audioMap.has(assetId)) {
+          issues.push({
+            id: `audio-resource-${node.id}`,
+            level: "warning",
+            message: `El audio del nodo "${nodeLabel}" no está cargado en el builder.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "audio-resource",
+            source: "local",
+          });
+        }
+      }
+
+      if (nodeType === "AUDIO_BUTTON") {
+        const buttonId = String(node.data?.audioButtonId ?? "").trim();
+        if (!buttonId) {
+          issues.push({
+            id: `audio-button-missing-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" no tiene botón seleccionado.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "audio-button-required",
+            source: "local",
+          });
+        } else if (!buttonMap.has(buttonId)) {
+          issues.push({
+            id: `audio-button-resource-${node.id}`,
+            level: "warning",
+            message: `El botón del nodo "${nodeLabel}" no está cargado en el builder.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "audio-button-resource",
+            source: "local",
+          });
+        }
+      }
+
+      if (nodeType === "SCRIPT_TEXT") {
+        const body = String(node.data?.body ?? "").trim();
+        if (!body) {
+          issues.push({
+            id: `script-empty-${node.id}`,
+            level: "error",
+            message: `El guion "${nodeLabel}" está vacío.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "script-body",
+            source: "local",
+          });
+        } else if (body.length > 1000) {
+          issues.push({
+            id: `script-long-${node.id}`,
+            level: "warning",
+            message: `El guion "${nodeLabel}" supera los 1.000 caracteres.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "script-length",
+            source: "local",
+          });
+        }
+      }
+
+      if (nodeType === "INSTRUCTION") {
+        const instruction = String(node.data?.instruction ?? "").trim();
+        if (!instruction) {
+          issues.push({
+            id: `instruction-empty-${node.id}`,
+            level: "warning",
+            message: `La instrucción "${nodeLabel}" está vacía.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "instruction-body",
+            source: "local",
+          });
+        }
+      }
+
+      if (nodeType === "PAUSE") {
+        const isManual = node.data?.pauseType === "manual" || node.data?.manual !== false;
+        const duration = Number(node.data?.durationSeconds ?? 0);
+        if (!isManual && (!Number.isFinite(duration) || duration <= 0)) {
+          issues.push({
+            id: `pause-duration-${node.id}`,
+            level: "error",
+            message: `La pausa "${nodeLabel}" necesita una duración válida.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "pause-duration",
+            source: "local",
+          });
+        } else if (!isManual && duration > 300) {
+          issues.push({
+            id: `pause-long-${node.id}`,
+            level: "warning",
+            message: `La pausa "${nodeLabel}" dura más de 5 minutos.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "pause-long",
+            source: "local",
+          });
+        }
+      }
+
+      if (nodeType === "DECISION") {
+        const question = String(node.data?.question ?? "").trim();
+        const options = normalizeDecisionOptions(node.data?.options);
+        const outgoingEdges = edges.filter((edge) => edge.source === node.id);
+        const labels = options.map((option) => option.toLowerCase());
+
+        if (!question) {
+          issues.push({
+            id: `decision-question-${node.id}`,
+            level: "error",
+            message: `La decisión "${nodeLabel}" no tiene pregunta.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "decision-question",
+            source: "local",
+          });
+        }
+
+        if (options.length < 2) {
+          issues.push({
+            id: `decision-options-${node.id}`,
+            level: "error",
+            message: `La decisión "${nodeLabel}" necesita al menos dos opciones.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "decision-options",
+            source: "local",
+          });
+        }
+
+        if (new Set(labels).size !== labels.length) {
+          issues.push({
+            id: `decision-duplicates-${node.id}`,
+            level: "warning",
+            message: `La decisión "${nodeLabel}" tiene etiquetas de opción duplicadas.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "decision-duplicates",
+            source: "local",
+          });
+        }
+
+        if (outgoingEdges.length < 2) {
+          issues.push({
+            id: `decision-routes-${node.id}`,
+            level: "error",
+            message: `La decisión "${nodeLabel}" necesita al menos dos rutas conectadas.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "decision-routes",
+            source: "local",
+          });
+        }
+
+        const unlabeledEdge = outgoingEdges.find((edge) => !String(edge.label ?? "").trim());
+        if (unlabeledEdge) {
+          issues.push({
+            id: `decision-edge-label-${node.id}`,
+            level: "error",
+            message: `La decisión "${nodeLabel}" tiene una salida sin etiqueta.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "decision-edge-label",
+            source: "local",
+          });
+        }
+
+        if (options.length > outgoingEdges.length) {
+          issues.push({
+            id: `decision-missing-route-${node.id}`,
+            level: "warning",
+            message: `La decisión "${nodeLabel}" tiene opciones sin ruta asignada.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "decision-route-gap",
+            source: "local",
+          });
+        }
+      }
+    }
+
+    if (startNodes.length === 1) {
+      const startId = startNodes[0].id;
+      const visited = new Set<string>();
+      const visiting = new Set<string>();
+      let cycleNodeId: string | null = null;
+
+      const walk = (nodeId: string) => {
+        if (visiting.has(nodeId)) {
+          cycleNodeId = nodeId;
+          return;
+        }
+
+        if (visited.has(nodeId)) return;
+
+        visited.add(nodeId);
+        visiting.add(nodeId);
+
+        for (const edge of edges.filter((item) => item.source === nodeId)) {
+          walk(edge.target);
+        }
+
+        visiting.delete(nodeId);
+      };
+
+      walk(startId);
+
+      if (cycleNodeId) {
+        const node = nodeById.get(cycleNodeId);
+        issues.push({
+          id: `graph-cycle-${cycleNodeId}`,
+          level: "error",
+          message: node
+            ? `El flujo entra en ciclo alrededor de "${getNodeDisplayName(node)}".`
+            : "El grafo contiene un ciclo no permitido en este MVP.",
+          nodeId: node?.id,
+          nodeLabel: node ? getNodeDisplayName(node) : undefined,
+          issueType: "cycle",
+          source: "local",
+        });
+      }
+
+      for (const node of nodes) {
+        if (!visited.has(node.id)) {
+          issues.push({
+            id: `graph-unreachable-${node.id}`,
+            level: "error",
+            message: `El nodo "${getNodeDisplayName(node)}" no es alcanzable desde START.`,
+            nodeId: node.id,
+            nodeLabel: getNodeDisplayName(node),
+            issueType: "unreachable",
+            source: "local",
+          });
+        }
+      }
+    }
+
+    return issues;
+  }, [audioMap, buttonMap, edges, graphMetrics.incoming, graphMetrics.outgoing, nodes]);
+
+  const backendValidationIssues = useMemo(() => {
+    const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
+    return validation.errors.map((error) => inferBackendIssue(error, nodeLookup));
+  }, [nodes, validation.errors]);
+
+  const validationIssues = useMemo(() => {
+    const deduped = new Map<string, BuilderValidationIssue>();
+    for (const issue of [...localValidationIssues, ...backendValidationIssues]) {
+      const key = `${issue.level}:${issue.nodeId ?? "graph"}:${issue.message}`;
+      if (!deduped.has(key)) deduped.set(key, issue);
+    }
+    return Array.from(deduped.values());
+  }, [backendValidationIssues, localValidationIssues]);
+
+  const groupedValidation = useMemo(
+    () => ({
+      errors: validationIssues.filter((issue) => issue.level === "error"),
+      warnings: validationIssues.filter((issue) => issue.level === "warning"),
+      suggestions: validationIssues.filter((issue) => issue.level === "suggestion"),
+    }),
+    [validationIssues],
+  );
+
+  const effectiveValidation = useMemo(
+    () => ({
+      valid: groupedValidation.errors.length === 0,
+      errors: groupedValidation.errors,
+      warnings: groupedValidation.warnings,
+      suggestions: groupedValidation.suggestions,
+    }),
+    [groupedValidation.errors, groupedValidation.suggestions, groupedValidation.warnings],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -952,6 +1413,26 @@ try {
     setMessage("Se copió la versión publicada al borrador local.");
   }
 
+  function focusNode(nodeId: string, options?: { openEditor?: boolean }) {
+    const node = nodes.find((item) => item.id === nodeId);
+    if (!node) return;
+
+    setSelectedNodeIds([nodeId]);
+    setSelectedNodeId(nodeId);
+
+    if (options?.openEditor) {
+      setEditingNodeId(nodeId);
+    }
+
+    if (reactFlowInstance) {
+      const zoom = Math.max(reactFlowInstance.getZoom(), 0.95);
+      reactFlowInstance.setCenter(node.position.x + 120, node.position.y + 50, {
+        zoom,
+        duration: 350,
+      });
+    }
+  }
+
   const modalPanel = editingNode ? (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[32px] bg-surface-container p-6 shadow-elevation-3 border border-outline-variant">
@@ -1378,8 +1859,8 @@ if (loading) {
               <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(hasUnpublishedChanges ? "warning" : "valid")}`}>
                 {hasUnpublishedChanges ? "Cambios sin publicar" : "Draft alineado con publicada"}
               </span>
-              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(validationTone)}`}>
-                {validation.valid ? "Validación OK" : `${validation.errors.length} observación(es)`}
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(effectiveValidation.valid ? "valid" : "warning")}`}>
+                {effectiveValidation.valid ? "Validación OK" : `${validationIssues.length} observación(es)`}
               </span>
             </div>
           </div>
@@ -1446,6 +1927,7 @@ if (loading) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onInit={setReactFlowInstance}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onNodeDoubleClick={(_, node) => {
               setSelectedNodeId(node.id);
@@ -1497,7 +1979,7 @@ if (loading) {
                 Validación
               </p>
               <div className="mt-2 space-y-2 text-sm">
-                {validation.valid ? (
+                {effectiveValidation.valid ? (
                   <p className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-300">
                     <CheckCircle2 className="h-4 w-4" />
                     La narrativa está lista para publicar.
@@ -1505,16 +1987,25 @@ if (loading) {
                 ) : (
                   <p className="inline-flex items-center gap-2 text-amber-600 dark:text-amber-300">
                     <AlertCircle className="h-4 w-4" />
-                    Hay observaciones antes de publicar.
+                    Hay observaciones que conviene resolver antes de publicar.
                   </p>
                 )}
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(validationTone)}`}>
-                  {validation.valid ? "Publicable" : "Requiere revisión"}
+                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(effectiveValidation.valid ? "valid" : "warning")}`}>
+                  {effectiveValidation.valid ? "Publicable" : "Requiere revisión"}
                 </span>
                 <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(hasUnsavedChanges ? "warning" : "valid")}`}>
                   {hasUnsavedChanges ? "Pendiente de guardar" : "Sin cambios locales pendientes"}
+                </span>
+                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(groupedValidation.errors.length > 0 ? "error" : "valid")}`}>
+                  {groupedValidation.errors.length} error(es)
+                </span>
+                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName(groupedValidation.warnings.length > 0 ? "warning" : "valid")}`}>
+                  {groupedValidation.warnings.length} advertencia(s)
+                </span>
+                <span className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${badgeClassName("info")}`}>
+                  {groupedValidation.suggestions.length} sugerencia(s)
                 </span>
               </div>
             </div>
@@ -1558,16 +2049,100 @@ if (loading) {
             </div>
           </div>
 
-          {!validation.valid && validation.errors.length > 0 && (
-            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
-              <p className="mb-1 font-semibold">Correcciones pendientes</p>
-              <ul className="list-disc space-y-1 pl-5">
-                {validation.errors.map((error) => (
-                  <li key={error}>{error}</li>
-                ))}
-              </ul>
+          <div className="mt-3 rounded-2xl border border-outline-variant bg-surface px-4 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                  Panel de validación
+                </p>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Cada issue permite enfocar el nodo y abrir su modal si aplica.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void validateGraph()}
+                disabled={working}
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
+              >
+                <WandSparkles className="h-3.5 w-3.5" />
+                Revalidar
+              </button>
             </div>
-          )}
+
+            <div className="mt-4 grid gap-3 xl:grid-cols-3">
+              {([
+                ["Errores críticos", groupedValidation.errors, "error"],
+                ["Advertencias", groupedValidation.warnings, "warning"],
+                ["Sugerencias", groupedValidation.suggestions, "suggestion"],
+              ] as const).map(([title, issues, level]) => (
+                <div key={title} className="rounded-2xl border border-outline-variant bg-surface-container px-3 py-3">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-on-surface">{title}</p>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClassName(issueTone(level))}`}>
+                      {issues.length}
+                    </span>
+                  </div>
+
+                  {issues.length === 0 ? (
+                    <p className="text-xs text-on-surface-variant">
+                      {level === "error"
+                        ? "Sin bloqueos de publicación."
+                        : level === "warning"
+                          ? "Sin advertencias activas."
+                          : "Sin sugerencias por ahora."}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {issues.map((issue) => {
+                        const Icon = issueIcon(issue.level);
+
+                        return (
+                          <div
+                            key={issue.id}
+                            className="rounded-xl border border-outline-variant bg-surface px-3 py-3"
+                          >
+                            <div className="flex items-start gap-2">
+                              <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm text-on-surface">{issue.message}</p>
+                                <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-on-surface-variant">
+                                  <span>{issue.issueType}</span>
+                                  {issue.nodeLabel ? <span>{issue.nodeLabel}</span> : null}
+                                  <span>{issue.source === "backend" ? "backend" : "builder"}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {issue.nodeId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => focusNode(issue.nodeId!)}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                                >
+                                  Ir al nodo
+                                </button>
+                              ) : null}
+                              {issue.nodeId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => focusNode(issue.nodeId!, { openEditor: true })}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                                >
+                                  Editar nodo
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
