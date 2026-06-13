@@ -25,7 +25,8 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - Hito 0 completado y respaldado en feature + `dev`.
 - Hito 1 completado y respaldado en feature + `dev`.
 - Hito 2 completado y respaldado en feature + `dev`.
-- Hito 3 implementado en la rama feature, pendiente de commit e integración a `dev`.
+- Hito 3 completado y respaldado en feature + `dev`.
+- Hito 4 implementado en la rama feature, pendiente de commit e integración a `dev`.
 - Checks ejecutados sobre el estado actual:
   - `npm --prefix frontend run build`
   - `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
@@ -175,21 +176,39 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - El modal incorpora un resumen de issues específicos del nodo en edición.
 - Los nodos `AUDIO` y `AUDIO_BUTTON` muestran estado visible del recurso asociado dentro del modal.
 
+### Hito 4
+- `DECISION.options` ahora se normaliza a estructura compatible:
+  - `id`
+  - `label`
+  - `description`
+- El builder sigue leyendo formatos legacy:
+  - string separado por `|`
+  - arreglo simple
+  - arreglo de objetos
+- El modal de `DECISION` ahora permite:
+  - agregar opciones
+  - editar label
+  - editar descripción
+  - eliminar opciones
+  - reordenar opciones
+- Las rutas del `DECISION` siguen siendo compatibles con el player actual usando `edge.label`.
+- El builder ahora valida cobertura entre opciones y labels de salidas existentes.
+
 ## Trabajo en progreso
-- Push y cierre documental del Hito 3.
+- Commit, push e integración a `dev` del Hito 4.
 
 ## Pendientes
 - Formalizar panel de validación con errores, advertencias y sugerencias.
 - Añadir resúmenes visuales útiles por tipo de nodo en el canvas.
 - Mejorar la visibilidad del estado de draft/publicada dentro del builder.
-- Normalizar `DECISION.options` sin romper datos legacy ni player.
+- Evaluar una fase posterior para `sourceOptionId` en edges si se necesita relación explícita opción-ruta.
 - Reemplazar en una fase posterior la inferencia local/backend por un contrato de issues tipado y compartido.
 
 ## Riesgos detectados
 - El backend sigue devolviendo `validation: { valid, errors[] }`; Hito 2 resuelve UX con una capa local, pero el contrato aún no es rico.
 - `FlowNodeData` es laxo y hoy mezcla contratos de nodos distintos; la limpieza grande debe quedar para Hito 7.
 - `PAUSE` tiene coexistencia de `pauseType` y `manual`; cualquier mejora debe respetar ambas formas por compatibilidad.
-- `DECISION.options` sigue siendo string legacy; moverlo a estructura tipada sin capa intermedia rompería compatibilidad.
+- `DECISION` todavía depende implícitamente de `edge.label` para alinear opciones y rutas; la relación aún no es explícita en el modelo.
 - El frontend hoy muestra IDs de audio y botón en varias vistas; Hito 1 debe preferir nombres sin alterar persistencia.
 
 ## Compatibilidad con narrativas existentes
@@ -225,15 +244,15 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 5. Antes de commitear, actualizar ambos documentos con el estado real.
 
 ## Último commit realizado
-- `e7ae699` - `feat(narratives-builder): improve node configuration modals` en feature
-- `f7ada79` - `feat(narratives-builder): improve node configuration modals` en `dev`
+- `c753606` - `fix(narratives-builder): move validation panel into drawer` en feature
+- `931217e` - `docs(narratives): sync hito 3 implementation log` en `dev`
 
 ## Último push realizado
-- `feature/narratives-builder-upgrade` empujada con Hito 0.
-- `dev` actualizado con merge de Hito 1 en `83829a5`.
+- `feature/narratives-builder-upgrade` actualizada hasta `c753606`.
+- `dev` actualizado hasta `931217e`.
 
 ## Próximo hito recomendado
-- Cerrar Hito 3 en Git y pasar a Hito 4: normalización compatible de `DECISION.options`.
+- Cerrar Hito 4 en Git y pasar a Hito 5: publicación segura desde el editor.
 
 ## Comandos útiles para correr el proyecto
 - `npm --prefix frontend run dev`

@@ -94,7 +94,7 @@ Próximo hito:
 Fecha: 2026-06-13
 Rama: `feature/narratives-builder-upgrade`
 Commit: `e7ae699` en feature, `f7ada79` en `dev`
-Push: pendiente
+Push: `origin/feature/narratives-builder-upgrade`, `origin/dev`
 Resumen:
 - Se reorganizó el modal por secciones lógicas para cada tipo de nodo.
 - Se añadió un bloque de validación contextual dentro del popup.
@@ -114,7 +114,37 @@ Riesgos:
 - El modal sigue editando el contrato legacy del nodo; la normalización profunda queda para hitos posteriores.
 - `DECISION` todavía usa edición de opciones por texto separado por `|`.
 Pendientes:
-- Push de feature.
-- Push de `dev`.
+- Ninguno dentro del alcance del hito.
 Próximo hito:
 - Hito 4
+
+## Hito 4
+
+Fecha: 2026-06-13
+Rama: `feature/narratives-builder-upgrade`
+Commit: pendiente
+Push: pendiente
+Resumen:
+- Se normalizó `DECISION.options` a objetos con `id`, `label` y `description`.
+- El builder mantiene compatibilidad con formatos legacy previos.
+- El modal de `DECISION` ahora soporta agregar, editar, eliminar y reordenar opciones.
+- Las opciones y las rutas siguen compatibles con el player actual mediante `edge.label`.
+- La validación ahora detecta desalineaciones entre opciones y rutas conectadas.
+Archivos modificados:
+- `frontend/src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+- `docs/narratives-builder-context.md`
+- `docs/narratives-builder-implementation-log.md`
+Checks ejecutados:
+- `npm --prefix frontend run build`
+- `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
+Resultado de checks:
+- `frontend build`: OK
+- `frontend lint` sobre el archivo del builder: OK
+Riesgos:
+- La relación opción-ruta sigue siendo implícita por `edge.label`, no por `sourceOptionId`.
+- El backend todavía no valida estructura enriquecida de opciones, solo la forma general del grafo.
+Pendientes:
+- Commit y push del Hito 4.
+- Integración de Hito 4 a `dev`.
+Próximo hito:
+- Hito 5
