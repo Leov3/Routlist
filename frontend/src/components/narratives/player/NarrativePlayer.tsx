@@ -1123,9 +1123,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                   ) : actionNode.type === "SCRIPT_TEXT" ? (
                     <div className="space-y-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto para leer</p>
+                      <div className="flex flex-wrap gap-2 text-[11px]">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
+                          {boolLabel(isRequiredNode, "Lectura requerida", "Lectura opcional")}
+                        </span>
+                      </div>
                       <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
                         {String(actionNode.data?.body ?? "Sin contenido")}
                       </p>
+                      {operatorNotes ? (
+                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
+                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+                        </div>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => void copyScriptText()}
@@ -1138,9 +1149,17 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                   ) : actionNode.type === "INSTRUCTION" ? (
                     <div className="space-y-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Instrucción operativa</p>
-                      <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-                        {String(actionNode.data?.instruction ?? "Sin instrucción")}
-                      </p>
+                      <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-4">
+                        <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
+                          {String(actionNode.data?.instruction ?? "Sin instrucción")}
+                        </p>
+                      </div>
+                      {operatorNotes ? (
+                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
+                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
+                        </div>
+                      ) : null}
                     </div>
                   ) : actionNode.type === "PAUSE" ? (
                     <div className="space-y-3">
@@ -1156,6 +1175,18 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                           {pauseRemainingSeconds > 0
                             ? `Continuar disponible en ${pauseRemainingSeconds}s`
                             : "Puedes continuar"}
+                        </div>
+                      ) : null}
+                      {(actionNode.data?.manual === false || actionNode.data?.pauseType === "timer") &&
+                      pauseRemainingSeconds === null ? (
+                        <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-700 dark:text-amber-300">
+                          La duración no es válida. Se mantiene fallback manual para continuar de forma segura.
+                        </div>
+                      ) : null}
+                      {operatorNotes ? (
+                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
+                          <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
                         </div>
                       ) : null}
                     </div>

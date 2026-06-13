@@ -172,10 +172,10 @@ Rama:
 feature/narratives-player-canvas
 
 Commit:
-Pendiente
+98ec465
 
 Push:
-Pendiente
+origin/feature/narratives-player-canvas
 
 Resumen:
 Se refuerza la operación contextual de `AUDIO` y `AUDIO_BUTTON` con metadata visible, notas y mensajes claros de recurso faltante o inaccesible.
@@ -216,22 +216,26 @@ Push:
 Pendiente
 
 Resumen:
-Pendiente.
+Se mejora la experiencia contextual de `SCRIPT_TEXT`, `INSTRUCTION` y `PAUSE` con lectura clara, copia, notas y fallback seguro para pausas temporizadas inválidas.
 
 Archivos modificados:
-- Pendiente
+- `frontend/src/components/narratives/player/NarrativePlayer.tsx`
+- `docs/narratives-player-context.md`
+- `docs/narratives-player-implementation-log.md`
 
 Checks ejecutados:
-- Pendiente
+- `npm --prefix frontend run build`
 
 Resultado:
-- Pendiente
+- `SCRIPT_TEXT` ya es utilizable para operación.
+- `INSTRUCTION` se diferencia de guion.
+- `PAUSE` no queda ambigua cuando falla la duración.
 
 Riesgos:
-- Pendiente
+- `DECISION` sigue pendiente para que el canvas se comporte como flujo guiado completo.
 
 Pendientes:
-- Implementar Hito 5.
+- Implementar Hito 6.
 
 Próximo hito:
-- `feat(narratives-player): support text instruction and pause nodes`
+- `feat(narratives-player): support decision routing in canvas player`
