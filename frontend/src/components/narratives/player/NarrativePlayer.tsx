@@ -65,6 +65,13 @@ type NodeMeta = NarrativeGraphNode & {
   data?: Record<string, unknown>;
 };
 
+type ContextMenuState = {
+  isOpen: boolean;
+  x: number;
+  y: number;
+  nodeId: string | null;
+};
+
 type PlayerFlowNodeData = {
   label: string;
   summary: string;
@@ -274,6 +281,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [buttonDetailsError, setButtonDetailsError] = useState<string | null>(null);
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
 
   const handleApiError = useCallback((error: unknown, fallbackMessage: string) => {
     if (error instanceof ApiError) {
@@ -594,6 +602,17 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionNodeIsInteractive, actionNode, currentButtonDetails]);
+
+  useEffect(() => {
+    if (!contextMenu.isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [contextMenu.isOpen]);
 
   async function syncCurrentNode(nextNodeId: string, eventType: NarrativeRunEventType, payload?: Record<string, unknown>) {
     if (!run) return;
@@ -1224,7 +1243,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 nodes={flowNodes}
                 edges={flowEdges}
                 nodeTypes={playerNodeTypes}
-                onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+                onNodeClick={(_, node) => {
+                  setSelectedNodeId(node.id);
+                  setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+                }}
+                onNodeContextMenu={(e, node) => {
+                  e.preventDefault();
+                  // Prevenir salirse de la pantalla aproximando anchos (w-80 = 320px)
+                  const safeX = Math.min(e.clientX, typeof window !== "undefined" ? window.innerWidth - 340 : e.clientX);
+                  const safeY = Math.min(e.clientY, typeof window !== "undefined" ? window.innerHeight - 400 : e.clientY);
+                  setContextMenu({ isOpen: true, x: safeX, y: safeY, nodeId: node.id });
+                }}
+                onPaneClick={() => {
+                  setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+                }}
                 onInit={(instance) => {
                   reactFlowRef.current = instance;
                   queueMicrotask(() => instance.fitView({ padding: 0.2, duration: 500 }));
@@ -1262,6 +1294,49 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 <Controls showInteractive={false} className="!bg-surface" />
                 <Background color="rgba(148,163,184,0.16)" gap={20} size={1.1} />
               </ReactFlow>
+
+              {/* CONTEXTUAL POPOVER MENU */}
+              {contextMenu.isOpen && contextMenu.nodeId && (
+                <div
+                  className="fixed z-50 w-80 overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-elevation-3"
+                  style={{ top: contextMenu.y, left: contextMenu.x }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {(() => {
+                    const ctxNode = nodeMap.get(contextMenu.nodeId);
+                    if (!ctxNode) return null;
+                    const status = nodeStates.get(ctxNode.id) ?? "locked";
+                    
+                    return (
+                      <div className="flex flex-col">
+                        <div className="flex items-center justify-between border-b border-outline-variant bg-surface-container px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${status === "current" ? "bg-primary animate-pulse" : status === "completed" ? "bg-emerald-400" : "bg-slate-500"}`} />
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
+                              {ctxNode.type}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null })}
+                            className="text-on-surface-variant hover:text-on-surface"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="p-4">
+                          <h4 className="font-semibold text-on-surface">{nodeLabel(ctxNode)}</h4>
+                          <p className="mt-1 text-sm text-on-surface-variant">{nodeSummary(ctxNode)}</p>
+                          
+                          <div className="mt-4 rounded-xl border border-dashed border-outline-variant bg-surface-container px-3 py-4 text-center text-xs text-on-surface-variant">
+                            Las acciones específicas de este nodo (reproducir, elegir, etc.) se inyectarán en el Hito 4.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </section>
 
