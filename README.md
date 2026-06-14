@@ -68,6 +68,9 @@ Estado funcional actual:
 - En modo dual, cada lado tiene búsqueda, filtros y scroll independientes.
 - Cuando hay muchas tarjetas, el contenido usa scroll interno sin mover el player.
 - El encabezado de `/board` quedó simplificado y muestra solo `/Botonera` junto al selector de vista.
+- Existe `/admin/integraciones` para configurar ElevenLabs por organización.
+- La API key de ElevenLabs se guarda cifrada en backend y nunca se expone completa al frontend.
+- La configuración de ElevenLabs es persistente por organización en PostgreSQL.
 - La opción y la pantalla de almacenamiento en el dashboard solo se muestran a `OWNER`.
 - `OWNER` funciona como super admin global y puede cambiar la organización activa desde `/admin/organizations`.
 - `ADMIN`, `SUPERVISOR` y `OPERATOR` siguen limitados a su organización activa.
@@ -279,6 +282,7 @@ Estos datos deben sobrevivir a commits, pulls, builds y redeploys normales:
 - favoritos
 - historial de reproduccion
 - configuraciones operativas del panel
+- configuraciones de integraciones externas por organización, como ElevenLabs
 
 Lo unico que debe cambiar en un deploy normal es el codigo. Si una tarea requiere borrar datos, debe hacerse de forma manual y deliberada, nunca por el flujo de despliegue.
 
@@ -319,6 +323,7 @@ ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh rollback
 
 ## Documentacion relacionada
 
+- [`docs/integrations-elevenlabs.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/docs/integrations-elevenlabs.md)
 - `backend/README.md`
 - `frontend/README.md`
 - `frontend/AGENTS.md`
