@@ -343,8 +343,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     const depthById = new Map<string, number>();
     const positions = new Map<string, LayoutPosition>();
     const sortedNodeIds = [...flowNodeIds].sort((a, b) => a.localeCompare(b));
-    const availableXByDepth = new Map<number, number>();
-    const instructionGroups = new Map<string, NodeMeta[]>();
 
     for (const nodeId of sortedNodeIds) {
       childrenById.set(nodeId, []);
@@ -393,6 +391,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     const maxWidth = Math.max(...nodes.map((node) => getPlayerNodeSize(node).width), 320);
     const minStepX = Math.max(maxWidth + 120, PLAYER_LAYOUT_GAP.x) * distancePreset.xScale;
     const minStepY = Math.max(220, PLAYER_LAYOUT_GAP.y) * distancePreset.yScale;
+    const rowEntries = new Map<number, Array<{ nodeId: string; width: number; desiredX: number }>>();
 
     for (let depth = maxDepth; depth >= 0; depth -= 1) {
       const row = nodesByDepth.get(depth) ?? [];
@@ -403,8 +402,10 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         if (!node) continue;
         const size = getPlayerNodeSize(node);
         const children = (childrenById.get(nodeId) ?? []).filter((childId) => flowNodeIds.has(childId));
-        let x: number;
+        const entry = rowEntries.get(depth) ?? [];
+        rowEntries.set(depth, entry);
 
+        let desiredX = entry.length * minStepX;
         if (children.length) {
           const childCenters = children
             .map((childId) => {
@@ -415,19 +416,36 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             })
             .filter((value): value is number => value !== null);
           if (childCenters.length) {
-            x = childCenters.reduce((sum, value) => sum + value, 0) / childCenters.length - size.width / 2;
-          } else {
-            x = (availableXByDepth.get(depth) ?? 0) * minStepX;
+            desiredX = childCenters.reduce((sum, value) => sum + value, 0) / childCenters.length - size.width / 2;
           }
         } else {
-          x = (availableXByDepth.get(depth) ?? 0) * minStepX;
+          const parentCenters = (parentsById.get(nodeId) ?? [])
+            .map((parentId) => {
+              const parentPosition = positions.get(parentId);
+              const parentNode = nodeById.get(parentId);
+              if (!parentPosition || !parentNode) return null;
+              return parentPosition.x + getPlayerNodeSize(parentNode).width / 2;
+            })
+            .filter((value): value is number => value !== null);
+          if (parentCenters.length) {
+            desiredX = parentCenters.reduce((sum, value) => sum + value, 0) / parentCenters.length - size.width / 2;
+          }
         }
 
-        const previousX = availableXByDepth.get(depth) ?? 0;
-        const proposedIndex = Math.max(previousX, Math.round(x / minStepX));
-        x = proposedIndex * minStepX;
-        availableXByDepth.set(depth, proposedIndex + 1);
-        positions.set(nodeId, { x, y: depth * minStepY });
+        entry.push({ nodeId, width: size.width, desiredX });
+      }
+    }
+
+    for (const [depth, row] of rowEntries.entries()) {
+      row.sort((a, b) => a.desiredX - b.desiredX || a.nodeId.localeCompare(b.nodeId));
+      let cursorX = 0;
+      for (const entry of row) {
+        const node = nodeById.get(entry.nodeId);
+        if (!node) continue;
+        const width = entry.width;
+        const x = Math.max(entry.desiredX, cursorX);
+        positions.set(entry.nodeId, { x, y: depth * minStepY });
+        cursorX = x + width + minStepX * 0.35;
       }
     }
 
@@ -451,12 +469,23 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       const sourceWidth = sourceNode ? getPlayerNodeSize(sourceNode).width : maxWidth;
       instructionNodes.sort((a, b) => a.id.localeCompare(b.id));
       instructionNodes.forEach((node, index) => {
+        const sourceOriginal = nodeById.get(sourceId)?.position;
+        const instructionOriginal = node.position;
+        const relativeX = sourceOriginal && instructionOriginal ? instructionOriginal.x - sourceOriginal.x : sourceWidth + PLAYER_LAYOUT_GAP.annotationX;
+        const relativeY = sourceOriginal && instructionOriginal ? instructionOriginal.y - sourceOriginal.y : index * PLAYER_LAYOUT_GAP.annotationY;
         positions.set(node.id, {
-          x: sourcePosition.x + sourceWidth + PLAYER_LAYOUT_GAP.annotationX,
-          y: sourcePosition.y + index * PLAYER_LAYOUT_GAP.annotationY,
+          x: sourcePosition.x + relativeX * distancePreset.xScale,
+          y: sourcePosition.y + relativeY * distancePreset.yScale,
         });
       });
     }
+
+    const rowWidths = Array.from(rowEntries.entries()).map(([depth, row]) => ({
+      depth,
+      width: row.reduce((sum, entry) => sum + entry.width, 0) + Math.max(0, row.length - 1) * minStepX * 0.35,
+    }));
+    const widestRow = Math.max(...rowWidths.map((row) => row.width), minStepX);
+    const centeredOffset = widestRow / 2;
 
     const boxes = Array.from(positions.entries())
       .map(([nodeId, position]) => {
@@ -476,7 +505,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     if (boxes.length) {
       for (const [nodeId, position] of positions.entries()) {
         positions.set(nodeId, {
-          x: position.x - centerOffsetX,
+          x: position.x - centerOffsetX + centeredOffset,
           y: position.y,
         });
       }
