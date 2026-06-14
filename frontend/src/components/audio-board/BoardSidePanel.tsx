@@ -20,6 +20,7 @@ export function BoardSidePanel({
   recentIds,
   activeButtonId,
   onPlay,
+  onStop,
   onToggleFavorite,
   onOpenDetails,
   onSwapSides,
@@ -36,6 +37,7 @@ export function BoardSidePanel({
   recentIds: string[];
   activeButtonId: string | null;
   onPlay: (button: BoardButton) => void;
+  onStop: () => void;
   onToggleFavorite: (button: BoardButton) => void;
   onOpenDetails: (button: BoardButton) => void;
   onSwapSides: () => void;
@@ -147,6 +149,7 @@ export function BoardSidePanel({
                 isFavorite={favoriteIds.includes(button.id)}
                 density={density}
                 onPlay={onPlay}
+                onStop={onStop}
                 onToggleFavorite={onToggleFavorite}
                 onOpenDetails={onOpenDetails}
               />

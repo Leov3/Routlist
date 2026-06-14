@@ -9,10 +9,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const corsOrigins = configService.get<string[]>('cors.origins') ?? [];
+  const corsOrigin = corsOrigins.includes('*') ? true : corsOrigins;
 
   app.use(cookieParser());
   app.enableCors({
-    origin: corsOrigins,
+    origin: corsOrigin,
     credentials: true,
   });
   app.useGlobalPipes(

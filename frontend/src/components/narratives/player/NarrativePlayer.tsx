@@ -40,7 +40,9 @@ import type {
   NarrativeRunDetail,
   NarrativeRunEventType,
 } from "@/types/narratives";
+import type { BoardAudioButton } from "@/types/routlis";
 import { ApiError } from "@/lib/api";
+import { AudioButtonDetailsModal } from "@/components/audio-board/AudioButtonDetailsModal";
 import {
   NarrativePlayerContext,
   playerNodeTypes,
@@ -68,6 +70,62 @@ type ContextMenuState = {
   y: number;
   nodeId: string | null;
 };
+
+type LayoutDistancePreset = {
+  id: string;
+  label: string;
+  xScale: number;
+  yScale: number;
+};
+
+type LayoutBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type LayoutPosition = {
+  x: number;
+  y: number;
+};
+
+type NarrativePlayerPreferences = {
+  playerDistance?: string;
+  playerViewportX?: number;
+  playerViewportY?: number;
+  playerViewportZoom?: number;
+};
+
+const PLAYER_DISTANCE_PRESETS: LayoutDistancePreset[] = [
+  { id: "compact", label: "Cerca", xScale: 0.92, yScale: 1.22 },
+  { id: "tight", label: "Tenso", xScale: 1.08, yScale: 1.42 },
+  { id: "normal", label: "Normal", xScale: 1.22, yScale: 1.68 },
+  { id: "wide", label: "Amplio", xScale: 1.35, yScale: 1.88 },
+  { id: "max", label: "Máximo", xScale: 1.45, yScale: 2.05 },
+];
+
+const PLAYER_NODE_SIZES: Record<string, { width: number; height: number }> = {
+  START: { width: 220, height: 88 },
+  END: { width: 220, height: 88 },
+  AUDIO: { width: 280, height: 150 },
+  AUDIO_BUTTON: { width: 280, height: 150 },
+  SCRIPT_TEXT: { width: 320, height: 200 },
+  INSTRUCTION: { width: 300, height: 190 },
+  PAUSE: { width: 240, height: 120 },
+  DECISION: { width: 320, height: 180 },
+};
+
+const PLAYER_LAYOUT_GAP = {
+  x: 380,
+  y: 280,
+  annotationX: 340,
+  annotationY: 210,
+};
+
+function getPlayerNodeSize(node: NodeMeta) {
+  return PLAYER_NODE_SIZES[node.type] ?? { width: 280, height: 160 };
+}
 
 function readGraph(graphJson?: NarrativeGraphJson | null) {
   const nodes = Array.isArray(graphJson?.nodes) ? graphJson!.nodes : [];
@@ -149,6 +207,10 @@ function findOutgoingEdges(nodeId: string, edges: NarrativeGraphEdge[]) {
   return edges.filter((edge) => edge.source === nodeId);
 }
 
+function findIncomingEdges(nodeId: string, edges: NarrativeGraphEdge[]) {
+  return edges.filter((edge) => edge.target === nodeId);
+}
+
 function isAnnotationNodeType(type?: NarrativeNodeType) {
   return type === "INSTRUCTION";
 }
@@ -217,6 +279,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance<Node<PlayerFlowNodeData>, Edge> | null>(null);
+  const hasFitViewRef = useRef(false);
   const [run, setRun] = useState<NarrativeRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -227,11 +290,15 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [audioButtonDetailsById, setAudioButtonDetailsById] = useState<Record<string, AudioButtonDetail>>({});
   const [currentButtonDetails, setCurrentButtonDetails] = useState<AudioButtonDetail | null>(null);
   const [buttonDetailsError, setButtonDetailsError] = useState<string | null>(null);
+  const [buttonBoardModalButton, setButtonBoardModalButton] = useState<BoardAudioButton | null>(null);
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
   const [showBottomDock, setShowBottomDock] = useState(false);
   const [showActivityDock, setShowActivityDock] = useState(false);
+  const [distancePresetId, setDistancePresetId] = useState<string>("max");
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 0.8 });
 
   const handleApiError = useCallback((error: unknown, fallbackMessage: string) => {
     if (error instanceof ApiError) {
@@ -258,42 +325,171 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const currentNode = run?.currentNodeId ? nodeMap.get(run.currentNodeId) : undefined;
   const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : undefined;
   const actionNode = selectedNode ?? currentNode;
+  const uiCurrentNodeId = selectedNodeId ?? run?.currentNodeId ?? null;
 
-  const playerLayoutOrigin = useMemo(() => {
-    const positionedNodes = nodes.filter((node) => node.position);
-    if (!positionedNodes.length) return { x: 0, y: 0 };
-    return {
-      x: Math.min(...positionedNodes.map((node) => node.position?.x ?? 0)),
-      y: Math.min(...positionedNodes.map((node) => node.position?.y ?? 0)),
+  const distancePreset = useMemo(
+    () => PLAYER_DISTANCE_PRESETS.find((preset) => preset.id === distancePresetId) ?? PLAYER_DISTANCE_PRESETS[PLAYER_DISTANCE_PRESETS.length - 1],
+    [distancePresetId],
+  );
+
+  const layoutPositions = useMemo(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+    const root = nodes.find((node) => node.type === "START") ?? nodes[0];
+    const flowNodeIds = new Set(
+      nodes.filter((node) => node.type !== "INSTRUCTION").map((node) => node.id),
+    );
+    const childrenById = new Map<string, string[]>();
+    const parentsById = new Map<string, string[]>();
+    const depthById = new Map<string, number>();
+    const positions = new Map<string, LayoutPosition>();
+    const sortedNodeIds = [...flowNodeIds].sort((a, b) => a.localeCompare(b));
+    const availableXByDepth = new Map<number, number>();
+    const instructionGroups = new Map<string, NodeMeta[]>();
+
+    for (const nodeId of sortedNodeIds) {
+      childrenById.set(nodeId, []);
+      parentsById.set(nodeId, []);
+    }
+
+    for (const edge of executionEdges) {
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      if (!source || !target || source.type === "INSTRUCTION" || target.type === "INSTRUCTION") continue;
+      const children = childrenById.get(source.id) ?? [];
+      if (!children.includes(target.id)) children.push(target.id);
+      childrenById.set(source.id, children);
+      const parents = parentsById.get(target.id) ?? [];
+      if (!parents.includes(source.id)) parents.push(source.id);
+      parentsById.set(target.id, parents);
+    }
+
+    const assignDepth = (nodeId: string, nextDepth: number, trail = new Set<string>()) => {
+      const current = depthById.get(nodeId);
+      if (current === undefined || nextDepth > current) {
+        depthById.set(nodeId, nextDepth);
+      }
+      if (trail.has(nodeId)) return;
+      trail.add(nodeId);
+      for (const childId of childrenById.get(nodeId) ?? []) {
+        assignDepth(childId, nextDepth + 1, trail);
+      }
+      trail.delete(nodeId);
     };
-  }, [nodes]);
 
-  const playerNodePosition = useCallback((node: NodeMeta, index = 0) => {
-    const sourcePosition = node.position ?? { x: index * 360, y: index * 260 };
-    return {
-      x: (sourcePosition.x - playerLayoutOrigin.x) * 1.45,
-      y: (sourcePosition.y - playerLayoutOrigin.y) * 2.05,
-    };
-  }, [playerLayoutOrigin]);
+    if (root) assignDepth(root.id, 0);
+    for (const nodeId of sortedNodeIds) {
+      if (!depthById.has(nodeId)) assignDepth(nodeId, 0);
+    }
 
-  const centerNode = useCallback((node?: NodeMeta) => {
-    if (!reactFlowRef.current || !node?.position) return;
-    const position = playerNodePosition(node);
-    reactFlowRef.current.setCenter(position.x + 150, position.y + 90, {
-      zoom: Math.max(reactFlowRef.current.getZoom(), 0.9),
-      duration: 500,
-    });
-  }, [playerNodePosition]);
+    const nodesByDepth = new Map<number, string[]>();
+    for (const nodeId of sortedNodeIds) {
+      const depth = depthById.get(nodeId) ?? 0;
+      const bucket = nodesByDepth.get(depth) ?? [];
+      bucket.push(nodeId);
+      nodesByDepth.set(depth, bucket);
+    }
+
+    const maxDepth = Math.max(...Array.from(nodesByDepth.keys()), 0);
+    const maxWidth = Math.max(...nodes.map((node) => getPlayerNodeSize(node).width), 320);
+    const minStepX = Math.max(maxWidth + 120, PLAYER_LAYOUT_GAP.x) * distancePreset.xScale;
+    const minStepY = Math.max(220, PLAYER_LAYOUT_GAP.y) * distancePreset.yScale;
+
+    for (let depth = maxDepth; depth >= 0; depth -= 1) {
+      const row = nodesByDepth.get(depth) ?? [];
+      row.sort((a, b) => a.localeCompare(b));
+
+      for (const nodeId of row) {
+        const node = nodeById.get(nodeId);
+        if (!node) continue;
+        const size = getPlayerNodeSize(node);
+        const children = (childrenById.get(nodeId) ?? []).filter((childId) => flowNodeIds.has(childId));
+        let x: number;
+
+        if (children.length) {
+          const childCenters = children
+            .map((childId) => {
+              const childPosition = positions.get(childId);
+              const childNode = nodeById.get(childId);
+              if (!childPosition || !childNode) return null;
+              return childPosition.x + getPlayerNodeSize(childNode).width / 2;
+            })
+            .filter((value): value is number => value !== null);
+          if (childCenters.length) {
+            x = childCenters.reduce((sum, value) => sum + value, 0) / childCenters.length - size.width / 2;
+          } else {
+            x = (availableXByDepth.get(depth) ?? 0) * minStepX;
+          }
+        } else {
+          x = (availableXByDepth.get(depth) ?? 0) * minStepX;
+        }
+
+        const previousX = availableXByDepth.get(depth) ?? 0;
+        const proposedIndex = Math.max(previousX, Math.round(x / minStepX));
+        x = proposedIndex * minStepX;
+        availableXByDepth.set(depth, proposedIndex + 1);
+        positions.set(nodeId, { x, y: depth * minStepY });
+      }
+    }
+
+    const annotationBySource = new Map<string, NodeMeta[]>();
+    for (const node of nodes) {
+      if (node.type !== "INSTRUCTION") continue;
+      const incoming = findIncomingEdges(node.id, edges)
+        .map((edge) => nodeById.get(edge.source))
+        .filter((source): source is NodeMeta => Boolean(source && source.type !== "INSTRUCTION"));
+      const source = incoming[0] ?? root;
+      if (!source) continue;
+      const bucket = annotationBySource.get(source.id) ?? [];
+      bucket.push(node);
+      annotationBySource.set(source.id, bucket);
+    }
+
+    for (const [sourceId, instructionNodes] of annotationBySource.entries()) {
+      const sourcePosition = positions.get(sourceId);
+      if (!sourcePosition) continue;
+      const sourceNode = nodeById.get(sourceId);
+      const sourceWidth = sourceNode ? getPlayerNodeSize(sourceNode).width : maxWidth;
+      instructionNodes.sort((a, b) => a.id.localeCompare(b.id));
+      instructionNodes.forEach((node, index) => {
+        positions.set(node.id, {
+          x: sourcePosition.x + sourceWidth + PLAYER_LAYOUT_GAP.annotationX,
+          y: sourcePosition.y + index * PLAYER_LAYOUT_GAP.annotationY,
+        });
+      });
+    }
+
+    const boxes = Array.from(positions.entries())
+      .map(([nodeId, position]) => {
+        const node = nodeById.get(nodeId);
+        if (!node) return null;
+        const size = getPlayerNodeSize(node);
+        return {
+          left: position.x,
+          right: position.x + size.width,
+        };
+      })
+      .filter((value): value is { left: number; right: number } => value !== null);
+    const minLeft = boxes.length ? Math.min(...boxes.map((box) => box.left)) : 0;
+    const maxRight = boxes.length ? Math.max(...boxes.map((box) => box.right)) : 0;
+    const centerOffsetX = (minLeft + maxRight) / 2;
+
+    if (boxes.length) {
+      for (const [nodeId, position] of positions.entries()) {
+        positions.set(nodeId, {
+          x: position.x - centerOffsetX,
+          y: position.y,
+        });
+      }
+    }
+
+    return positions;
+  }, [distancePreset.xScale, distancePreset.yScale, edges, executionEdges, nodes]);
 
   useEffect(() => {
-    if (currentNode?.id && currentNode.id !== selectedNodeId) {
+    if (!selectedNodeId && currentNode?.id) {
       setSelectedNodeId(currentNode.id);
     }
   }, [currentNode?.id, selectedNodeId]);
-
-  useEffect(() => {
-    centerNode(currentNode);
-  }, [centerNode, currentNode]);
 
   const audioButtonIds = useMemo(() => {
     const ids = new Set<string>();
@@ -450,9 +646,41 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     return states;
   }, [availableIds, completedIds, executionEdges, nodes, run?.currentNodeId, selectedDecisionTargets, skippedIds]);
 
+  const flowNodes = useMemo<Node<PlayerFlowNodeData>[]>(() => {
+    return nodes.map((node, index) => ({
+      id: node.id,
+      type: node.type || "narrativeNode",
+      position: layoutPositions.get(node.id)
+        ? { x: layoutPositions.get(node.id)!.x, y: layoutPositions.get(node.id)!.y }
+        : { x: index * PLAYER_LAYOUT_GAP.x, y: index * PLAYER_LAYOUT_GAP.y },
+      draggable: false,
+      selectable: true,
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
+      data: {
+        id: node.id,
+        label: nodeLabel(node),
+        summary: nodeSummary(node),
+        status: nodeStates.get(node.id) ?? "locked",
+        type: node.type,
+        nodeData: node.data,
+        audioButtonId: node.data?.audioButtonId as string | undefined,
+        audioAssetId: node.data?.audioAssetId as string | undefined,
+        audioButtonDetail: node.data?.audioButtonId ? audioButtonDetailsById[String(node.data.audioButtonId)] ?? null : null,
+        isRequired: node.data?.required !== false,
+        decisionChoices: node.type === "DECISION"
+          ? findOutgoingEdges(node.id, executionEdges).map((edge, choiceIndex) => ({
+              label: edge.label?.trim() || readDecisionLabels(node.data?.options)[choiceIndex] || "Opción",
+              targetNodeId: edge.target,
+            }))
+          : undefined,
+      },
+    }));
+  }, [audioButtonDetailsById, executionEdges, layoutPositions, nodeStates, nodes]);
+
   const currentStatus = currentNode ? nodeStates.get(currentNode.id) ?? "locked" : "locked";
   const actionNodeState = actionNode ? nodeStates.get(actionNode.id) ?? "locked" : "locked";
-  const actionNodeIsCurrent = actionNode?.id === currentNode?.id;
+  const actionNodeIsCurrent = actionNode?.id === uiCurrentNodeId;
   const actionNodeIsInteractive = actionNodeIsCurrent && run?.status === "RUNNING";
   const outgoing = currentNode ? findOutgoingEdges(currentNode.id, executionEdges) : [];
   const actionDecisionLabels = readDecisionLabels(actionNode?.data?.options);
@@ -489,36 +717,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
     return result;
   }, [executionEdges, nodes]);
-
-  const flowNodes = useMemo<Node<PlayerFlowNodeData>[]>(() => {
-    return nodes.map((node, index) => ({
-      id: node.id,
-      type: node.type || "narrativeNode",
-      position: playerNodePosition(node, index),
-      draggable: false,
-      selectable: true,
-      sourcePosition: Position.Bottom,
-      targetPosition: Position.Top,
-      data: {
-        id: node.id,
-        label: nodeLabel(node),
-        summary: nodeSummary(node),
-        status: nodeStates.get(node.id) ?? "locked",
-        type: node.type,
-        nodeData: node.data,
-        audioButtonId: node.data?.audioButtonId as string | undefined,
-        audioAssetId: node.data?.audioAssetId as string | undefined,
-        audioButtonDetail: node.data?.audioButtonId ? audioButtonDetailsById[String(node.data.audioButtonId)] ?? null : null,
-        isRequired: node.data?.required !== false,
-        decisionChoices: node.type === "DECISION"
-          ? findOutgoingEdges(node.id, executionEdges).map((edge, choiceIndex) => ({
-              label: edge.label?.trim() || readDecisionLabels(node.data?.options)[choiceIndex] || "Opción",
-              targetNodeId: edge.target,
-            }))
-          : undefined,
-      },
-    }));
-  }, [audioButtonDetailsById, executionEdges, nodeStates, nodes, playerNodePosition]);
 
   const flowEdges = useMemo<Edge[]>(() => {
     const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
@@ -570,6 +768,25 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       };
     });
   }, [completedIds, edges, nodes, run?.currentNodeId, selectedDecisionTargets]);
+
+  const resolveNodeCenter = useCallback((node: NodeMeta, index = 0) => {
+    const layoutPosition = layoutPositions.get(node.id);
+    const position = layoutPosition ? { x: layoutPosition.x, y: layoutPosition.y } : { x: index * PLAYER_LAYOUT_GAP.x, y: index * PLAYER_LAYOUT_GAP.y };
+    const size = getPlayerNodeSize(node);
+    return {
+      x: position.x + size.width / 2,
+      y: position.y + size.height / 2,
+    };
+  }, [layoutPositions]);
+
+  const centerCurrentNode = useCallback(() => {
+    if (!reactFlowRef.current || !currentNode) return;
+    const position = resolveNodeCenter(currentNode);
+    reactFlowRef.current.setCenter(position.x + 150, position.y + 90, {
+      zoom: Math.max(reactFlowRef.current.getZoom(), 0.8),
+      duration: 350,
+    });
+  }, [currentNode, resolveNodeCenter]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -673,6 +890,87 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     return () => window.removeEventListener("keydown", handleEscape);
   }, [contextMenu.isOpen]);
 
+  useEffect(() => {
+    hasFitViewRef.current = false;
+  }, [runId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreferencesReady(false);
+    api<NarrativePlayerPreferences>("/me/narrative-preferences")
+      .then((preferences) => {
+        if (cancelled) return;
+        const preset = PLAYER_DISTANCE_PRESETS.find((item) => item.id === preferences.playerDistance);
+        if (preset) setDistancePresetId(preset.id);
+        setCanvasViewport({
+          x: typeof preferences.playerViewportX === "number" ? preferences.playerViewportX : 0,
+          y: typeof preferences.playerViewportY === "number" ? preferences.playerViewportY : 0,
+          zoom: typeof preferences.playerViewportZoom === "number" ? preferences.playerViewportZoom : 0.8,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDistancePresetId("max");
+          setCanvasViewport({ x: 0, y: 0, zoom: 0.8 });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPreferencesReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesReady) return;
+    void api("/me/narrative-preferences", {
+      method: "PATCH",
+      body: JSON.stringify({ playerDistance: distancePresetId }),
+    }).catch(() => {
+      // No bloqueamos la experiencia si falla la persistencia.
+    });
+  }, [distancePresetId, preferencesReady]);
+
+  useEffect(() => {
+    if (!preferencesReady) return;
+    const handle = window.setTimeout(() => {
+      void api("/me/narrative-preferences", {
+        method: "PATCH",
+        body: JSON.stringify({
+          playerViewportX: canvasViewport.x,
+          playerViewportY: canvasViewport.y,
+          playerViewportZoom: canvasViewport.zoom,
+        }),
+      }).catch(() => {
+        // no-op
+      });
+    }, 250);
+
+    return () => window.clearTimeout(handle);
+  }, [canvasViewport, preferencesReady]);
+
+  useEffect(() => {
+    if (hasFitViewRef.current || !reactFlowRef.current || flowNodes.length === 0 || !preferencesReady) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const hasSavedViewport = !(canvasViewport.x === 0 && canvasViewport.y === 0 && canvasViewport.zoom === 0.8);
+      if (hasSavedViewport) {
+        reactFlowRef.current?.setViewport(canvasViewport, { duration: 0 });
+      } else {
+        reactFlowRef.current?.fitView({
+          padding: 0.2,
+          minZoom: 0.2,
+          maxZoom: 2,
+          duration: 500,
+        });
+      }
+      hasFitViewRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [canvasViewport, flowNodes.length, preferencesReady, runId]);
+
   async function syncCurrentNode(nextNodeId: string, eventType: NarrativeRunEventType, payload?: Record<string, unknown>) {
     if (!run) return;
 
@@ -752,11 +1050,14 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       return;
     }
 
-    const isTargetInteractive = (targetNode.id === currentNode?.id) && run?.status === "RUNNING";
+    const hasUsableAudio = Boolean(
+      targetNode.type === "AUDIO" && targetNode.data?.audioAssetId ||
+      targetNode.type === "AUDIO_BUTTON" && targetNode.data?.audioButtonId
+    );
 
-    if (!isTargetInteractive) {
-      console.warn("[audio] abort: not interactive", { targetNodeId: targetNode.id, currentNodeId: currentNode?.id, runStatus: run?.status });
-      setMessage("Selecciona el paso actual para reproducir audio.");
+    if (run?.status !== "RUNNING" || !hasUsableAudio) {
+      console.warn("[audio] abort: not usable", { targetNodeId: targetNode.id, currentNodeId: currentNode?.id, runStatus: run?.status });
+      setMessage("Este recurso no está disponible o no tiene contenido válido.");
       return;
     }
 
@@ -995,7 +1296,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             <button
               type="button"
               onClick={() => void startAudioPlayback()}
-              disabled={working || !hasAudio || !actionNodeIsInteractive || playbackState === "playing"}
+              disabled={working || !hasAudio || playbackState === "playing" || run?.status !== "RUNNING"}
               className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Play className="h-4 w-4" />
@@ -1004,7 +1305,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             <button
               type="button"
               onClick={() => void pauseAudio()}
-              disabled={!actionNodeIsInteractive || playbackState !== "playing"}
+              disabled={playbackState !== "playing"}
               className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Pause className="h-4 w-4" />
@@ -1013,7 +1314,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             <button
               type="button"
               onClick={() => void resumeAudio()}
-              disabled={playbackState !== "paused" || !actionNodeIsInteractive}
+              disabled={playbackState !== "paused"}
               className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Play className="h-4 w-4" />
@@ -1022,7 +1323,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             <button
               type="button"
               onClick={() => void stopAudio()}
-              disabled={!actionNodeIsInteractive || playbackState === "idle"}
+              disabled={playbackState === "idle"}
               className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Square className="h-4 w-4" />
@@ -1137,6 +1438,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             <Copy className="h-4 w-4" />
             Copiar texto
           </button>
+          {!actionNodeIsCurrent ? (
+            <p className="text-xs text-on-surface-variant">El texto puede consultarse aunque no sea el paso actual.</p>
+          ) : null}
         </div>
       );
     }
@@ -1155,6 +1459,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
               <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
             </div>
+          ) : null}
+          {!actionNodeIsCurrent ? (
+            <p className="text-xs text-on-surface-variant">La instrucción puede consultarse aunque no sea el paso actual.</p>
           ) : null}
         </div>
       );
@@ -1176,6 +1483,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 ? `Continuar disponible en ${pauseRemainingSeconds}s`
                 : "Puedes continuar"}
             </div>
+          ) : null}
+          {!actionNodeIsCurrent ? (
+            <p className="text-xs text-on-surface-variant">La pausa puede consultarse aunque no sea el paso actual.</p>
           ) : null}
           {(actionNode.data?.manual === false || actionNode.data?.pauseType === "timer") &&
           pauseRemainingSeconds === null ? (
@@ -1316,7 +1626,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       value={{
         playbackState,
         working,
-        currentNodeId: run?.currentNodeId ?? null,
+        currentNodeId: uiCurrentNodeId,
         startAudioPlayback,
         pauseAudio,
         resumeAudio,
@@ -1339,6 +1649,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       }}
     >
     <ReactFlowProvider>
+      {buttonBoardModalButton ? (
+        <AudioButtonDetailsModal
+          button={buttonBoardModalButton}
+          onClose={() => setButtonBoardModalButton(null)}
+        />
+      ) : null}
       <audio
         ref={audioRef}
         onPlay={() => setPlaybackState("playing")}
@@ -1374,7 +1690,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
         <section className="rounded-[22px] border border-outline-variant bg-surface-container px-3.5 py-2 shadow-elevation-1">
           <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
                 Narrativas / {run.narrative.title}
               </p>
@@ -1400,11 +1716,10 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 ) : null}
               </div>
             </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex w-full flex-wrap items-center justify-start gap-1.5 xl:w-auto xl:flex-nowrap xl:justify-end">
               <button
                 type="button"
-                onClick={() => centerNode(currentNode)}
+                onClick={() => centerCurrentNode()}
                 className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
               >
                 <Crosshair className="h-3.5 w-3.5" />
@@ -1435,6 +1750,26 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               >
                 Volver
               </button>
+              <div className="flex w-full min-w-[260px] max-w-[380px] items-center gap-2 rounded-full border border-outline-variant bg-surface px-3 py-2 xl:ml-2">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
+                  Cerca
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={PLAYER_DISTANCE_PRESETS.length - 1}
+                  step={1}
+                value={PLAYER_DISTANCE_PRESETS.findIndex((preset) => preset.id === distancePreset.id)}
+                  onChange={(event) => {
+                    const nextPreset = PLAYER_DISTANCE_PRESETS[Number(event.target.value)];
+                    if (nextPreset) setDistancePresetId(nextPreset.id);
+                  }}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-surface-variant/30 accent-primary"
+                />
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
+                  Máximo
+                </span>
+              </div>
             </div>
           </div>
         </section>
@@ -1508,6 +1843,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 onNodeClick={(_, node) => {
                   setSelectedNodeId(node.id);
                   setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+                  if (node.type === "AUDIO_BUTTON") {
+                    void startAudioPlayback(node.id);
+                  }
                 }}
                 onNodeContextMenu={(e, node) => {
                   e.preventDefault();
@@ -1515,34 +1853,49 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                   const safeX = Math.min(e.clientX, typeof window !== "undefined" ? window.innerWidth - 340 : e.clientX);
                   const safeY = Math.min(e.clientY, typeof window !== "undefined" ? window.innerHeight - 400 : e.clientY);
                   setContextMenu({ isOpen: true, x: safeX, y: safeY, nodeId: node.id });
+                  if (node.type === "AUDIO_BUTTON") {
+                    const audioButtonId = String(node.data?.audioButtonId ?? "");
+                    if (audioButtonId) {
+                      void api<BoardAudioButton>(`/audio-buttons/${audioButtonId}`)
+                        .then((res) => {
+                          setButtonBoardModalButton(res);
+                        })
+                        .catch(() => {
+                          setButtonBoardModalButton(null);
+                          setButtonDetailsError("No se pudo cargar el detalle del botón o el recurso ya no está disponible.");
+                        });
+                    }
+                  } else {
+                    setButtonBoardModalButton(null);
+                  }
                 }}
                 onPaneClick={() => {
                   setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
                 }}
                 onInit={(instance) => {
                   reactFlowRef.current = instance;
-                  queueMicrotask(() => {
-                    instance.fitView({
-                      padding: flowNodes.length <= 6 ? 0.24 : 0.18,
-                      minZoom: 0.65,
-                      maxZoom: flowNodes.length <= 6 ? 0.95 : 0.82,
-                      duration: 500,
-                    });
+                }}
+                onMoveEnd={(_, viewport) => {
+                  setCanvasViewport({
+                    x: viewport.x,
+                    y: viewport.y,
+                    zoom: viewport.zoom,
                   });
                 }}
-                fitView
-                fitViewOptions={{ padding: 0.2, minZoom: 0.65, maxZoom: flowNodes.length <= 6 ? 0.95 : 0.82 }}
-                defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
-                minZoom={0.6}
-                maxZoom={1.4}
+                fitView={false}
+                fitViewOptions={{ padding: 0.2, minZoom: 0.2, maxZoom: 2 }}
+                defaultViewport={canvasViewport}
+                minZoom={0.2}
+                maxZoom={2}
                 proOptions={{ hideAttribution: true }}
                 nodesDraggable={false}
                 nodesConnectable={false}
-                nodesFocusable
-                elementsSelectable
-                zoomOnDoubleClick={false}
-                zoomOnScroll={false}
-                preventScrolling={false}
+                nodesFocusable={false}
+                elementsSelectable={false}
+                zoomOnDoubleClick
+                zoomOnScroll
+                zoomOnPinch
+                panOnScroll={false}
                 panOnDrag
                 selectionOnDrag={false}
                 elevateNodesOnSelect={false}

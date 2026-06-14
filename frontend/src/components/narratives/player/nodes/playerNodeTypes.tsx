@@ -232,7 +232,6 @@ export function PlayerStartNode({ data, selected }: NodeProps<Node<PlayerFlowNod
 
 export function PlayerEndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const isCurrent = ctx?.currentNodeId === data.id;
   return (
     <div className={nodeFrame(data.status, selected, "w-[220px] min-h-[88px] rounded-[28px] border-2 bg-gradient-to-br from-emerald-500/22 via-[#101c18] to-[#0f1216] p-4 text-on-surface")}>
       <HiddenHandles source={false} />
@@ -246,14 +245,12 @@ export function PlayerEndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeD
             <StateBadge status={data.status} />
           </div>
           <p className="mt-2 text-base font-black text-on-surface">{data.label || "Cierre de narrativa"}</p>
-          {isCurrent ? (
-            <div className="mt-3">
-              <PrimaryButton tone="emerald" onClick={() => void ctx?.finishRun()}>
-                <CheckCircle2 className="h-4 w-4" />
-                Finalizar
-              </PrimaryButton>
-            </div>
-          ) : null}
+          <div className="mt-3">
+            <PrimaryButton tone="emerald" onClick={() => void ctx?.finishRun()}>
+              <CheckCircle2 className="h-4 w-4" />
+              Finalizar
+            </PrimaryButton>
+          </div>
         </div>
       </div>
       <NodeActionButton id={data.id} />
@@ -264,18 +261,14 @@ export function PlayerEndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeD
 export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
   const isCurrent = ctx?.currentNodeId === id;
-  const isPlaying = isCurrent && ctx?.playbackState === "playing";
-  const isPaused = isCurrent && ctx?.playbackState === "paused";
+  const isPlaying = ctx?.playbackState === "playing" && ctx?.currentNodeId === id;
+  const isPaused = ctx?.playbackState === "paused" && ctx?.currentNodeId === id;
   const btnDetails = data.audioButtonDetail ?? null;
   const label = btnDetails?.label || data.label || "Botón de audio";
   const category = btnDetails?.category?.name || "Narrativa";
 
   const play = () => {
     if (!ctx) return;
-    if (!isCurrent) {
-      ctx.setMessage("Este botón se habilita cuando sea el paso actual.");
-      return;
-    }
     ctx.selectNode(id);
     if (isPlaying) ctx.pauseAudio();
     else if (isPaused) ctx.resumeAudio();
@@ -308,7 +301,7 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
         </div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3">
-        <PrimaryButton disabled={!isCurrent} onClick={() => play()}>
+        <PrimaryButton onClick={() => play()}>
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
           {isPlaying ? "Pausar" : isPaused ? "Reanudar" : "Reproducir"}
         </PrimaryButton>
@@ -324,30 +317,30 @@ export function PlayerScriptTextNode({ id, data, selected }: NodeProps<Node<Play
   const isCurrent = ctx?.currentNodeId === id;
   const text = nodeTextPreview(data.label, "Sin guion disponible", 260);
   return (
-    <div className={nodeFrame(data.status, selected, "w-[320px] min-h-[170px] overflow-hidden rounded-[30px] border-2 bg-gradient-to-br from-sky-500/16 via-[#101923] to-[#0f1118] p-5 text-on-surface")}>
+    <div className={nodeFrame(data.status, selected, "w-[320px] min-h-[200px] rotate-[0.8deg] overflow-hidden rounded-[8px] border-2 border-stone-300/70 bg-[#f6f0e4] p-5 text-stone-900 shadow-[0_18px_42px_rgba(0,0,0,0.12)]")}>
       <HiddenHandles />
       <div className="flex items-start justify-between gap-4 pr-8">
-        <div className="flex items-center gap-2 text-sky-300">
+        <div className="flex items-center gap-2 text-stone-700">
           <FileText className="h-5 w-5" />
-          <span className="text-[11px] font-black uppercase tracking-[0.22em]">Guion a leer</span>
+          <span className="text-[11px] font-black uppercase tracking-[0.22em]">Guion</span>
         </div>
         <StateBadge status={data.status} />
       </div>
-      <div className="relative mt-4 max-h-[96px] overflow-hidden rounded-2xl border border-sky-300/16 bg-black/24 px-4 py-3">
-        <p className="whitespace-pre-wrap text-[15px] font-semibold leading-6 text-slate-50">"{text}"</p>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#101923] to-transparent" />
+      <div className="relative mt-4 min-h-[112px] overflow-hidden rounded-[10px] border border-stone-300/70 bg-[repeating-linear-gradient(to_bottom,rgba(120,113,108,0.08)_0,rgba(120,113,108,0.08)_1px,transparent_1px,transparent_26px)] px-4 py-4">
+        <div className="pointer-events-none absolute left-0 top-0 h-full w-8 border-r border-stone-300/35 bg-[linear-gradient(to_right,rgba(180,83,9,0.08),transparent)]" />
+        <p className="relative whitespace-pre-wrap pl-3 font-mono text-[15px] leading-7 text-stone-900">
+          {text}
+        </p>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <PrimaryButton tone="slate" onClick={() => void ctx?.copyNodeText(id)}>
           <Copy className="h-4 w-4" />
           Copiar texto
         </PrimaryButton>
-        {isCurrent ? (
-          <PrimaryButton onClick={() => void ctx?.completeCurrentNode(false)}>
-            <CheckCircle2 className="h-4 w-4" />
-            Leído
-          </PrimaryButton>
-        ) : null}
+        <PrimaryButton disabled={!isCurrent} onClick={() => void ctx?.completeCurrentNode(false)}>
+          <CheckCircle2 className="h-4 w-4" />
+          Leído
+        </PrimaryButton>
       </div>
       <NodeActionButton id={data.id} />
     </div>
@@ -358,26 +351,27 @@ export function PlayerInstructionNode({ id, data, selected }: NodeProps<Node<Pla
   const ctx = useContext(NarrativePlayerContext);
   const isCurrent = ctx?.currentNodeId === id;
   return (
-    <div className={nodeFrame(data.status, selected, "w-[280px] min-h-[160px] rotate-[-1deg] rounded-bl-[34px] rounded-br-xl rounded-tl-xl rounded-tr-[34px] border-2 border-amber-300/30 bg-gradient-to-br from-amber-300/26 via-[#2a1d0d] to-[#16100a] p-5 text-amber-50")}>
+    <div className={nodeFrame(data.status, selected, "w-[300px] min-h-[190px] rotate-[-1.5deg] rounded-[10px] border-2 border-amber-200/55 bg-gradient-to-br from-amber-100 via-amber-50 to-amber-200 p-5 text-amber-950 shadow-[0_18px_42px_rgba(251,191,36,0.16)]")}>
       <HiddenHandles />
       <div className="flex items-start justify-between gap-4 pr-8">
-        <div className="flex items-center gap-2 text-amber-200">
+        <div className="flex items-center gap-2 text-amber-950/80">
           <AlertCircle className="h-5 w-5" />
-          <span className="text-[11px] font-black uppercase tracking-[0.22em]">Instrucción</span>
+          <span className="text-[11px] font-black uppercase tracking-[0.22em]">Post-it</span>
         </div>
         <StateBadge status={data.status} />
       </div>
-      <p className="mt-4 min-h-[56px] whitespace-pre-wrap text-[15px] font-bold leading-6 text-amber-50">
-        {nodeTextPreview(data.label, "Sin instrucción", 180)}
-      </p>
+      <div className="mt-4 rounded-[12px] border border-amber-300/40 bg-amber-50/70 p-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-700">Instrucción operativa</p>
+        <p className="mt-3 whitespace-pre-wrap text-[16px] font-semibold leading-7 text-amber-950">
+          {nodeTextPreview(data.label, "Sin instrucción", 220)}
+        </p>
+      </div>
       <div className="mt-3 flex items-center justify-between gap-3">
-        {isCurrent ? (
-          <PrimaryButton tone="amber" onClick={() => void ctx?.completeCurrentNode(false)}>
-            <CheckCircle2 className="h-4 w-4" />
-            Entendido
-          </PrimaryButton>
-        ) : <span className="text-xs font-semibold text-amber-100/70">Nota operativa</span>}
-        <span className="h-6 w-6 rounded-br-lg border-b-2 border-r-2 border-amber-200/35" />
+        <PrimaryButton tone="amber" disabled={!isCurrent} onClick={() => void ctx?.completeCurrentNode(false)}>
+          <CheckCircle2 className="h-4 w-4" />
+          Entendido
+        </PrimaryButton>
+        <span className="h-6 w-6 rounded-br-lg border-b-2 border-r-2 border-amber-500/30" />
       </div>
       <NodeActionButton id={data.id} />
     </div>
@@ -420,7 +414,7 @@ export function PlayerAudioNode({ id, data, selected }: NodeProps<Node<PlayerFlo
       <p className="mt-4 line-clamp-2 text-lg font-black leading-tight text-on-surface">{data.label}</p>
       <p className="mt-2 text-xs font-semibold text-on-surface-variant">{isPlaying ? "Reproduciendo" : isPaused ? "Pausado" : "No reproducido"}</p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <PrimaryButton disabled={!isCurrent} onClick={() => play()}>
+        <PrimaryButton onClick={() => play()}>
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
           {isPlaying ? "Pausar" : isPaused ? "Reanudar" : "Reproducir"}
         </PrimaryButton>
@@ -457,14 +451,12 @@ export function PlayerPauseNode({ id, data, selected }: NodeProps<Node<PlayerFlo
           <p className="mt-1 text-xs font-semibold text-on-surface-variant">{isTimer && duration ? `${duration}s de espera` : "Esperar señal"}</p>
         </div>
       </div>
-      {isCurrent ? (
-        <div className="mt-4">
-          <PrimaryButton onClick={() => void ctx?.completeCurrentNode(false)}>
-            <ArrowRight className="h-4 w-4" />
-            Continuar
-          </PrimaryButton>
-        </div>
-      ) : null}
+      <div className="mt-4">
+        <PrimaryButton disabled={!isCurrent} onClick={() => void ctx?.completeCurrentNode(false)}>
+          <ArrowRight className="h-4 w-4" />
+          Continuar
+        </PrimaryButton>
+      </div>
       <NodeActionButton id={data.id} />
     </div>
   );

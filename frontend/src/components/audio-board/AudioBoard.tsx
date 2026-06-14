@@ -349,6 +349,7 @@ export function AudioBoard() {
                       void toggleFavorite(currentButton.id);
                     }}
                     onOpenDetails={(currentButton) => setDetailsButtonId(currentButton.id)}
+                    onStop={() => void playback.stop()}
                   />
                 ))}
               </div>
@@ -386,6 +387,7 @@ export function AudioBoard() {
             onOpenDetails={(currentButton) => setDetailsButtonId(currentButton.id)}
             onSwapSides={swapSides}
             onSideChange={setSideA}
+            onStop={() => void playback.stop()}
           />
 
           <BoardSidePanel
@@ -413,6 +415,7 @@ export function AudioBoard() {
             onOpenDetails={(currentButton) => setDetailsButtonId(currentButton.id)}
             onSwapSides={swapSides}
             onSideChange={setSideB}
+            onStop={() => void playback.stop()}
           />
         </div>
       )}

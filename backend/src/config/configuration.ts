@@ -4,6 +4,7 @@ function normalizeOrigin(value: string) {
 
 function splitOrigins(value: string | undefined) {
   if (!value) return [];
+  if (value.trim() === '*') return ['*'];
 
   return value
     .split(',')
@@ -34,7 +35,7 @@ export default () => {
     port: parseInt(process.env.PORT ?? '4000', 10),
     frontendUrl,
     cors: {
-      origins: corsOrigins,
+      origins: corsOrigins.includes('*') ? ['*'] : corsOrigins,
     },
     auth: {
       jwtSecret: process.env.JWT_SECRET ?? 'change-me',

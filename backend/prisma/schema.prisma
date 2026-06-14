@@ -23,6 +23,7 @@ model Organization {
   audioButtons         AudioButton[]
   playbackEvents       PlaybackEvent[]
   boardPreferences     UserBoardPreference[]
+  narrativePreferences UserNarrativePreference[]
   audioButtonFavorites AudioButtonFavorite[]
   narratives           Narrative[]
   narrativeRuns        NarrativeRun[]
@@ -41,6 +42,7 @@ model User {
   createdAudios              AudioAsset[]
   playbackEvents             PlaybackEvent[]
   boardPreferences           UserBoardPreference[]
+  narrativePreferences       UserNarrativePreference[]
   audioButtonFavorites       AudioButtonFavorite[]
   narrativesCreated          Narrative[]           @relation("NarrativeCreatedBy")
   narrativesUpdated          Narrative[]           @relation("NarrativeUpdatedBy")
@@ -172,6 +174,24 @@ model UserBoardPreference {
   viewMode       String   @default("simple")
   density        String   @default("medium")
   volume         Float    @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, userId])
+}
+
+model UserNarrativePreference {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  playerDistance String   @default("max")
+  playerViewportX Float    @default(0)
+  playerViewportY Float    @default(0)
+  playerViewportZoom Float @default(0.8)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
