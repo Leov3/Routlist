@@ -7,7 +7,8 @@ import { PrismaService } from './prisma/prisma.service';
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
@@ -66,27 +67,29 @@ export class AppService {
       this.storageBytes(),
     ]);
 
-    const categoriesWithButtonCounts = await this.prisma.audioCategory.findMany({
-      where: {
-        isActive: true,
-      },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: {
-        id: true,
-        name: true,
-        buttons: {
-          where: {
-            isActive: true,
-            audioAsset: {
+    const categoriesWithButtonCounts = await this.prisma.audioCategory.findMany(
+      {
+        where: {
+          isActive: true,
+        },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: {
+          id: true,
+          name: true,
+          buttons: {
+            where: {
               isActive: true,
+              audioAsset: {
+                isActive: true,
+              },
             },
-          },
-          select: {
-            id: true,
+            select: {
+              id: true,
+            },
           },
         },
       },
-    });
+    );
 
     return {
       activeAudios: activeAudioCount,
@@ -111,11 +114,11 @@ export class AppService {
       const localAudioPath =
         this.configService.get<string>('storage.localAudioPath') ??
         'storage/audio-assets';
+      const pathJoin = join;
 
       if (storageDriver === 'local' || !storageDriver) {
         const { stat } = await import('fs/promises');
-        const { join } = await import('path');
-        const path = join(process.cwd(), localAudioPath);
+        const path = pathJoin(process.cwd(), localAudioPath);
 
         try {
           const stats = await stat(path);
@@ -202,7 +205,9 @@ export class AppService {
         totalBytes,
         usedBytes,
         freeBytes,
-        usedPercent: totalBytes ? Math.round((usedBytes / totalBytes) * 100) : 0,
+        usedPercent: totalBytes
+          ? Math.round((usedBytes / totalBytes) * 100)
+          : 0,
       },
       usage: {
         appBytes,

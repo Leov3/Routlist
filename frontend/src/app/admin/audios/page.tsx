@@ -14,6 +14,33 @@ import type { AudioAsset } from "@/types/routlis";
 type SortKey = "originalName" | "mimeType" | "sizeBytes" | "isActive";
 type StatusFilter = "all" | "active" | "inactive";
 
+function SortBtn({
+  sortKey,
+  sortDir,
+  onSort,
+  k,
+  label,
+}: {
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+  k: SortKey;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(k)}
+      className="inline-flex items-center gap-1 transition-colors hover:text-primary"
+    >
+      {label}{" "}
+      <span className="opacity-50">
+        {sortKey === k ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
+      </span>
+    </button>
+  );
+}
+
 const STATUS_OPTIONS = [
   { value: "all" as const, label: "Todos" },
   { value: "active" as const, label: "Activos" },
@@ -107,12 +134,6 @@ export default function AudiosPage() {
     await load();
   }
 
-  const SortBtn = ({ k, label }: { k: SortKey; label: string }) => (
-    <button type="button" onClick={() => sortBy(k)} className="inline-flex items-center gap-1 transition-colors hover:text-primary">
-      {label} <span className="opacity-50">{sortKey === k ? (sortDir === "asc" ? "↑" : "↓") : "↕"}</span>
-    </button>
-  );
-
   return (
     <ProtectedPage requiredPermissions={["audio:create"]}>
       <PageHeader title="Audios" description="Biblioteca de archivos MP3 y WAV." />
@@ -166,11 +187,11 @@ export default function AudiosPage() {
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>
               <tr className="border-b border-outline-variant bg-surface-container-high">
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn k="originalName" label="Nombre" /></th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn k="mimeType" label="Tipo" /></th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn k="sizeBytes" label="Tamaño" /></th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="originalName" label="Nombre" /></th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="mimeType" label="Tipo" /></th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="sizeBytes" label="Tamaño" /></th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Duración</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn k="isActive" label="Estado" /></th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="isActive" label="Estado" /></th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Acciones</th>
               </tr>
             </thead>

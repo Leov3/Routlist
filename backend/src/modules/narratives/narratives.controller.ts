@@ -14,7 +14,6 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
 import { CreateNarrativeDto } from './dto/create-narrative.dto';
-import { PublishNarrativeDto } from './dto/publish-narrative.dto';
 import { SaveNarrativeGraphDto } from './dto/save-narrative-graph.dto';
 import { UpdateNarrativeDto } from './dto/update-narrative.dto';
 import { ValidateNarrativeDto } from './dto/validate-narrative.dto';
@@ -109,12 +108,8 @@ export class NarrativesController {
 
   @Post(':id/publish')
   @Permissions('narratives:publish')
-  publish(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Body() dto: PublishNarrativeDto,
-  ) {
-    return this.narrativesService.publish(user, id, dto);
+  publish(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.narrativesService.publish(user, id);
   }
 
   @Post(':id/runs')

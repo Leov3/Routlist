@@ -3,11 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type NarrativeStatus, type NarrativeVersionStatus } from '@prisma/client';
+import {
+  Prisma,
+  type NarrativeStatus,
+  type NarrativeVersionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
 import { CreateNarrativeDto } from './dto/create-narrative.dto';
-import { PublishNarrativeDto } from './dto/publish-narrative.dto';
 import { SaveNarrativeGraphDto } from './dto/save-narrative-graph.dto';
 import { UpdateNarrativeDto } from './dto/update-narrative.dto';
 import {
@@ -216,7 +219,10 @@ export class NarrativesService {
         })
       : null;
 
-    const validation = validateNarrativeGraph(draftVersion?.graphJson ?? emptyGraphJson(), { strict: true });
+    const validation = validateNarrativeGraph(
+      draftVersion?.graphJson ?? emptyGraphJson(),
+      { strict: true },
+    );
 
     return {
       narrative,
@@ -266,14 +272,24 @@ export class NarrativesService {
     });
   }
 
-  async validate(user: AuthenticatedUser, id: string, graphJson?: Record<string, unknown>) {
+  async validate(
+    user: AuthenticatedUser,
+    id: string,
+    graphJson?: Record<string, unknown>,
+  ) {
     await this.getNarrativeOrThrow(user, id);
 
-    const payload = graphJson ?? (await this.getEditableVersion(id, false))?.graphJson ?? emptyGraphJson();
+    const payload =
+      graphJson ??
+      (await this.getEditableVersion(id, false))?.graphJson ??
+      emptyGraphJson();
     const validation = validateNarrativeGraph(payload);
-    
+
     if (validation.valid) {
-      const resourceValidation = await this.validateNarrativeResources(user, payload as NarrativeGraphJson);
+      const resourceValidation = await this.validateNarrativeResources(
+        user,
+        payload as NarrativeGraphJson,
+      );
       if (!resourceValidation.valid) {
         validation.valid = false;
         validation.errors.push(...resourceValidation.errors);
@@ -283,11 +299,7 @@ export class NarrativesService {
     return validation;
   }
 
-  async publish(
-    user: AuthenticatedUser,
-    id: string,
-    _dto: PublishNarrativeDto,
-  ) {
+  async publish(user: AuthenticatedUser, id: string) {
     const narrative = await this.getNarrativeOrThrow(user, id);
     const draftVersion = await this.getEditableVersion(narrative.id, true);
 
@@ -300,7 +312,10 @@ export class NarrativesService {
       throw new BadRequestException(validation.errors);
     }
 
-    const resourceValidation = await this.validateNarrativeResources(user, draftVersion.graphJson as NarrativeGraphJson);
+    const resourceValidation = await this.validateNarrativeResources(
+      user,
+      draftVersion.graphJson as NarrativeGraphJson,
+    );
     if (!resourceValidation.valid) {
       throw new BadRequestException(resourceValidation.errors);
     }
@@ -493,7 +508,9 @@ export class NarrativesService {
       const validAudioIds = new Set(validAudios.map((a) => a.id));
       for (const id of audioIds) {
         if (!validAudioIds.has(id)) {
-          errors.push(`Audio asset ${id} is invalid, inactive, or belongs to another organization`);
+          errors.push(
+            `Audio asset ${id} is invalid, inactive, or belongs to another organization`,
+          );
         }
       }
     }
@@ -510,7 +527,9 @@ export class NarrativesService {
       const validButtonIds = new Set(validButtons.map((b) => b.id));
       for (const id of buttonIds) {
         if (!validButtonIds.has(id)) {
-          errors.push(`Audio button ${id} is invalid, inactive, or belongs to another organization`);
+          errors.push(
+            `Audio button ${id} is invalid, inactive, or belongs to another organization`,
+          );
         }
       }
     }

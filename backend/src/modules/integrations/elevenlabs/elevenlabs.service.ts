@@ -8,11 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../../shared/types/authenticated-user';
-import {
-  decryptSecret,
-  encryptSecret,
-  maskSecret,
-} from './elevenlabs.crypto';
+import { decryptSecret, encryptSecret, maskSecret } from './elevenlabs.crypto';
 import type {
   ElevenLabsConnectionStatus,
   ElevenLabsConnectionStatusResponse,
@@ -21,7 +17,10 @@ import type {
   ElevenLabsVoiceListResponse,
   ElevenLabsVoiceSummary,
 } from './elevenlabs.types';
-import { ElevenLabsSettingsDto, GenerateElevenLabsAudioDto } from './dto/elevenlabs-settings.dto';
+import {
+  ElevenLabsSettingsDto,
+  GenerateElevenLabsAudioDto,
+} from './dto/elevenlabs-settings.dto';
 
 const DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const DEFAULT_MODEL_ID = 'eleven_multilingual_v2';
@@ -79,7 +78,9 @@ export class ElevenLabsService {
     private readonly configService: ConfigService,
   ) {}
 
-  async getSettings(user: AuthenticatedUser): Promise<ElevenLabsSettingsResponse> {
+  async getSettings(
+    user: AuthenticatedUser,
+  ): Promise<ElevenLabsSettingsResponse> {
     const settings = await this.findSettings(user.organizationId);
     return this.toResponse(settings);
   }
@@ -87,11 +88,16 @@ export class ElevenLabsService {
   async updateSettings(user: AuthenticatedUser, dto: ElevenLabsSettingsDto) {
     const existing = await this.findSettings(user.organizationId);
     if (!existing && !dto.apiKey) {
-      throw new BadRequestException('Debes enviar una API key para crear la integración.');
+      throw new BadRequestException(
+        'Debes enviar una API key para crear la integración.',
+      );
     }
 
-    const normalizedBaseUrl = this.normalizeBaseUrl(dto.baseUrl ?? existing?.baseUrl ?? DEFAULT_BASE_URL);
-    const shouldRotateKey = typeof dto.apiKey === 'string' && dto.apiKey.trim().length > 0;
+    const normalizedBaseUrl = this.normalizeBaseUrl(
+      dto.baseUrl ?? existing?.baseUrl ?? DEFAULT_BASE_URL,
+    );
+    const shouldRotateKey =
+      typeof dto.apiKey === 'string' && dto.apiKey.trim().length > 0;
     const nextSecretKey = this.integrationSecretKey();
     const encrypted = shouldRotateKey
       ? encryptSecret(dto.apiKey!.trim(), nextSecretKey)
@@ -106,7 +112,9 @@ export class ElevenLabsService {
     const connectionStatus = this.computeStatus({
       hasSecret: Boolean(encrypted?.encrypted),
       isActive: dto.isActive ?? existing?.isActive ?? true,
-      currentStatus: (existing?.connectionStatus as ElevenLabsConnectionStatus) ?? 'NOT_CONFIGURED',
+      currentStatus:
+        (existing?.connectionStatus as ElevenLabsConnectionStatus) ??
+        'NOT_CONFIGURED',
       apiKeyChanged: shouldRotateKey,
     });
 
@@ -116,30 +124,42 @@ export class ElevenLabsService {
       apiKeyEncrypted: encrypted?.encrypted ?? null,
       apiKeyIv: encrypted?.iv ?? null,
       apiKeyAuthTag: encrypted?.authTag ?? null,
-      apiKeyLast4: shouldRotateKey ? dto.apiKey!.trim().slice(-4) : existing?.apiKeyLast4 ?? null,
+      apiKeyLast4: shouldRotateKey
+        ? dto.apiKey!.trim().slice(-4)
+        : (existing?.apiKeyLast4 ?? null),
       baseUrl: normalizedBaseUrl,
       defaultVoiceId: dto.defaultVoiceId ?? existing?.defaultVoiceId ?? null,
-      defaultModelId: dto.defaultModelId ?? existing?.defaultModelId ?? DEFAULT_MODEL_ID,
-      defaultOutputFormat: dto.defaultOutputFormat ?? existing?.defaultOutputFormat ?? DEFAULT_OUTPUT_FORMAT,
+      defaultModelId:
+        dto.defaultModelId ?? existing?.defaultModelId ?? DEFAULT_MODEL_ID,
+      defaultOutputFormat:
+        dto.defaultOutputFormat ??
+        existing?.defaultOutputFormat ??
+        DEFAULT_OUTPUT_FORMAT,
       stability:
         typeof dto.stability === 'number'
           ? dto.stability
-          : existing?.stability ?? DEFAULT_STABILITY,
+          : (existing?.stability ?? DEFAULT_STABILITY),
       similarityBoost:
         typeof dto.similarityBoost === 'number'
           ? dto.similarityBoost
-          : existing?.similarityBoost ?? DEFAULT_SIMILARITY_BOOST,
-      style: typeof dto.style === 'number' ? dto.style : existing?.style ?? DEFAULT_STYLE,
-      speed: typeof dto.speed === 'number' ? dto.speed : existing?.speed ?? DEFAULT_SPEED,
+          : (existing?.similarityBoost ?? DEFAULT_SIMILARITY_BOOST),
+      style:
+        typeof dto.style === 'number'
+          ? dto.style
+          : (existing?.style ?? DEFAULT_STYLE),
+      speed:
+        typeof dto.speed === 'number'
+          ? dto.speed
+          : (existing?.speed ?? DEFAULT_SPEED),
       speakerBoost:
         typeof dto.speakerBoost === 'boolean'
           ? dto.speakerBoost
-          : existing?.speakerBoost ?? true,
+          : (existing?.speakerBoost ?? true),
       connectionStatus,
       lastTestMessage:
         shouldRotateKey && dto.isActive !== false
           ? 'Pendiente de validación'
-          : existing?.lastTestMessage ?? null,
+          : (existing?.lastTestMessage ?? null),
     };
 
     const settings = existing
@@ -165,7 +185,11 @@ export class ElevenLabsService {
 
   async testConnection(user: AuthenticatedUser, dto?: DraftSettings) {
     const current = await this.findSettings(user.organizationId);
-    const resolved = await this.resolveSettings(user.organizationId, dto, current);
+    const resolved = await this.resolveSettings(
+      user.organizationId,
+      dto,
+      current,
+    );
     const testResult = await this.performConnectionCheck(resolved);
 
     if (!dto || this.isEmptyDraft(dto)) {
@@ -185,7 +209,11 @@ export class ElevenLabsService {
 
   async listVoices(user: AuthenticatedUser) {
     const current = await this.findSettings(user.organizationId);
-    const resolved = await this.resolveSettings(user.organizationId, undefined, current);
+    const resolved = await this.resolveSettings(
+      user.organizationId,
+      undefined,
+      current,
+    );
     const response = await this.requestJson<{
       voices?: Array<Record<string, unknown>>;
       next_page_token?: string | null;
@@ -197,7 +225,8 @@ export class ElevenLabsService {
     return {
       voices,
       nextPageToken: response.next_page_token ?? null,
-      totalCount: typeof response.total_count === 'number' ? response.total_count : null,
+      totalCount:
+        typeof response.total_count === 'number' ? response.total_count : null,
     } satisfies ElevenLabsVoiceListResponse;
   }
 
@@ -206,16 +235,24 @@ export class ElevenLabsService {
     dto: GenerateElevenLabsAudioDto,
   ): Promise<ElevenLabsGenerateAudioResponse> {
     const current = await this.findSettings(user.organizationId);
-    const resolved = await this.resolveSettings(user.organizationId, dto, current);
+    const resolved = await this.resolveSettings(
+      user.organizationId,
+      dto,
+      current,
+    );
     const voiceId = dto.defaultVoiceId ?? resolved.defaultVoiceId;
 
     if (!voiceId) {
-      throw new BadRequestException('Debes seleccionar una voz por defecto antes de generar audio.');
+      throw new BadRequestException(
+        'Debes seleccionar una voz por defecto antes de generar audio.',
+      );
     }
 
     const text = dto.text?.trim() || 'Prueba de audio generada desde Routlis.';
     const buffer = await this.requestAudio(resolved, voiceId, text);
-    const contentType = this.contentTypeForOutputFormat(resolved.defaultOutputFormat);
+    const contentType = this.contentTypeForOutputFormat(
+      resolved.defaultOutputFormat,
+    );
 
     return {
       fileName: `elevenlabs-test-${Date.now()}.${this.extensionForOutputFormat(resolved.defaultOutputFormat)}`,
@@ -231,7 +268,11 @@ export class ElevenLabsService {
       return this.toResponse(null);
     }
 
-    const resolved = await this.resolveSettings(user.organizationId, undefined, current);
+    const resolved = await this.resolveSettings(
+      user.organizationId,
+      undefined,
+      current,
+    );
     try {
       const result = await this.performConnectionCheck(resolved);
       await this.prisma.elevenLabsIntegrationSetting.update({
@@ -251,7 +292,8 @@ export class ElevenLabsService {
           data: {
             connectionStatus: 'ERROR',
             lastTestAt: new Date(),
-            lastTestMessage: error instanceof Error ? error.message : 'Error desconocido',
+            lastTestMessage:
+              error instanceof Error ? error.message : 'Error desconocido',
           },
         });
       }
@@ -271,42 +313,66 @@ export class ElevenLabsService {
     current?: ElevenLabsIntegrationSettingRecord | null,
   ): Promise<ResolvedSettings> {
     const source = current ?? (await this.findSettings(organizationId));
-    const hasDraftSecret = typeof dto?.apiKey === 'string' && dto.apiKey.trim().length > 0;
+    const hasDraftSecret =
+      typeof dto?.apiKey === 'string' && dto.apiKey.trim().length > 0;
 
     if (!source && !hasDraftSecret) {
-      throw new BadRequestException('La integración de ElevenLabs no está configurada.');
+      throw new BadRequestException(
+        'La integración de ElevenLabs no está configurada.',
+      );
     }
 
     const apiKey = hasDraftSecret
-      ? dto!.apiKey!.trim()
+      ? dto.apiKey!.trim()
       : this.decryptStoredKey(source);
 
     if (!apiKey) {
-      throw new BadRequestException('La API key de ElevenLabs no está configurada.');
+      throw new BadRequestException(
+        'La API key de ElevenLabs no está configurada.',
+      );
     }
 
     return {
       apiKey,
-      baseUrl: this.normalizeBaseUrl(dto?.baseUrl ?? source?.baseUrl ?? DEFAULT_BASE_URL),
+      baseUrl: this.normalizeBaseUrl(
+        dto?.baseUrl ?? source?.baseUrl ?? DEFAULT_BASE_URL,
+      ),
       defaultVoiceId: dto?.defaultVoiceId ?? source?.defaultVoiceId ?? null,
-      defaultModelId: dto?.defaultModelId ?? source?.defaultModelId ?? DEFAULT_MODEL_ID,
+      defaultModelId:
+        dto?.defaultModelId ?? source?.defaultModelId ?? DEFAULT_MODEL_ID,
       defaultOutputFormat:
-        dto?.defaultOutputFormat ?? source?.defaultOutputFormat ?? DEFAULT_OUTPUT_FORMAT,
+        dto?.defaultOutputFormat ??
+        source?.defaultOutputFormat ??
+        DEFAULT_OUTPUT_FORMAT,
       stability:
-        typeof dto?.stability === 'number' ? dto.stability : source?.stability ?? DEFAULT_STABILITY,
+        typeof dto?.stability === 'number'
+          ? dto.stability
+          : (source?.stability ?? DEFAULT_STABILITY),
       similarityBoost:
         typeof dto?.similarityBoost === 'number'
           ? dto.similarityBoost
-          : source?.similarityBoost ?? DEFAULT_SIMILARITY_BOOST,
-      style: typeof dto?.style === 'number' ? dto.style : source?.style ?? DEFAULT_STYLE,
-      speed: typeof dto?.speed === 'number' ? dto.speed : source?.speed ?? DEFAULT_SPEED,
+          : (source?.similarityBoost ?? DEFAULT_SIMILARITY_BOOST),
+      style:
+        typeof dto?.style === 'number'
+          ? dto.style
+          : (source?.style ?? DEFAULT_STYLE),
+      speed:
+        typeof dto?.speed === 'number'
+          ? dto.speed
+          : (source?.speed ?? DEFAULT_SPEED),
       speakerBoost:
-        typeof dto?.speakerBoost === 'boolean' ? dto.speakerBoost : source?.speakerBoost ?? true,
+        typeof dto?.speakerBoost === 'boolean'
+          ? dto.speakerBoost
+          : (source?.speakerBoost ?? true),
     };
   }
 
   private async performConnectionCheck(settings: ResolvedSettings) {
-    const response = await this.requestRaw(settings, '/v1/voices?include_total_count=true&page_size=1', 'GET');
+    const response = await this.requestRaw(
+      settings,
+      '/v1/voices?include_total_count=true&page_size=1',
+      'GET',
+    );
 
     if (!response.ok) {
       throw await this.mapRemoteError(response);
@@ -319,8 +385,15 @@ export class ElevenLabsService {
     };
   }
 
-  private async requestAudio(settings: ResolvedSettings, voiceId: string, text: string) {
-    const url = new URL(`/v1/text-to-speech/${encodeURIComponent(voiceId)}`, settings.baseUrl);
+  private async requestAudio(
+    settings: ResolvedSettings,
+    voiceId: string,
+    text: string,
+  ) {
+    const url = new URL(
+      `/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
+      settings.baseUrl,
+    );
     url.searchParams.set('output_format', settings.defaultOutputFormat);
 
     const response = await fetch(url.toString(), {
@@ -335,7 +408,8 @@ export class ElevenLabsService {
           style: settings.style,
           speed: settings.speed,
           use_speaker_boost:
-            settings.speakerBoost && !settings.defaultModelId.startsWith('eleven_v3'),
+            settings.speakerBoost &&
+            !settings.defaultModelId.startsWith('eleven_v3'),
         },
       }),
     });
@@ -384,7 +458,8 @@ export class ElevenLabsService {
 
   private async mapRemoteError(response: Response) {
     const message = await this.readRemoteMessage(response);
-    const formatted = message || `ElevenLabs respondió con estado ${response.status}.`;
+    const formatted =
+      message || `ElevenLabs respondió con estado ${response.status}.`;
 
     if (response.status === 401 || response.status === 403) {
       return new UnauthorizedException(
@@ -393,15 +468,21 @@ export class ElevenLabsService {
     }
 
     if (response.status === 404) {
-      return new BadRequestException('La base URL o el recurso solicitado no existen en ElevenLabs.');
+      return new BadRequestException(
+        'La base URL o el recurso solicitado no existen en ElevenLabs.',
+      );
     }
 
     if (response.status === 429) {
-      return new BadGatewayException(`ElevenLabs está limitando las peticiones: ${formatted}`);
+      return new BadGatewayException(
+        `ElevenLabs está limitando las peticiones: ${formatted}`,
+      );
     }
 
     if (response.status >= 500) {
-      return new ServiceUnavailableException(`ElevenLabs respondió con error: ${formatted}`);
+      return new ServiceUnavailableException(
+        `ElevenLabs respondió con error: ${formatted}`,
+      );
     }
 
     return new BadGatewayException(formatted);
@@ -412,7 +493,10 @@ export class ElevenLabsService {
 
     try {
       if (contentType.includes('application/json')) {
-        const body = (await response.json()) as { message?: string; detail?: string };
+        const body = (await response.json()) as {
+          message?: string;
+          detail?: string;
+        };
         return body.message ?? body.detail ?? null;
       }
 
@@ -424,15 +508,25 @@ export class ElevenLabsService {
   }
 
   private mapVoice(voice: Record<string, unknown>): ElevenLabsVoiceSummary {
+    const voiceId =
+      typeof voice.voice_id === 'string'
+        ? voice.voice_id
+        : typeof voice.voiceId === 'string'
+          ? voice.voiceId
+          : typeof voice.id === 'string'
+            ? voice.id
+            : '';
+    const name = typeof voice.name === 'string' ? voice.name : 'Sin nombre';
+    const category = typeof voice.category === 'string' ? voice.category : null;
+    const previewUrl =
+      typeof voice.preview_url === 'string' ? voice.preview_url : null;
+
     return {
-      voiceId:
-        String(
-          voice.voice_id ?? voice.voiceId ?? voice.id ?? '',
-        ),
-      name: String(voice.name ?? 'Sin nombre'),
-      category: voice.category ? String(voice.category) : null,
+      voiceId,
+      name,
+      category,
       labels: this.toStringMap(voice.labels),
-      previewUrl: voice.preview_url ? String(voice.preview_url) : null,
+      previewUrl,
     };
   }
 
@@ -441,15 +535,14 @@ export class ElevenLabsService {
       return null;
     }
 
-    return Object.entries(value as Record<string, unknown>).reduce<Record<string, string>>(
-      (acc, [key, current]) => {
-        if (typeof current === 'string') {
-          acc[key] = current;
-        }
-        return acc;
-      },
-      {},
-    );
+    return Object.entries(value as Record<string, unknown>).reduce<
+      Record<string, string>
+    >((acc, [key, current]) => {
+      if (typeof current === 'string') {
+        acc[key] = current;
+      }
+      return acc;
+    }, {});
   }
 
   private toResponse(
@@ -461,7 +554,8 @@ export class ElevenLabsService {
       : !hasKey
         ? 'NOT_CONFIGURED'
         : settings.isActive
-          ? ((settings.connectionStatus as ElevenLabsConnectionStatus) ?? 'PENDING')
+          ? ((settings.connectionStatus as ElevenLabsConnectionStatus) ??
+            'PENDING')
           : 'INACTIVE';
     const connectionStatus = this.normalizeStatus(rawStatus);
 
@@ -473,13 +567,16 @@ export class ElevenLabsService {
       baseUrl: settings?.baseUrl ?? DEFAULT_BASE_URL,
       defaultVoiceId: settings?.defaultVoiceId ?? null,
       defaultModelId: settings?.defaultModelId ?? DEFAULT_MODEL_ID,
-      defaultOutputFormat: settings?.defaultOutputFormat ?? DEFAULT_OUTPUT_FORMAT,
+      defaultOutputFormat:
+        settings?.defaultOutputFormat ?? DEFAULT_OUTPUT_FORMAT,
       stability: settings?.stability ?? DEFAULT_STABILITY,
       similarityBoost: settings?.similarityBoost ?? DEFAULT_SIMILARITY_BOOST,
       style: settings?.style ?? DEFAULT_STYLE,
       speed: settings?.speed ?? DEFAULT_SPEED,
       speakerBoost: settings?.speakerBoost ?? true,
-      lastTestAt: settings?.lastTestAt ? settings.lastTestAt.toISOString() : null,
+      lastTestAt: settings?.lastTestAt
+        ? settings.lastTestAt.toISOString()
+        : null,
       lastTestMessage: settings?.lastTestMessage ?? null,
     };
   }
@@ -487,7 +584,10 @@ export class ElevenLabsService {
   private normalizeStatus(
     value: ElevenLabsConnectionStatus,
   ): ElevenLabsConnectionStatusResponse {
-    const map: Record<ElevenLabsConnectionStatus, ElevenLabsConnectionStatusResponse> = {
+    const map: Record<
+      ElevenLabsConnectionStatus,
+      ElevenLabsConnectionStatusResponse
+    > = {
       NOT_CONFIGURED: 'not_configured',
       PENDING: 'pending',
       CONNECTED: 'connected',
@@ -515,7 +615,9 @@ export class ElevenLabsService {
     return currentStatus === 'CONNECTED' ? 'CONNECTED' : 'PENDING';
   }
 
-  private decryptStoredKey(settings: ElevenLabsIntegrationSettingRecord | null) {
+  private decryptStoredKey(
+    settings: ElevenLabsIntegrationSettingRecord | null,
+  ) {
     if (
       !settings?.apiKeyEncrypted ||
       !settings.apiKeyIv ||
@@ -570,6 +672,8 @@ export class ElevenLabsService {
 
   private isEmptyDraft(dto?: DraftSettings) {
     if (!dto) return true;
-    return !Object.entries(dto).some(([, value]) => value !== undefined && value !== null && value !== '');
+    return !Object.entries(dto).some(
+      ([, value]) => value !== undefined && value !== null && value !== '',
+    );
   }
 }

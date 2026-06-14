@@ -1,11 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
-import { CreateNarrativeRunDto } from './dto/create-narrative-run.dto';
 import { CreateRunEventDto } from './dto/create-run-event.dto';
 import { UpdateCurrentNodeDto } from './dto/update-current-node.dto';
 import { NarrativeRunsService } from './narrative-runs.service';
