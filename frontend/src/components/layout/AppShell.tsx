@@ -52,6 +52,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/categories",label: "Categorías",       icon: ListMusic, permissions: ["category:create"] },
   { href: "/admin/narratives",label: "Narrativas",       icon: Workflow,  permissions: ["narratives:view"] },
   { href: "/admin/buttons",   label: "Botones",          icon: PanelTop,  permissions: ["button:create"] },
+  { href: "/admin/integraciones", label: "Integraciones", icon: Zap, permissions: ["integration:manage"] },
   { href: "/admin/users",     label: "Usuarios",         icon: Users,     permissions: ["user:create"] },
   { href: "/admin/history",   label: "Historial",        icon: History,   permissions: ["history:read"] },
 ];
@@ -361,6 +362,7 @@ function getPageTitle(pathname: string) {
   if (pathname === "/board") return "/Botonera";
   if (pathname.startsWith("/admin/narratives")) return "/Narrativas";
   if (pathname === "/admin/buttons") return "/Botones";
+  if (pathname === "/admin/integraciones") return "/Integraciones";
   if (pathname === "/admin/organizations") return "/Organizaciones";
   if (pathname === "/admin/audios") return "/Audios";
   if (pathname === "/admin/categories") return "/Categorías";

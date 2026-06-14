@@ -27,6 +27,7 @@ model Organization {
   audioButtonFavorites AudioButtonFavorite[]
   narratives           Narrative[]
   narrativeRuns        NarrativeRun[]
+  elevenLabsIntegrationSetting ElevenLabsIntegrationSetting?
 }
 
 model User {
@@ -201,6 +202,34 @@ model UserNarrativePreference {
 
   @@unique([organizationId, userId])
   @@index([organizationId, userId])
+}
+
+model ElevenLabsIntegrationSetting {
+  id                String   @id @default(uuid())
+  organizationId    String   @unique
+  isActive          Boolean  @default(true)
+  apiKeyEncrypted   String?
+  apiKeyIv          String?
+  apiKeyAuthTag     String?
+  apiKeyLast4       String?
+  baseUrl           String   @default("https://api.elevenlabs.io")
+  defaultVoiceId    String?
+  defaultModelId    String   @default("eleven_multilingual_v2")
+  defaultOutputFormat String @default("mp3_44100_128")
+  stability         Float    @default(0.5)
+  similarityBoost   Float    @default(0.75)
+  style             Float    @default(0)
+  speed             Float    @default(1)
+  speakerBoost      Boolean  @default(true)
+  connectionStatus  String   @default("NOT_CONFIGURED")
+  lastTestAt        DateTime?
+  lastTestMessage   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 model AudioButtonFavorite {

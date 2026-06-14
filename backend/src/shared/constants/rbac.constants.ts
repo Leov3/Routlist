@@ -35,6 +35,7 @@ export const PERMISSIONS = [
   'narratives:publish',
   'narratives:archive',
   'narratives:run',
+  'integration:manage',
 ] as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[number];
@@ -69,6 +70,7 @@ export const ROLE_PERMISSIONS: Record<RoleName, PermissionKey[]> = {
     'narratives:publish',
     'narratives:archive',
     'narratives:run',
+    'integration:manage',
   ],
   SUPERVISOR: [
     'organization:read',

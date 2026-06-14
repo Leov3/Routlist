@@ -43,6 +43,12 @@ export default () => {
       cookieName: process.env.COOKIE_NAME ?? 'routlis_token',
       cookieSecure: process.env.COOKIE_SECURE === 'true',
     },
+    integration: {
+      encryptionKey:
+        process.env.INTEGRATION_ENCRYPTION_KEY ??
+        process.env.JWT_SECRET ??
+        'change-me',
+    },
     storage: {
       driver: process.env.STORAGE_DRIVER ?? 'local',
       localStoragePath:

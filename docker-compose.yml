@@ -26,6 +26,7 @@ services:
       DATABASE_URL: postgresql://routlis:${POSTGRES_PASSWORD:-routlis}@postgres:5432/routlis?schema=public
       JWT_SECRET: ${JWT_SECRET:-change-me-in-development}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-change-me-in-development-integrations}
       COOKIE_NAME: ${COOKIE_NAME:-routlis_token}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
