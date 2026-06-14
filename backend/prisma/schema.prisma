@@ -189,6 +189,7 @@ model UserNarrativePreference {
   organizationId String
   userId         String
   playerDistance String   @default("max")
+  playerViewMode String   @default("simple")
   playerViewportX Float    @default(0)
   playerViewportY Float    @default(0)
   playerViewportZoom Float @default(0.8)

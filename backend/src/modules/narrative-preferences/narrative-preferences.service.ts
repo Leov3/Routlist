@@ -5,6 +5,7 @@ import { UpdateNarrativePreferencesDto } from './dto/update-narrative-preference
 
 const DEFAULT_PREFERENCES = {
   playerDistance: 'max',
+  playerViewMode: 'simple',
   playerViewportX: 0,
   playerViewportY: 0,
   playerViewportZoom: 0.8,
@@ -39,12 +40,14 @@ export class NarrativePreferencesService {
         organizationId: user.organizationId,
         userId: user.id,
         playerDistance: dto.playerDistance ?? DEFAULT_PREFERENCES.playerDistance,
+        playerViewMode: dto.playerViewMode ?? DEFAULT_PREFERENCES.playerViewMode,
         playerViewportX: dto.playerViewportX ?? DEFAULT_PREFERENCES.playerViewportX,
         playerViewportY: dto.playerViewportY ?? DEFAULT_PREFERENCES.playerViewportY,
         playerViewportZoom: dto.playerViewportZoom ?? DEFAULT_PREFERENCES.playerViewportZoom,
       },
       update: {
         ...(dto.playerDistance ? { playerDistance: dto.playerDistance } : {}),
+        ...(dto.playerViewMode ? { playerViewMode: dto.playerViewMode } : {}),
         ...(typeof dto.playerViewportX === 'number' ? { playerViewportX: dto.playerViewportX } : {}),
         ...(typeof dto.playerViewportY === 'number' ? { playerViewportY: dto.playerViewportY } : {}),
         ...(typeof dto.playerViewportZoom === 'number' ? { playerViewportZoom: dto.playerViewportZoom } : {}),

@@ -40,7 +40,7 @@ export function BoardSidePanel({
   onStop: () => void;
   onToggleFavorite: (button: BoardButton) => void;
   onOpenDetails: (button: BoardButton) => void;
-  onSwapSides: () => void;
+  onSwapSides?: () => void;
   onSideChange: (next: BoardSideState) => void;
   density: BoardDensity;
 }) {
@@ -90,18 +90,20 @@ export function BoardSidePanel({
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onSwapSides}
-            className={`inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors hover:bg-surface-container ${
-              tone === "violet"
-                ? "border-primary/25 bg-primary/10 text-on-surface"
-                : "border-emerald-400/20 bg-emerald-400/10 text-on-surface"
-            }`}
-          >
-            <ArrowLeftRight className="h-4 w-4" />
-            Intercambiar lados
-          </button>
+          {onSwapSides ? (
+            <button
+              type="button"
+              onClick={onSwapSides}
+              className={`inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors hover:bg-surface-container ${
+                tone === "violet"
+                  ? "border-primary/25 bg-primary/10 text-on-surface"
+                  : "border-emerald-400/20 bg-emerald-400/10 text-on-surface"
+              }`}
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              Intercambiar lados
+            </button>
+          ) : null}
           <span className={`rounded-full border px-3 py-1 text-xs font-medium ${toneClasses.badge}`}>
             {filteredButtons.length} audio{filteredButtons.length !== 1 ? "s" : ""}
           </span>

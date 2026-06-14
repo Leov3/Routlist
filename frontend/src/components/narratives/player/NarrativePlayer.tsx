@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Background,
@@ -40,9 +41,11 @@ import type {
   NarrativeRunDetail,
   NarrativeRunEventType,
 } from "@/types/narratives";
-import type { BoardAudioButton } from "@/types/routlis";
+import type { BoardAudioButton, BoardViewMode } from "@/types/routlis";
 import { ApiError } from "@/lib/api";
 import { AudioButtonDetailsModal } from "@/components/audio-board/AudioButtonDetailsModal";
+import { BoardViewModeToggle } from "@/components/audio-board/BoardViewModeToggle";
+import { NarrativeAudioLibraryPanel } from "./NarrativeAudioLibraryPanel";
 import {
   NarrativePlayerContext,
   playerNodeTypes,
@@ -92,10 +95,14 @@ type LayoutPosition = {
 
 type NarrativePlayerPreferences = {
   playerDistance?: string;
+  playerViewMode?: BoardViewMode;
   playerViewportX?: number;
   playerViewportY?: number;
   playerViewportZoom?: number;
 };
+
+const DEFAULT_NARRATIVE_DISTANCE = "max";
+const DEFAULT_NARRATIVE_VIEW_MODE: BoardViewMode = "simple";
 
 const PLAYER_DISTANCE_PRESETS: LayoutDistancePreset[] = [
   { id: "compact", label: "Cerca", xScale: 0.92, yScale: 1.22 },
@@ -297,8 +304,11 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [showBottomDock, setShowBottomDock] = useState(false);
   const [showActivityDock, setShowActivityDock] = useState(false);
   const [distancePresetId, setDistancePresetId] = useState<string>("max");
+  const [playerViewMode, setPlayerViewMode] = useState<BoardViewMode>("simple");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 0.8 });
+  const savePreferencesTimerRef = useRef<number | null>(null);
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
   const handleApiError = useCallback((error: unknown, fallbackMessage: string) => {
     if (error instanceof ApiError) {
@@ -926,20 +936,26 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   useEffect(() => {
     let cancelled = false;
     setPreferencesReady(false);
+
     api<NarrativePlayerPreferences>("/me/narrative-preferences")
       .then((preferences) => {
         if (cancelled) return;
-        const preset = PLAYER_DISTANCE_PRESETS.find((item) => item.id === preferences.playerDistance);
-        if (preset) setDistancePresetId(preset.id);
-        setCanvasViewport({
+        const backendDistance = PLAYER_DISTANCE_PRESETS.find((item) => item.id === preferences.playerDistance);
+        const backendViewMode = preferences.playerViewMode === "dual" ? "dual" : "simple";
+        const backendViewport = {
           x: typeof preferences.playerViewportX === "number" ? preferences.playerViewportX : 0,
           y: typeof preferences.playerViewportY === "number" ? preferences.playerViewportY : 0,
           zoom: typeof preferences.playerViewportZoom === "number" ? preferences.playerViewportZoom : 0.8,
-        });
+        };
+
+        setDistancePresetId(backendDistance?.id || DEFAULT_NARRATIVE_DISTANCE);
+        setPlayerViewMode(backendViewMode || DEFAULT_NARRATIVE_VIEW_MODE);
+        setCanvasViewport(backendViewport);
       })
       .catch(() => {
         if (!cancelled) {
-          setDistancePresetId("max");
+          setDistancePresetId(DEFAULT_NARRATIVE_DISTANCE);
+          setPlayerViewMode(DEFAULT_NARRATIVE_VIEW_MODE);
           setCanvasViewport({ x: 0, y: 0, zoom: 0.8 });
         }
       })
@@ -952,32 +968,36 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }, []);
 
   useEffect(() => {
-    if (!preferencesReady) return;
-    void api("/me/narrative-preferences", {
-      method: "PATCH",
-      body: JSON.stringify({ playerDistance: distancePresetId }),
-    }).catch(() => {
-      // No bloqueamos la experiencia si falla la persistencia.
-    });
-  }, [distancePresetId, preferencesReady]);
+    setHeaderSlot(document.getElementById("board-header-slot"));
+  }, []);
 
   useEffect(() => {
     if (!preferencesReady) return;
-    const handle = window.setTimeout(() => {
+    if (savePreferencesTimerRef.current) {
+      window.clearTimeout(savePreferencesTimerRef.current);
+    }
+
+    savePreferencesTimerRef.current = window.setTimeout(() => {
       void api("/me/narrative-preferences", {
         method: "PATCH",
         body: JSON.stringify({
+          playerDistance: distancePresetId,
+          playerViewMode,
           playerViewportX: canvasViewport.x,
           playerViewportY: canvasViewport.y,
           playerViewportZoom: canvasViewport.zoom,
         }),
       }).catch(() => {
-        // no-op
+        // No bloqueamos la experiencia si falla la persistencia.
       });
     }, 250);
 
-    return () => window.clearTimeout(handle);
-  }, [canvasViewport, preferencesReady]);
+    return () => {
+      if (savePreferencesTimerRef.current) {
+        window.clearTimeout(savePreferencesTimerRef.current);
+      }
+    };
+  }, [distancePresetId, playerViewMode, canvasViewport, preferencesReady]);
 
   useEffect(() => {
     if (hasFitViewRef.current || !reactFlowRef.current || flowNodes.length === 0 || !preferencesReady) return;
@@ -1273,6 +1293,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }
 
   const eventLog = [...(run.events ?? [])].slice().reverse().slice(0, 10);
+  const isDualView = playerViewMode === "dual";
 
   async function copyScriptText() {
     const text = String(actionNode?.data?.body ?? "");
@@ -1677,6 +1698,15 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         },
       }}
     >
+      {headerSlot
+        ? createPortal(
+            <div className="flex min-w-0 items-center justify-center">
+              <BoardViewModeToggle value={playerViewMode} onChange={setPlayerViewMode} />
+            </div>,
+            headerSlot,
+          )
+        : null}
+
     <ReactFlowProvider>
       {buttonBoardModalButton ? (
         <AudioButtonDetailsModal
@@ -1710,7 +1740,14 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         }}
         className="hidden"
       />
-      <div className="space-y-2">
+      <div
+        className={
+          isDualView
+            ? "grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start"
+            : "space-y-2"
+        }
+      >
+        <div className="min-w-0 w-full space-y-2">
         {message ? (
           <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
             {message}
@@ -1853,7 +1890,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
         <div className="flex flex-col gap-3">
           <section className="flex flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1">
-            <div className="relative h-[calc(100vh-345px)] min-h-[420px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c] xl:h-[calc(100vh-355px)]">
+            <div className="relative h-[calc(100vh-400px)] min-h-[360px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c] xl:h-[calc(100vh-410px)]">
               <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-primary/20 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
                   {nodeLabel(currentNode)}
@@ -2210,71 +2247,77 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               </div>
 
               {showBottomDock ? (
-                <>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)]">
-                <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Estado operacional</p>
-                  <p className="mt-2 text-sm font-semibold text-on-surface">
-                    Actual: {nodeLabel(currentNode)} · Última acción: {eventLog[0]?.eventType ?? "Sin eventos"}
-                  </p>
-                  <p className="mt-1 text-xs text-on-surface-variant">
-                    Ruta: {orderedNodes.slice(0, 3).map((node) => nodeLabel(node)).join(" → ")}
-                    {orderedNodes.length > 3 ? " ..." : ""}
-                  </p>
-                </div>
+                <div className="space-y-3">
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)]">
+                    <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Estado operacional</p>
+                      <p className="mt-2 text-sm font-semibold text-on-surface">
+                        Actual: {nodeLabel(currentNode)} · Última acción: {eventLog[0]?.eventType ?? "Sin eventos"}
+                      </p>
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        Ruta: {orderedNodes.slice(0, 3).map((node) => nodeLabel(node)).join(" → ")}
+                        {orderedNodes.length > 3 ? " ..." : ""}
+                      </p>
+                    </div>
 
-                <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Resumen</p>
-                  <div className="mt-2 grid gap-1 text-xs text-on-surface-variant">
-                    <p>Versión: <span className="font-semibold text-on-surface">v{run.narrativeVersion.versionNumber}</span></p>
-                    <p>Estado: <span className="font-semibold text-on-surface">{run.status}</span></p>
-                    <p>Eventos: <span className="font-semibold text-on-surface">{run.events?.length ?? 0}</span></p>
-                  </div>
-                </div>
-              </div>
-
-              {showActivityDock ? (
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Actividad reciente</p>
-                    <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-2">
-                      {eventLog.length > 0 ? eventLog.map((event) => (
-                        <div key={event.id} className="rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-on-surface">{event.eventType}</p>
-                            <span className="text-[11px] text-on-surface-variant">{formatDateTime(event.createdAt)}</span>
-                          </div>
-                          <p className="mt-1 text-xs text-on-surface-variant">Nodo {event.nodeId}</p>
-                        </div>
-                      )) : (
-                        <p className="text-sm text-on-surface-variant">Todavía no hay eventos en esta ejecución.</p>
-                      )}
+                    <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Resumen</p>
+                      <div className="mt-2 grid gap-1 text-xs text-on-surface-variant">
+                        <p>Versión: <span className="font-semibold text-on-surface">v{run.narrativeVersion.versionNumber}</span></p>
+                        <p>Estado: <span className="font-semibold text-on-surface">{run.status}</span></p>
+                        <p>Eventos: <span className="font-semibold text-on-surface">{run.events?.length ?? 0}</span></p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Ruta visible</p>
-                    <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-2">
-                      {orderedNodes.map((node) => {
-                        const status = nodeStates.get(node.id) ?? "locked";
-                        return (
-                          <div key={node.id} className={`rounded-xl border px-3 py-2 text-xs ${statusTone(status)}`}>
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold text-on-surface">{nodeLabel(node)}</span>
-                              <span className="uppercase tracking-[0.18em]">{node.type}</span>
+                  {showActivityDock ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Actividad reciente</p>
+                        <div className="mt-3 max-h-[220px] space-y-2 overflow-y-auto pr-2">
+                          {eventLog.length > 0 ? eventLog.map((event) => (
+                            <div key={event.id} className="rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-semibold text-on-surface">{event.eventType}</p>
+                                <span className="text-[11px] text-on-surface-variant">{formatDateTime(event.createdAt)}</span>
+                              </div>
+                              <p className="mt-1 text-xs text-on-surface-variant">Nodo {event.nodeId}</p>
                             </div>
-                          </div>
-                        );
-                      })}
+                          )) : (
+                            <p className="text-sm text-on-surface-variant">Todavía no hay eventos en esta ejecución.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Ruta visible</p>
+                        <div className="mt-3 max-h-[220px] space-y-2 overflow-y-auto pr-2">
+                          {orderedNodes.map((node) => {
+                            const status = nodeStates.get(node.id) ?? "locked";
+                            return (
+                              <div key={node.id} className={`rounded-xl border px-3 py-2 text-xs ${statusTone(status)}`}>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-semibold text-on-surface">{nodeLabel(node)}</span>
+                                  <span className="uppercase tracking-[0.18em]">{node.type}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
-              ) : null}
-                </>
               ) : null}
             </div>
           </section>
         </div>
+        </div>
+        {isDualView ? (
+          <aside className="min-w-0 w-full lg:sticky lg:top-4 lg:self-start">
+            <NarrativeAudioLibraryPanel />
+          </aside>
+        ) : null}
       </div>
     </ReactFlowProvider>
     </NarrativePlayerContext.Provider>
