@@ -42,7 +42,7 @@ import type {
   NarrativeRunDetail,
   NarrativeRunEventType,
 } from "@/types/narratives";
-import type { BoardAudioButton, BoardViewMode } from "@/types/routlis";
+import type { BoardAudioButton, BoardCategory, BoardViewMode } from "@/types/routlis";
 import { ApiError } from "@/lib/api";
 import { AudioButtonDetailsModal } from "@/components/audio-board/AudioButtonDetailsModal";
 import { BoardViewModeToggle } from "@/components/audio-board/BoardViewModeToggle";
@@ -117,6 +117,23 @@ type DynamicAudioClip = {
   generatedAt: string;
   text: string;
 };
+
+function mapBoardButtonToAudioButtonDetail(button: BoardAudioButton): AudioButtonDetail {
+  return {
+    id: button.id,
+    label: button.label,
+    category: button.category ? { name: button.category.name } : null,
+    shortcutKey: button.shortcutKey ?? null,
+    description: button.description ?? null,
+    color: button.color ?? null,
+    audioAsset: {
+      originalName: button.audioAsset.originalName,
+    },
+    audioAssetId: button.audioAsset.id,
+    imageUrl: button.imageUrl ?? null,
+    imagePublicUrl: button.imageUrl ?? null,
+  };
+}
 
 const DEFAULT_NARRATIVE_DISTANCE = "max";
 const DEFAULT_NARRATIVE_VIEW_MODE: BoardViewMode = "simple";
@@ -604,54 +621,46 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
   }, [currentNode?.id, selectedNodeId]);
 
-  const audioButtonIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const node of nodes) {
-      if (node.type === "AUDIO_BUTTON" && node.data?.audioButtonId) {
-        ids.add(String(node.data.audioButtonId));
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadButtonCatalog() {
+      if (!nodes.some((node) => node.type === "AUDIO_BUTTON")) {
+        setAudioButtonDetailsById({});
+        return;
+      }
+
+      try {
+        const boardData = await api<BoardCategory[]>("/audio-buttons/board");
+        if (cancelled) return;
+
+        const nextMap: Record<string, AudioButtonDetail> = {};
+
+        for (const category of boardData) {
+          for (const button of category.buttons ?? []) {
+            nextMap[button.id] = mapBoardButtonToAudioButtonDetail(button);
+          }
+        }
+
+        setAudioButtonDetailsById(nextMap);
+      } catch {
+        if (!cancelled) {
+          setAudioButtonDetailsById({});
+        }
       }
     }
-    return Array.from(ids);
-  }, [nodes]);
 
-  const audioButtonIdsKey = audioButtonIds.join("|");
-
-  useEffect(() => {
-    if (!audioButtonIds.length) return;
-    const missingIds = audioButtonIds.filter((id) => !audioButtonDetailsById[id]);
-    if (!missingIds.length) return;
-
-    let cancelled = false;
-    void Promise.all(
-      missingIds.map(async (id) => {
-        try {
-          const detail = await api<AudioButtonDetail>(`/audio-buttons/${id}`);
-          return [id, detail] as const;
-        } catch {
-          return [id, null] as const;
-        }
-      }),
-    ).then((entries) => {
-      if (cancelled) return;
-      setAudioButtonDetailsById((previous) => {
-        const next = { ...previous };
-        for (const [id, detail] of entries) {
-          if (detail) next[id] = detail;
-        }
-        return next;
-      });
-    });
+    void loadButtonCatalog();
 
     return () => {
       cancelled = true;
     };
-    // `audioButtonDetailsById` is intentionally omitted to avoid refetch churn while nodes render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioButtonIdsKey]);
+  }, [nodes]);
 
   useEffect(() => {
-    const audioButtonId = actionNode?.type === "AUDIO_BUTTON" && actionNode.data?.audioButtonId
-      ? String(actionNode.data.audioButtonId)
+    const actionData = actionNode?.data;
+    const audioButtonId = actionNode?.type === "AUDIO_BUTTON" && actionData?.audioButtonId
+      ? String(actionData.audioButtonId)
       : "";
 
     if (audioButtonId) {
@@ -662,18 +671,21 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         return;
       }
 
-      setButtonDetailsError(null);
-      api<AudioButtonDetail>(`/audio-buttons/${audioButtonId}`)
-        .then((res) => {
-          setCurrentButtonDetails(res);
-          setAudioButtonDetailsById((previous) => ({ ...previous, [audioButtonId]: res }));
-          setButtonDetailsError(null);
-        })
-        .catch((err) => {
-          console.error("Error loading button details", err);
-          setCurrentButtonDetails(null);
-          setButtonDetailsError("No se pudo cargar el detalle del botón o el recurso ya no está disponible.");
-        });
+      setCurrentButtonDetails({
+        id: audioButtonId,
+        label: String(actionData?.label ?? actionData?.title ?? "Botón de audio"),
+        category: null,
+        shortcutKey: null,
+        description: typeof actionData?.description === "string" ? actionData.description : null,
+        color: null,
+        audioAsset: null,
+        audioAssetId: typeof actionData?.audioAssetId === "string" ? actionData.audioAssetId : null,
+        imageUrl: null,
+        imagePublicUrl: null,
+      });
+      setButtonDetailsError(
+        "No se encontró el botón en la biblioteca cargada. El recurso puede haberse eliminado o no pertenecer a esta organización.",
+      );
     } else {
       setCurrentButtonDetails(null);
       setButtonDetailsError(null);
@@ -1947,39 +1959,21 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           </div>
         ) : null}
 
-        <section className="rounded-[22px] border border-outline-variant bg-surface-container px-3.5 py-2 shadow-elevation-1">
-          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
+        <section className="rounded-[22px] border border-outline-variant bg-surface-container px-3 py-2 shadow-elevation-1">
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
                 Narrativas / {run.narrative.title}
               </p>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <h1 className="text-lg font-semibold tracking-tight text-on-surface">{run.narrative.title}</h1>
-                <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
-                  {run.status}
-                </span>
-                <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
-                  v{run.narrativeVersion.versionNumber}
-                </span>
-                <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
-                  Paso {Math.min(progressedNodes, actionableNodes)} / {actionableNodes || 0}
-                </span>
-                <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
-                  {currentNode.type}
-                </span>
-                {elapsedLabel ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
-                    <Timer className="h-3 w-3" />
-                    {elapsedLabel}
-                  </span>
-                ) : null}
-              </div>
+              <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-on-surface">
+                {run.narrative.title}
+              </h1>
             </div>
-            <div className="flex w-full flex-wrap items-center justify-start gap-1.5 xl:w-auto xl:flex-nowrap xl:justify-end">
+            <div className="flex w-full items-center justify-start gap-1.5 overflow-x-auto pb-0.5 lg:w-auto lg:justify-end lg:overflow-visible">
               <button
                 type="button"
                 onClick={() => centerCurrentNode()}
-                className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
               >
                 <Crosshair className="h-3.5 w-3.5" />
                 Centrar
@@ -1988,7 +1982,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 type="button"
                 onClick={() => void cancelRun()}
                 disabled={working || run.status !== "RUNNING"}
-                className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-red-300/30 bg-red-500/10 px-3 text-xs font-semibold text-red-300 transition-colors hover:border-red-400 disabled:opacity-50"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-red-300/30 bg-red-500/10 px-3 text-xs font-semibold text-red-300 transition-colors hover:border-red-400 disabled:opacity-50"
               >
                 <StopCircle className="h-3.5 w-3.5" />
                 Cancelar
@@ -1997,7 +1991,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 type="button"
                 onClick={() => void finishRun()}
                 disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
-                className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:border-emerald-400 disabled:opacity-50"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:border-emerald-400 disabled:opacity-50"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Finalizar
@@ -2005,11 +1999,11 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               <button
                 type="button"
                 onClick={() => router.push("/narratives")}
-                className="inline-flex h-9 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
               >
                 Volver
               </button>
-              <div className="flex w-full min-w-[260px] max-w-[380px] items-center gap-2 rounded-full border border-outline-variant bg-surface px-3 py-2 xl:ml-2">
+              <div className="flex w-full min-w-[200px] max-w-[280px] shrink-0 items-center gap-2 rounded-full border border-outline-variant bg-surface px-3 py-2 lg:ml-2">
                 <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
                   Cerca
                 </span>
@@ -2018,7 +2012,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                   min={0}
                   max={PLAYER_DISTANCE_PRESETS.length - 1}
                   step={1}
-                value={PLAYER_DISTANCE_PRESETS.findIndex((preset) => preset.id === distancePreset.id)}
+                  value={PLAYER_DISTANCE_PRESETS.findIndex((preset) => preset.id === distancePreset.id)}
                   onChange={(event) => {
                     const nextPreset = PLAYER_DISTANCE_PRESETS[Number(event.target.value)];
                     if (nextPreset) setDistancePresetId(nextPreset.id);
@@ -2030,6 +2024,14 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 </span>
               </div>
             </div>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+              {run.status}
+            </span>
+            <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+              v{run.narrativeVersion.versionNumber}
+            </span>
           </div>
         </section>
 
