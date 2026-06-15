@@ -4,11 +4,13 @@ import {
   Get,
   HttpCode,
   Post,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBody, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -27,8 +29,15 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(loginDto, {
+      userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
+      ipAddress: typeof req.ip === 'string' ? req.ip : undefined,
+    });
     const cookieName = this.configService.getOrThrow<string>('auth.cookieName');
     const secure = this.configService.get<boolean>('auth.cookieSecure');
 
@@ -44,7 +53,13 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(200)
-  logout(@Res({ passthrough: true }) res: Response) {
+  @ApiCookieAuth('cookie')
+  @UseGuards(JwtAuthGuard)
+  async logout(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.logout(user);
     const cookieName = this.configService.getOrThrow<string>('auth.cookieName');
     res.clearCookie(cookieName, { path: '/' });
     return { ok: true };
@@ -53,7 +68,8 @@ export class AuthController {
   @Get('me')
   @ApiCookieAuth('cookie')
   @UseGuards(JwtAuthGuard)
-  me(@CurrentUser() user: AuthenticatedUser) {
+  async me(@CurrentUser() user: AuthenticatedUser) {
+    await this.authService.touchSession(user.sessionId);
     return { user };
   }
 

@@ -28,6 +28,7 @@ model Organization {
   audioButtonFavorites AudioButtonFavorite[]
   narratives           Narrative[]
   narrativeRuns        NarrativeRun[]
+  sessions             UserSession[]
   elevenLabsIntegrationSetting ElevenLabsIntegrationSetting?
   audioGenerationJobs   AudioGenerationJob[]
 }
@@ -53,6 +54,26 @@ model User {
   narrativesUpdated          Narrative[]           @relation("NarrativeUpdatedBy")
   narrativeVersionsPublished NarrativeVersion[]    @relation("NarrativeVersionPublishedBy")
   narrativeRunsStarted       NarrativeRun[]        @relation("NarrativeRunStartedBy")
+  sessions                   UserSession[]
+}
+
+model UserSession {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  status         String   @default("ACTIVE")
+  lastSeenAt     DateTime @default(now())
+  revokedAt      DateTime?
+  userAgent      String?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, updatedAt])
+  @@index([organizationId, userId, status])
 }
 
 model OrganizationMember {
