@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../shared/types/authenticated-user';
 import { PERMISSIONS, GLOBAL_ROLE_NAME } from '../../shared/constants/rbac.constants';
@@ -99,13 +100,14 @@ export class AuthService {
 
     await this.prisma.userSession.updateMany({
       where: {
-        id: currentUser.sessionId,
+        sessionId: currentUser.sessionId,
         userId: currentUser.id,
-        status: 'ACTIVE',
+        isActive: true,
       },
       data: {
-        status: 'REVOKED',
+        isActive: false,
         revokedAt: new Date(),
+        revokedReason: 'logout',
       },
     });
 
@@ -117,8 +119,8 @@ export class AuthService {
 
     await this.prisma.userSession.updateMany({
       where: {
-        id: sessionId,
-        status: 'ACTIVE',
+        sessionId,
+        isActive: true,
       },
       data: {
         lastSeenAt: new Date(),
@@ -223,9 +225,9 @@ export class AuthService {
       if (sessionId) {
         const activeSession = await tx.userSession.findFirst({
           where: {
-            id: sessionId,
+            sessionId,
             userId: user.id,
-            status: 'ACTIVE',
+            isActive: true,
           },
         });
 
@@ -244,11 +246,12 @@ export class AuthService {
         await tx.userSession.updateMany({
           where: {
             userId: user.id,
-            status: 'ACTIVE',
+            isActive: true,
           },
           data: {
-            status: 'REVOKED',
+            isActive: false,
             revokedAt: new Date(),
+            revokedReason: 'replaced-by-new-session',
           },
         });
 
@@ -256,14 +259,15 @@ export class AuthService {
           data: {
             userId: user.id,
             organizationId,
-            status: 'ACTIVE',
+            sessionId: randomUUID(),
+            isActive: true,
             lastSeenAt: new Date(),
             userAgent: context.userAgent?.trim() || null,
             ipAddress: context.ipAddress?.trim() || null,
           },
         });
 
-        sessionId = session.id;
+        sessionId = session.sessionId;
       }
 
       const authUser: AuthenticatedUser = {

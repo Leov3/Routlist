@@ -55,6 +55,9 @@ export default () => {
         process.env.LOCAL_STORAGE_PATH ?? '/var/www/routlis/storage',
       localAudioPath:
         process.env.LOCAL_AUDIO_PATH ?? '/var/www/routlis/storage/audio-assets',
+      localBackupPath:
+        process.env.LOCAL_BACKUP_PATH ??
+        '/var/www/routlis/storage/backups',
       publicAudioBaseUrl:
         process.env.PUBLIC_AUDIO_BASE_URL ??
         'http://localhost:4000/files/audio-assets',

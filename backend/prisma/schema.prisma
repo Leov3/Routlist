@@ -31,6 +31,9 @@ model Organization {
   sessions             UserSession[]
   elevenLabsIntegrationSetting ElevenLabsIntegrationSetting?
   audioGenerationJobs   AudioGenerationJob[]
+  maintenanceBackupSetting MaintenanceBackupSetting?
+  maintenanceBackups    MaintenanceBackup[]
+  systemAuditEvents     SystemAuditEvent[]
 }
 
 model User {
@@ -55,25 +58,29 @@ model User {
   narrativeVersionsPublished NarrativeVersion[]    @relation("NarrativeVersionPublishedBy")
   narrativeRunsStarted       NarrativeRun[]        @relation("NarrativeRunStartedBy")
   sessions                   UserSession[]
+  maintenanceBackupsCreated  MaintenanceBackup[]   @relation("MaintenanceBackupsCreatedBy")
+  systemAuditEventsCreated    SystemAuditEvent[]    @relation("SystemAuditEventsCreatedBy")
 }
 
 model UserSession {
   id             String   @id @default(uuid())
   userId         String
   organizationId String
-  status         String   @default("ACTIVE")
+  sessionId      String   @unique
+  ipAddress      String?
+  userAgent      String?
+  deviceLabel    String?
+  isActive       Boolean  @default(true)
   lastSeenAt     DateTime @default(now())
   revokedAt      DateTime?
-  userAgent      String?
-  ipAddress      String?
+  revokedReason  String?
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([userId, status, updatedAt])
-  @@index([organizationId, userId, status])
+  @@index([sessionId])
+  @@index([userId, isActive])
 }
 
 model OrganizationMember {
@@ -445,6 +452,68 @@ model NarrativeRunEvent {
 
   @@index([narrativeRunId, createdAt])
   @@index([nodeId, createdAt])
+}
+
+model MaintenanceBackupSetting {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  isEnabled      Boolean  @default(false)
+  includeDatabase Boolean @default(true)
+  includeStorage Boolean @default(true)
+  scheduleMode   String   @default("MANUAL")
+  everyHours     Int      @default(24)
+  retentionDays  Int      @default(7)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceBackup {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  createdById          String?
+  source               String   @default("MANUAL")
+  status               String   @default("COMPLETED")
+  label                String?
+  includeDatabase      Boolean  @default(true)
+  includeStorage       Boolean  @default(true)
+  backupDirectoryKey   String
+  archiveFileName      String
+  databaseDumpFileName String?
+  storageArchiveFileName String?
+  sizeBytes            Int      @default(0)
+  expiresAt            DateTime?
+  startedAt            DateTime @default(now())
+  completedAt          DateTime?
+  errorMessage         String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("MaintenanceBackupsCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status, createdAt])
+}
+
+model SystemAuditEvent {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String?
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation("SystemAuditEventsCreatedBy", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, action, createdAt])
 }
 
 enum NarrativeStatus {

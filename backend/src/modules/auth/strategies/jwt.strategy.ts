@@ -36,13 +36,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     const session = await this.prisma.userSession.findFirst({
       where: {
-        id: payload.sessionId,
+        sessionId: payload.sessionId,
         userId: payload.sub,
         organizationId: payload.organizationId,
-        status: 'ACTIVE',
+        isActive: true,
       },
       select: {
         id: true,
+        sessionId: true,
       },
     });
 
@@ -81,7 +82,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         organizationId: organization.id,
         role: GLOBAL_ROLE_NAME,
         permissions: [...PERMISSIONS],
-        sessionId: session.id,
+        sessionId: session.sessionId,
       };
     }
 
@@ -115,7 +116,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       organizationId: member.organizationId,
       role: member.role.name,
       permissions: member.role.permissions.map(({ permission }) => permission.key),
-      sessionId: session.id,
+      sessionId: session.sessionId,
     };
   }
 }

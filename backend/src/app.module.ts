@@ -21,6 +21,7 @@ import { ElevenLabsModule } from './modules/integrations/elevenlabs/elevenlabs.m
 import { AudioGenerationModule } from './modules/audio-generation/audio-generation.module';
 import { NarrativesModule } from './modules/narratives/narratives.module';
 import { NarrativeRunsModule } from './modules/narrative-runs/narrative-runs.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { NarrativeRunsModule } from './modules/narrative-runs/narrative-runs.mod
     AudioGenerationModule,
     NarrativesModule,
     NarrativeRunsModule,
+    MaintenanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

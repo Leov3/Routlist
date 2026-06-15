@@ -51,6 +51,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/organizations", label: "Organizaciones", icon: Database, roles: ["OWNER"] },
   { href: "/admin/audios",    label: "Audios",           icon: Library,   permissions: ["audio:create"] },
   { href: "/admin/storage",   label: "Almacenamiento",   icon: HardDrive, roles: ["OWNER"] },
+  { href: "/admin/maintenance", label: "Migraciones y backup", icon: Database, roles: ["OWNER"] },
   { href: "/admin/categories",label: "Categorías",       icon: ListMusic, permissions: ["category:create"] },
   { href: "/admin/narratives",label: "Narrativas",       icon: Workflow,  permissions: ["narratives:view"] },
   { href: "/admin/buttons",   label: "Botones",          icon: PanelTop,  permissions: ["button:create"] },

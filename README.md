@@ -69,6 +69,7 @@ Estado funcional actual:
 - Cuando hay muchas tarjetas, el contenido usa scroll interno sin mover el player.
 - El encabezado de `/board` quedó simplificado y muestra solo `/Botonera` junto al selector de vista.
 - Existe `/admin/integraciones` para configurar ElevenLabs por organización.
+- Existe `/admin/maintenance` para revisar migraciones Prisma, crear backups y restaurar snapshots de base de datos y storage.
 - La API key de ElevenLabs se guarda cifrada en backend y nunca se expone completa al frontend.
 - La configuración de ElevenLabs es persistente por organización en PostgreSQL.
 - La opción y la pantalla de almacenamiento en el dashboard solo se muestran a `OWNER`.
@@ -109,6 +110,7 @@ Entorno local recomendado:
 - Docker Engine + Compose Plugin.
 - PostgreSQL, backend y frontend en contenedores.
 - Volumen persistente para la base de datos y el storage.
+- El storage de backups vive en `/var/www/routlis/storage/backups` por defecto.
 - El flujo principal ahora es `docker compose` en la raiz del proyecto.
 
 ## Arranque local
