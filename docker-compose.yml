@@ -32,6 +32,7 @@ services:
       STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
       LOCAL_STORAGE_PATH: ${LOCAL_STORAGE_PATH:-/var/www/routlis/storage}
       LOCAL_AUDIO_PATH: ${LOCAL_AUDIO_PATH:-/var/www/routlis/storage/audio-assets}
+      LOCAL_BACKUP_PATH: ${LOCAL_BACKUP_PATH:-/var/www/routlis/storage/backups}
       PUBLIC_AUDIO_BASE_URL: ${PUBLIC_AUDIO_BASE_URL:-http://localhost:4000/files/audio-assets}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}

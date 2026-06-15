@@ -199,6 +199,14 @@ export default function AdminDashboardPage() {
         roles: ["OWNER"],
       },
       {
+        label: "Migraciones y backup",
+        value: "Admin",
+        href: "/admin/maintenance",
+        icon: Database,
+        permission: "audio:update",
+        roles: ["OWNER"],
+      },
+      {
         label: "Categorias",
         value: counts.categories,
         href: "/admin/categories",
