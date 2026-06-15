@@ -259,6 +259,20 @@ export class ElevenLabsService {
     user: AuthenticatedUser,
     dto: GenerateElevenLabsAudioDto,
   ): Promise<ElevenLabsGenerateAudioResponse> {
+    const generated = await this.generateAudioBuffer(user, dto);
+
+    return {
+      fileName: generated.fileName,
+      contentType: generated.contentType,
+      sizeBytes: generated.buffer.length,
+      audioBase64: generated.buffer.toString('base64'),
+    };
+  }
+
+  async generateAudioBuffer(
+    user: AuthenticatedUser,
+    dto: GenerateElevenLabsAudioDto,
+  ): Promise<{ buffer: Buffer; contentType: string; fileName: string }> {
     const current = await this.findSettings(user.organizationId);
     const resolved = await this.resolveSettings(
       user.organizationId,
@@ -280,10 +294,9 @@ export class ElevenLabsService {
     );
 
     return {
-      fileName: `elevenlabs-test-${Date.now()}.${this.extensionForOutputFormat(resolved.defaultOutputFormat)}`,
+      buffer,
       contentType,
-      sizeBytes: buffer.length,
-      audioBase64: buffer.toString('base64'),
+      fileName: `elevenlabs-test-${Date.now()}.${this.extensionForOutputFormat(resolved.defaultOutputFormat)}`,
     };
   }
 
