@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "./AppShell";
 import { getCurrentUser } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
 import type { AuthUser } from "@/types/routlis";
 
 type ProtectedPageProps = {
@@ -22,11 +23,72 @@ export function ProtectedPage({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     getCurrentUser()
-      .then(setUser)
-      .catch(() => router.replace("/login"))
-      .finally(() => setLoading(false));
+      .then((currentUser) => {
+        if (!cancelled) {
+          setUser(currentUser);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          router.replace("/login");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    let inFlight = false;
+    let timeoutId: number | null = null;
+
+    const schedule = () => {
+      if (cancelled) return;
+      timeoutId = window.setTimeout(async () => {
+        if (cancelled || inFlight) {
+          schedule();
+          return;
+        }
+
+        inFlight = true;
+        try {
+          await getCurrentUser();
+        } catch (error) {
+          if (!cancelled && error instanceof ApiError && error.status === 401) {
+            setUser(null);
+            router.replace("/login");
+            return;
+          }
+        } finally {
+          inFlight = false;
+          if (!cancelled) {
+            schedule();
+          }
+        }
+      }, 3000);
+    };
+
+    schedule();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [router, user]);
 
   if (loading) {
     return (

@@ -9,6 +9,7 @@ import { AuthenticatedUser } from '../../../shared/types/authenticated-user';
 type JwtPayload = {
   sub: string;
   organizationId: string;
+  sessionId: string;
 };
 
 @Injectable()
@@ -30,6 +31,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Invalid session');
+    }
+
+    const session = await this.prisma.userSession.findFirst({
+      where: {
+        id: payload.sessionId,
+        userId: payload.sub,
+        organizationId: payload.organizationId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!session) {
       throw new UnauthorizedException('Invalid session');
     }
 
@@ -64,6 +81,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         organizationId: organization.id,
         role: GLOBAL_ROLE_NAME,
         permissions: [...PERMISSIONS],
+        sessionId: session.id,
       };
     }
 
@@ -97,6 +115,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       organizationId: member.organizationId,
       role: member.role.name,
       permissions: member.role.permissions.map(({ permission }) => permission.key),
+      sessionId: session.id,
     };
   }
 }
