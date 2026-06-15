@@ -20,6 +20,7 @@ import {
   LogOut,
   Moon,
   PanelTop,
+  Sparkles,
   Settings,
   Sun,
   Workflow,
@@ -41,6 +42,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/narratives", label: "Narrativas", icon: Workflow, permissions: ["narratives:run"] },
+  { href: "/audio-ia", label: "Audio IA", icon: Sparkles, permissions: ["audio:generate"] },
   { href: "/board", label: "Botonera", icon: PanelTop, permissions: ["board:use"] },
 ];
 
@@ -359,6 +361,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 
 function getPageTitle(pathname: string) {
   if (pathname === "/narratives" || pathname.startsWith("/narratives/")) return "/Narrativas";
+  if (pathname === "/audio-ia") return "/Audio IA";
   if (pathname === "/board") return "/Botonera";
   if (pathname.startsWith("/admin/narratives")) return "/Narrativas";
   if (pathname === "/admin/buttons") return "/Botones";

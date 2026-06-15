@@ -29,6 +29,17 @@ export type AudioAsset = {
   sizeBytes: number;
   durationSeconds?: number | null;
   transcript?: string | null;
+  sourceType?: "UPLOAD" | "TTS" | string;
+  lifecycleStatus?: "TEMPORARY" | "PERSISTED" | string;
+  expiresAt?: string | null;
+  generatedText?: string | null;
+  generatedVoiceId?: string | null;
+  generatedVoiceName?: string | null;
+  generatedModelId?: string | null;
+  generatedOutputFormat?: string | null;
+  generatedSettingsJson?: Record<string, unknown> | null;
+  generationJobId?: string | null;
+  autoCreatedButtonId?: string | null;
   isActive: boolean;
   createdAt: string;
   audioUrl?: string;
@@ -122,3 +133,59 @@ export type PlaybackEvent = {
 };
 
 export type RecentPlaybackEvent = PlaybackEvent;
+
+export type AudioGenerationJobStatus =
+  | "QUEUED"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELED"
+  | "EXPIRED";
+
+export type AudioGenerationJob = {
+  id: string;
+  status: AudioGenerationJobStatus | string;
+  provider: string;
+  inputText: string;
+  normalizedText: string;
+  voiceId: string;
+  voiceName?: string | null;
+  modelId: string;
+  outputFormat: string;
+  stability: number;
+  similarityBoost: number;
+  style: number;
+  speed: number;
+  speakerBoost: boolean;
+  requestHash: string;
+  audioAssetId?: string | null;
+  audioButtonId?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  attemptCount: number;
+  lastAttemptAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  asset?: AudioGenerationLibraryItem | null;
+};
+
+export type AudioGenerationLibraryItem = AudioAsset & {
+  createdBy: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
+};
+
+export type AudioGenerationPreferences = {
+  composerText: string;
+  composerVoiceId: string;
+  composerModelId: string;
+  composerOutputFormat: string;
+  composerStability: number;
+  composerSimilarityBoost: number;
+  composerStyle: number;
+  composerSpeed: number;
+  composerSpeakerBoost: boolean;
+};

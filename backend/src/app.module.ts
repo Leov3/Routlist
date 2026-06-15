@@ -15,8 +15,10 @@ import { AudioButtonsModule } from './modules/audio-buttons/audio-buttons.module
 import { PlaybackModule } from './modules/playback/playback.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { BoardPreferencesModule } from './modules/board-preferences/board-preferences.module';
+import { AudioGenerationPreferencesModule } from './modules/audio-generation-preferences/audio-generation-preferences.module';
 import { NarrativePreferencesModule } from './modules/narrative-preferences/narrative-preferences.module';
 import { ElevenLabsModule } from './modules/integrations/elevenlabs/elevenlabs.module';
+import { AudioGenerationModule } from './modules/audio-generation/audio-generation.module';
 import { NarrativesModule } from './modules/narratives/narratives.module';
 import { NarrativeRunsModule } from './modules/narrative-runs/narrative-runs.module';
 
@@ -38,8 +40,10 @@ import { NarrativeRunsModule } from './modules/narrative-runs/narrative-runs.mod
     PlaybackModule,
     AuditModule,
     BoardPreferencesModule,
+    AudioGenerationPreferencesModule,
     NarrativePreferencesModule,
     ElevenLabsModule,
+    AudioGenerationModule,
     NarrativesModule,
     NarrativeRunsModule,
   ],
