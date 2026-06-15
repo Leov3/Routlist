@@ -20,6 +20,13 @@ export type ElevenLabsVoiceSummary = {
   previewUrl?: string | null;
 };
 
+export type ElevenLabsModelSummary = {
+  modelId: string;
+  name: string;
+  description?: string | null;
+  languages?: string[] | null;
+};
+
 export type ElevenLabsSettingsResponse = {
   isActive: boolean;
   connectionStatus: ElevenLabsConnectionStatusResponse;
@@ -42,6 +49,10 @@ export type ElevenLabsVoiceListResponse = {
   voices: ElevenLabsVoiceSummary[];
   nextPageToken: string | null;
   totalCount: number | null;
+};
+
+export type ElevenLabsModelListResponse = {
+  models: ElevenLabsModelSummary[];
 };
 
 export type ElevenLabsGenerateAudioResponse = {

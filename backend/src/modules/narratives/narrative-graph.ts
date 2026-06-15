@@ -39,6 +39,23 @@ export function isFlowNodeType(type: NarrativeGraphNode['type']) {
   return !isAnnotationNodeType(type);
 }
 
+function extractDynamicAudioVariables(template: string) {
+  const variables = new Set<string>();
+  const pattern = /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(template))) {
+    variables.add(match[1]);
+  }
+
+  return Array.from(variables);
+}
+
+function containsInvalidDynamicAudioPlaceholder(template: string) {
+  const stripped = template.replace(/{{\s*[A-Za-z][A-Za-z0-9_-]*\s*}}/g, '');
+  return stripped.includes('{') || stripped.includes('}') || /<\s*[^<>]+\s*>/.test(template);
+}
+
 function executionEdges(
   nodes: NarrativeGraphNode[],
   edges: NarrativeGraphJson['edges'],
@@ -225,6 +242,22 @@ export function validateNarrativeGraph(
           if (!edge.label || !edge.label.trim()) {
             errors.push(`DECISION node ${node.id} requires labeled outgoing edges`);
             break;
+          }
+        }
+      }
+
+      if (node.type === 'DYNAMIC_AUDIO') {
+        const template = typeof node.data?.template === 'string' ? node.data.template.trim() : '';
+        if (!template) {
+          errors.push(`DYNAMIC_AUDIO node ${node.id} requires a non-empty template`);
+        } else {
+          if (containsInvalidDynamicAudioPlaceholder(template)) {
+            errors.push(`DYNAMIC_AUDIO node ${node.id} contains invalid variable placeholders`);
+          }
+
+          const variables = extractDynamicAudioVariables(template);
+          if (variables.length === 0) {
+            errors.push(`DYNAMIC_AUDIO node ${node.id} requires at least one {{variable}} placeholder`);
           }
         }
       }

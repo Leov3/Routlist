@@ -9,7 +9,8 @@ import { SearchBar } from "@/components/ui/SearchBar";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api, formatBytes } from "@/lib/api";
-import type { AudioAsset } from "@/types/routlis";
+import { AudioButtonCreationWizardModal } from "@/components/audio-board/AudioButtonCreationWizardModal";
+import type { AudioAsset, AudioCategory } from "@/types/routlis";
 
 type SortKey = "originalName" | "mimeType" | "sizeBytes" | "isActive";
 type StatusFilter = "all" | "active" | "inactive";
@@ -49,6 +50,7 @@ const STATUS_OPTIONS = [
 
 export default function AudiosPage() {
   const [audios, setAudios] = useState<AudioAsset[]>([]);
+  const [categories, setCategories] = useState<AudioCategory[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -58,13 +60,26 @@ export default function AudiosPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ originalName: "", durationSeconds: "", transcript: "" });
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardAssets, setWizardAssets] = useState<AudioAsset[]>([]);
 
   async function load() {
     try { setAudios(await api<AudioAsset[]>("/audio-assets")); }
     finally { setLoading(false); }
   }
 
-  useEffect(() => { void load(); }, []);
+  async function loadCategories() {
+    try {
+      setCategories(await api<AudioCategory[]>("/audio-categories"));
+    } catch {
+      setCategories([]);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    void loadCategories();
+  }, []);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -91,17 +106,24 @@ export default function AudiosPage() {
     if (!files.length) return;
     setUploading(true);
     try {
+      let createdAssets: AudioAsset[] = [];
       if (files.length === 1) {
         const fd = new FormData();
         fd.append("file", files[0]);
-        await api("/audio-assets", { method: "POST", body: fd, formData: true });
+        const created = await api<AudioAsset>("/audio-assets", { method: "POST", body: fd, formData: true });
+        createdAssets = [created];
       } else {
         const fd = new FormData();
         fd.append("action", "IMPORT");
         files.forEach((file) => fd.append("files", file));
-        await api("/audio-assets/bulk", { method: "POST", body: fd, formData: true });
+        const created = await api<{ assets?: AudioAsset[] }>("/audio-assets/bulk", { method: "POST", body: fd, formData: true });
+        createdAssets = created.assets ?? [];
       }
       setFiles([]);
+      if (createdAssets.length > 0) {
+        setWizardAssets(createdAssets);
+        setWizardOpen(true);
+      }
       await load();
     } finally { setUploading(false); }
   }
@@ -272,6 +294,17 @@ export default function AudiosPage() {
           </table>
         </div>
       )}
+
+      <AudioButtonCreationWizardModal
+        open={wizardOpen}
+        assets={wizardAssets}
+        categories={categories}
+        onClose={() => setWizardOpen(false)}
+        onFinished={() => {
+          setWizardOpen(false);
+          void load();
+        }}
+      />
     </ProtectedPage>
   );
 }

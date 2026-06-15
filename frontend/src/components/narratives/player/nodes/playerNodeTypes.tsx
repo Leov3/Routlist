@@ -17,6 +17,7 @@ import {
   Split,
   Square,
   Volume2,
+  WandSparkles,
 } from "lucide-react";
 import type { NarrativeNodeType } from "@/types/narratives";
 
@@ -45,6 +46,16 @@ export type PlayerFlowNodeData = {
   nodeData?: any;
   audioButtonId?: string;
   audioAssetId?: string;
+  template?: string;
+  variables?: string[];
+  voiceId?: string;
+  modelId?: string;
+  outputFormat?: string;
+  stability?: number | string;
+  similarityBoost?: number | string;
+  style?: number | string;
+  speed?: number | string;
+  speakerBoost?: boolean;
   isRequired?: boolean;
   decisionChoices?: DecisionChoice[];
   audioButtonDetail?: AudioButtonDetail | null;
@@ -312,6 +323,66 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
   );
 }
 
+export function PlayerDynamicAudioNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+  const template = String(data.template ?? data.summary ?? data.label ?? "");
+  const variables = data.variables ?? [];
+  const voice = String(data.voiceId ?? "").trim();
+  const model = String(data.modelId ?? "").trim();
+  const preview = template.trim() || "Audio dinámico preparado para ElevenLabs";
+
+  return (
+    <div className={nodeFrame(data.status, selected, "w-[330px] min-h-[190px] overflow-hidden rounded-[30px] border-2 bg-gradient-to-br from-fuchsia-500/18 via-[#1a1028] to-[#0f0c18] p-5 text-on-surface")}>
+      <HiddenHandles />
+      <div className="flex items-start justify-between gap-4 pr-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-13 w-13 items-center justify-center rounded-2xl border border-fuchsia-300/25 bg-fuchsia-500/15 text-fuchsia-200">
+            <WandSparkles className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-fuchsia-200">Audio dinámico IA</p>
+            <p className="mt-1 text-xs font-semibold text-on-surface-variant">Plantilla con variables para ElevenLabs</p>
+          </div>
+        </div>
+        <StateBadge status={data.status} />
+      </div>
+      <p className="mt-4 line-clamp-3 text-lg font-black leading-tight text-on-surface">{preview}</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-200">
+          {variables.length > 0 ? `${variables.length} variable(s)` : "Sin variables"}
+        </span>
+        {voice ? (
+          <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200">
+            Voz definida
+          </span>
+        ) : null}
+        {model ? (
+          <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200">
+            Modelo definido
+          </span>
+        ) : null}
+      </div>
+      {variables.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {variables.slice(0, 5).map((variable) => (
+            <span
+              key={variable}
+              className="rounded-full border border-fuchsia-300/30 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-100"
+            >
+              {`{{${variable}}}`}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
+        <span>Voice ID: {voice || "pendiente"}</span>
+        <span className="opacity-50">·</span>
+        <span>Model ID: {model || "pendiente"}</span>
+      </div>
+      <NodeActionButton id={data.id} />
+    </div>
+  );
+}
+
 export function PlayerScriptTextNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
   const isCurrent = ctx?.currentNodeId === id;
@@ -506,6 +577,7 @@ export const playerNodeTypes: NodeTypes = {
   END: PlayerEndNode,
   AUDIO: PlayerAudioNode,
   AUDIO_BUTTON: PlayerAudioButtonNode,
+  DYNAMIC_AUDIO: PlayerDynamicAudioNode,
   SCRIPT_TEXT: PlayerScriptTextNode,
   INSTRUCTION: PlayerInstructionNode,
   PAUSE: PlayerPauseNode,

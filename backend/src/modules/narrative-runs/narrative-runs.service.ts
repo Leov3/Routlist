@@ -10,8 +10,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
+import { ElevenLabsService } from '../integrations/elevenlabs/elevenlabs.service';
 import { CreateNarrativeRunDto } from './dto/create-narrative-run.dto';
 import { CreateRunEventDto } from './dto/create-run-event.dto';
+import { GenerateDynamicAudioDto } from './dto/generate-dynamic-audio.dto';
 import { UpdateCurrentNodeDto } from './dto/update-current-node.dto';
 import { validateNarrativeGraph } from '../narratives/narrative-graph';
 
@@ -23,7 +25,10 @@ type NarrativeRunRecord = Awaited<ReturnType<NarrativeRunsService['findOne']>>;
 
 @Injectable()
 export class NarrativeRunsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly elevenLabsService: ElevenLabsService,
+  ) {}
 
   async listActive(user: AuthenticatedUser) {
     return this.prisma.narrativeRun.findMany({
@@ -159,6 +164,17 @@ export class NarrativeRunsService {
           : {}),
       },
     });
+  }
+
+  async generateDynamicAudio(
+    user: AuthenticatedUser,
+    id: string,
+    dto: GenerateDynamicAudioDto,
+  ) {
+    const run = await this.getRunOrThrow(user, id);
+    this.assertRunning(run.status);
+
+    return this.elevenLabsService.generateTestAudio(user, dto);
   }
 
   async complete(user: AuthenticatedUser, id: string) {
