@@ -40,9 +40,13 @@ export class ElevenLabsController {
   }
 
   @Get('voices')
-  @Permissions('integration:manage')
   voices(@CurrentUser() user: AuthenticatedUser) {
     return this.elevenLabsService.listVoices(user);
+  }
+
+  @Get('models')
+  models(@CurrentUser() user: AuthenticatedUser) {
+    return this.elevenLabsService.listModels(user);
   }
 
   @Post('generate-test')

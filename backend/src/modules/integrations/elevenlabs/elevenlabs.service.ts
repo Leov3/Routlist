@@ -13,6 +13,8 @@ import type {
   ElevenLabsConnectionStatus,
   ElevenLabsConnectionStatusResponse,
   ElevenLabsGenerateAudioResponse,
+  ElevenLabsModelListResponse,
+  ElevenLabsModelSummary,
   ElevenLabsSettingsResponse,
   ElevenLabsVoiceListResponse,
   ElevenLabsVoiceSummary,
@@ -228,6 +230,29 @@ export class ElevenLabsService {
       totalCount:
         typeof response.total_count === 'number' ? response.total_count : null,
     } satisfies ElevenLabsVoiceListResponse;
+  }
+
+  async listModels(user: AuthenticatedUser) {
+    const current = await this.findSettings(user.organizationId);
+    const resolved = await this.resolveSettings(
+      user.organizationId,
+      undefined,
+      current,
+    );
+    const response = await this.requestJson<unknown>(resolved, '/v1/models', 'GET');
+    const rawModels = Array.isArray(response)
+      ? response
+      : this.isRecord(response) && Array.isArray((response as Record<string, unknown>).models)
+        ? ((response as Record<string, unknown>).models as Array<Record<string, unknown>>)
+        : [];
+
+    const models = rawModels
+      .map((model) => this.mapModel(model))
+      .filter((model) => Boolean(model.modelId));
+
+    return {
+      models,
+    } satisfies ElevenLabsModelListResponse;
   }
 
   async generateTestAudio(
@@ -543,6 +568,33 @@ export class ElevenLabsService {
     };
   }
 
+  private mapModel(model: Record<string, unknown>): ElevenLabsModelSummary {
+    const modelId =
+      typeof model.model_id === 'string'
+        ? model.model_id
+        : typeof model.modelId === 'string'
+          ? model.modelId
+          : typeof model.id === 'string'
+            ? model.id
+            : '';
+    const name =
+      typeof model.name === 'string'
+        ? model.name
+        : modelId || 'Sin nombre';
+    const description =
+      typeof model.description === 'string' ? model.description : null;
+    const languages = Array.isArray(model.languages)
+      ? model.languages.filter((language): language is string => typeof language === 'string')
+      : null;
+
+    return {
+      modelId,
+      name,
+      description,
+      languages,
+    };
+  }
+
   private toStringMap(value: unknown): Record<string, string> | null {
     if (!value || typeof value !== 'object') {
       return null;
@@ -556,6 +608,10 @@ export class ElevenLabsService {
       }
       return acc;
     }, {});
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 
   private toResponse(

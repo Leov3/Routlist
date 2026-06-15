@@ -37,10 +37,21 @@ type ElevenLabsVoice = {
   labels?: Record<string, string> | null;
 };
 
+type ElevenLabsModel = {
+  modelId: string;
+  name: string;
+  description?: string | null;
+  languages?: string[] | null;
+};
+
 type ElevenLabsVoiceList = {
   voices: ElevenLabsVoice[];
   nextPageToken: string | null;
   totalCount: number | null;
+};
+
+type ElevenLabsModelList = {
+  models: ElevenLabsModel[];
 };
 
 type ElevenLabsTestResponse = {
@@ -86,15 +97,6 @@ const DEFAULT_FORM: SettingsForm = {
   sampleText: "Hola, esta es una prueba de integración de ElevenLabs en Routlis.",
 };
 
-const MODEL_OPTIONS = [
-  { value: "eleven_multilingual_v2", label: "eleven_multilingual_v2" },
-  { value: "eleven_flash_v2_5", label: "eleven_flash_v2_5" },
-  { value: "eleven_flash_v2", label: "eleven_flash_v2" },
-  { value: "eleven_v3", label: "eleven_v3" },
-  { value: "eleven_multilingual_ttv_v2", label: "eleven_multilingual_ttv_v2" },
-  { value: "eleven_ttv_v3", label: "eleven_ttv_v3" },
-];
-
 const OUTPUT_FORMAT_OPTIONS = [
   "mp3_44100_128",
   "mp3_22050_32",
@@ -107,6 +109,7 @@ export default function IntegrationsSettingsPage() {
   const [settings, setSettings] = useState<ElevenLabsSettings | null>(null);
   const [form, setForm] = useState<SettingsForm>(DEFAULT_FORM);
   const [voices, setVoices] = useState<ElevenLabsVoice[]>([]);
+  const [models, setModels] = useState<ElevenLabsModel[]>([]);
   const [voiceSearch, setVoiceSearch] = useState("");
   const [voiceLanguageFilter, setVoiceLanguageFilter] = useState("all");
   const [voiceCategoryFilter, setVoiceCategoryFilter] = useState("all");
@@ -142,9 +145,10 @@ export default function IntegrationsSettingsPage() {
       }));
 
       if (settingsResult.apiKeyConfigured) {
-        await loadVoices();
+        await Promise.all([loadVoices(), loadModels()]);
       } else {
         setVoices([]);
+        setModels([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar la integración.");
@@ -161,6 +165,19 @@ export default function IntegrationsSettingsPage() {
       setVoices(result.voices);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron sincronizar las voces.");
+    } finally {
+      setLoadingVoices(false);
+    }
+  }
+
+  async function loadModels() {
+    setLoadingVoices(true);
+    setError(null);
+    try {
+      const result = await api<ElevenLabsModelList>("/integrations/elevenlabs/models");
+      setModels(result.models);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron sincronizar los modelos.");
     } finally {
       setLoadingVoices(false);
     }
@@ -376,6 +393,7 @@ export default function IntegrationsSettingsPage() {
       await api("/integrations/elevenlabs/settings", { method: "DELETE" });
       setSettings(null);
       setVoices([]);
+      setModels([]);
       setForm(DEFAULT_FORM);
       setPreviewUrl(null);
       setPreviewLabel(null);
@@ -523,17 +541,27 @@ export default function IntegrationsSettingsPage() {
               </Field>
 
               <Field label="Model ID por defecto">
-                <select
-                  value={form.defaultModelId}
-                  onChange={(event) => updateField("defaultModelId", event.target.value)}
-                  className="h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-high px-4 text-sm text-on-surface focus:border-primary focus:outline-none"
-                >
-                  {MODEL_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                {models.length > 0 ? (
+                  <select
+                    value={form.defaultModelId}
+                    onChange={(event) => updateField("defaultModelId", event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-high px-4 text-sm text-on-surface focus:border-primary focus:outline-none"
+                  >
+                    <option value="">Seleccionar modelo</option>
+                    {models.map((model) => (
+                      <option key={model.modelId} value={model.modelId}>
+                        {model.name} {model.languages?.length ? `· ${model.languages.join(", ")}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={form.defaultModelId}
+                    onChange={(event) => updateField("defaultModelId", event.target.value)}
+                    placeholder="eleven_multilingual_v2"
+                    className="h-11 w-full rounded-2xl border border-outline-variant bg-surface-container-high px-4 text-sm text-on-surface focus:border-primary focus:outline-none"
+                  />
+                )}
               </Field>
 
               <Field label="Formato de salida">
@@ -628,6 +656,28 @@ export default function IntegrationsSettingsPage() {
               />
             </Field>
 
+            <div className="mt-4 rounded-[24px] border border-outline-variant bg-surface-container p-4">
+              <div className="mb-3">
+                <h3 className="text-base font-semibold tracking-tight text-on-surface">
+                  Vista previa de audio
+                </h3>
+                <p className="text-sm text-on-surface-variant">
+                  Reproduce aquí el último audio generado sin salir del formulario.
+                </p>
+              </div>
+
+              {previewUrl ? (
+                <div className="grid gap-3">
+                  <div className="rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3 text-xs text-on-surface-variant">
+                    {previewLabel}
+                  </div>
+                  <audio controls src={previewUrl} className="w-full" />
+                </div>
+              ) : (
+                <DataState>Genera un audio de prueba para previsualizarlo aquí.</DataState>
+              )}
+            </div>
+
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-2">
                 <button
@@ -692,7 +742,7 @@ export default function IntegrationsSettingsPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="flex max-h-[72vh] flex-col rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -748,66 +798,47 @@ export default function IntegrationsSettingsPage() {
                 {settings?.lastTestAt ? ` · última prueba ${new Date(settings.lastTestAt).toLocaleString()}` : ""}
               </div>
 
-              {voices.length === 0 ? (
-                <DataState>No hay voces sincronizadas todavía.</DataState>
-              ) : filteredVoices.length === 0 ? (
-                <DataState>No hay voces que coincidan con los filtros actuales.</DataState>
-              ) : (
-                <div className="grid gap-2">
-                  {filteredVoices.map((voice) => (
-                    <button
-                      key={voice.voiceId}
-                      type="button"
-                      onClick={() => updateField("defaultVoiceId", voice.voiceId)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
-                        form.defaultVoiceId === voice.voiceId
-                          ? "border-primary/40 bg-primary/10"
-                          : "border-outline-variant bg-surface-container-high hover:border-primary/30"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-on-surface">{voice.name}</p>
-                          <p className="text-xs text-on-surface-variant">
-                            {readVoiceLanguage(voice) ?? "Idioma no declarado"} · {readVoiceCategory(voice) ?? "Sin categoría"}
-                          </p>
-                          <p className="mt-1 text-[11px] text-on-surface-variant/80">
-                            {voice.voiceId}
-                          </p>
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                {voices.length === 0 ? (
+                  <DataState>No hay voces sincronizadas todavía.</DataState>
+                ) : filteredVoices.length === 0 ? (
+                  <DataState>No hay voces que coincidan con los filtros actuales.</DataState>
+                ) : (
+                  <div className="grid gap-2">
+                    {filteredVoices.map((voice) => (
+                      <button
+                        key={voice.voiceId}
+                        type="button"
+                        onClick={() => updateField("defaultVoiceId", voice.voiceId)}
+                        className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
+                          form.defaultVoiceId === voice.voiceId
+                            ? "border-primary/40 bg-primary/10"
+                            : "border-outline-variant bg-surface-container-high hover:border-primary/30"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-on-surface">{voice.name}</p>
+                            <p className="text-xs text-on-surface-variant">
+                              {readVoiceLanguage(voice) ?? "Idioma no declarado"} · {readVoiceCategory(voice) ?? "Sin categoría"}
+                            </p>
+                            <p className="mt-1 text-[11px] text-on-surface-variant/80">
+                              {voice.voiceId}
+                            </p>
+                          </div>
+                          {form.defaultVoiceId === voice.voiceId ? (
+                            <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-on-primary">
+                              Predeterminada
+                            </span>
+                          ) : null}
                         </div>
-                        {form.defaultVoiceId === voice.voiceId ? (
-                          <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-on-primary">
-                            Predeterminada
-                          </span>
-                        ) : null}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold tracking-tight text-on-surface">
-                  Vista previa de audio
-                </h3>
-                <p className="text-sm text-on-surface-variant">
-                  Reproduce aquí el último audio generado sin salir del panel.
-                </p>
-              </div>
-
-              {previewUrl ? (
-                <div className="grid gap-3">
-                  <div className="rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3 text-xs text-on-surface-variant">
-                    {previewLabel}
+                      </button>
+                    ))}
                   </div>
-                  <audio controls src={previewUrl} className="w-full" />
-                </div>
-              ) : (
-                <DataState>Genera un audio de prueba para previsualizarlo aquí.</DataState>
-              )}
+                )}
+              </div>
             </div>
+
           </aside>
         </div>
       )}

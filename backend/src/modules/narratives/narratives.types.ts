@@ -2,6 +2,7 @@ export const NARRATIVE_NODE_TYPES = [
   'START',
   'AUDIO',
   'AUDIO_BUTTON',
+  'DYNAMIC_AUDIO',
   'SCRIPT_TEXT',
   'INSTRUCTION',
   'PAUSE',

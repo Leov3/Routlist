@@ -8,6 +8,7 @@ export type NarrativeNodeType =
   | "START"
   | "AUDIO"
   | "AUDIO_BUTTON"
+  | "DYNAMIC_AUDIO"
   | "SCRIPT_TEXT"
   | "INSTRUCTION"
   | "PAUSE"
@@ -36,6 +37,16 @@ export type NarrativeBuilderNodeData = {
   instruction?: string;
   audioAssetId?: string;
   audioButtonId?: string;
+  template?: string;
+  variables?: string[];
+  voiceId?: string;
+  modelId?: string;
+  outputFormat?: string;
+  stability?: number | string;
+  similarityBoost?: number | string;
+  style?: number | string;
+  speed?: number | string;
+  speakerBoost?: boolean;
   description?: string;
   required?: boolean;
   allowReplay?: boolean;

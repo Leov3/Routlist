@@ -30,7 +30,8 @@ import {
   StopCircle,
   TriangleAlert,
   Route,
-  Timer
+  Timer,
+  WandSparkles,
 } from "lucide-react";
 import { api, apiUrl } from "@/lib/api";
 import type {
@@ -101,6 +102,22 @@ type NarrativePlayerPreferences = {
   playerViewportZoom?: number;
 };
 
+type DynamicAudioGenerationResponse = {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  audioBase64: string;
+};
+
+type DynamicAudioClip = {
+  objectUrl: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  generatedAt: string;
+  text: string;
+};
+
 const DEFAULT_NARRATIVE_DISTANCE = "max";
 const DEFAULT_NARRATIVE_VIEW_MODE: BoardViewMode = "simple";
 
@@ -117,6 +134,7 @@ const PLAYER_NODE_SIZES: Record<string, { width: number; height: number }> = {
   END: { width: 220, height: 88 },
   AUDIO: { width: 280, height: 150 },
   AUDIO_BUTTON: { width: 280, height: 150 },
+  DYNAMIC_AUDIO: { width: 330, height: 190 },
   SCRIPT_TEXT: { width: 320, height: 200 },
   INSTRUCTION: { width: 300, height: 190 },
   PAUSE: { width: 240, height: 120 },
@@ -149,6 +167,7 @@ function nodeLabel(node: NodeMeta | undefined) {
       START: "Inicio",
       AUDIO: "Audio",
       AUDIO_BUTTON: "Botón de Audio",
+      DYNAMIC_AUDIO: "Audio dinámico IA",
       SCRIPT_TEXT: "Texto / Guion",
       INSTRUCTION: "Instrucción",
       PAUSE: "Pausa",
@@ -169,6 +188,9 @@ function nodeSummary(node: NodeMeta | undefined) {
   }
   if (nodeType === "AUDIO_BUTTON") {
     return data.audioButtonId ? `Botón ${String(data.audioButtonId)}` : "Sin botón asignado";
+  }
+  if (nodeType === "DYNAMIC_AUDIO") {
+    return data.template ? String(data.template) : "Sin plantilla";
   }
   if (nodeType === "SCRIPT_TEXT") {
     return data.body ? String(data.body) : "Sin texto";
@@ -281,12 +303,47 @@ function readDecisionLabels(value: unknown) {
     .filter(Boolean);
 }
 
+function extractDynamicAudioVariables(template: string) {
+  const variables = new Set<string>();
+  const pattern = /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(template))) {
+    variables.add(match[1]);
+  }
+
+  return Array.from(variables);
+}
+
+function normalizeDynamicAudioTemplate(template: string) {
+  return template
+    .replace(/<\s*([A-Za-z][A-Za-z0-9_-]*)\s*>/g, "{{$1}}")
+    .replace(/{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g, "{{$1}}");
+}
+
+function resolveDynamicAudioTemplate(template: string, values: Record<string, string>) {
+  return normalizeDynamicAudioTemplate(template).replace(
+    /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g,
+    (_match, variable: string) => values[variable]?.trim() || `{{${variable}}}`,
+  );
+}
+
+function buildDynamicAudioObjectUrl(contentType: string, base64: string) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return URL.createObjectURL(new Blob([bytes], { type: contentType }));
+}
+
 export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance<Node<PlayerFlowNodeData>, Edge> | null>(null);
   const hasFitViewRef = useRef(false);
+  const dynamicAudioClipsRef = useRef<Record<string, DynamicAudioClip | null>>({});
   const [run, setRun] = useState<NarrativeRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -298,6 +355,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [currentButtonDetails, setCurrentButtonDetails] = useState<AudioButtonDetail | null>(null);
   const [buttonDetailsError, setButtonDetailsError] = useState<string | null>(null);
   const [buttonBoardModalButton, setButtonBoardModalButton] = useState<BoardAudioButton | null>(null);
+  const [dynamicAudioDrafts, setDynamicAudioDrafts] = useState<Record<string, Record<string, string>>>({});
+  const [dynamicAudioClips, setDynamicAudioClips] = useState<Record<string, DynamicAudioClip | null>>({});
+  const [dynamicAudioGeneratingNodeId, setDynamicAudioGeneratingNodeId] = useState<string | null>(null);
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
@@ -309,6 +369,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 0.8 });
   const savePreferencesTimerRef = useRef<number | null>(null);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    dynamicAudioClipsRef.current = dynamicAudioClips;
+  }, [dynamicAudioClips]);
+
+  useEffect(() => {
+    return () => {
+      for (const clip of Object.values(dynamicAudioClipsRef.current)) {
+        if (clip?.objectUrl) {
+          URL.revokeObjectURL(clip.objectUrl);
+        }
+      }
+    };
+  }, []);
 
   const handleApiError = useCallback((error: unknown, fallbackMessage: string) => {
     if (error instanceof ApiError) {
@@ -661,6 +735,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       const hasError =
         (type === "AUDIO" && !data.audioAssetId) ||
         (type === "AUDIO_BUTTON" && !data.audioButtonId) ||
+        (type === "DYNAMIC_AUDIO" && !data.template) ||
         (type === "SCRIPT_TEXT" && !data.body) ||
         (type === "DECISION" && findOutgoingEdges(node.id, executionEdges).length === 0);
 
@@ -705,6 +780,16 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         nodeData: node.data,
         audioButtonId: node.data?.audioButtonId as string | undefined,
         audioAssetId: node.data?.audioAssetId as string | undefined,
+        template: node.data?.template as string | undefined,
+        variables: node.data?.variables as string[] | undefined,
+        voiceId: node.data?.voiceId as string | undefined,
+        modelId: node.data?.modelId as string | undefined,
+        outputFormat: node.data?.outputFormat as string | undefined,
+        stability: node.data?.stability as number | string | undefined,
+        similarityBoost: node.data?.similarityBoost as number | string | undefined,
+        style: node.data?.style as number | string | undefined,
+        speed: node.data?.speed as number | string | undefined,
+        speakerBoost: node.data?.speakerBoost as boolean | undefined,
         audioButtonDetail: node.data?.audioButtonId ? audioButtonDetailsById[String(node.data.audioButtonId)] ?? null : null,
         isRequired: node.data?.required !== false,
         decisionChoices: node.type === "DECISION"
@@ -1311,7 +1396,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
   async function copyNodeText(nodeId: string) {
     const node = nodeMap.get(nodeId);
-    const text = String(node?.data?.body ?? node?.data?.instruction ?? "");
+    const text = String(
+      node?.data?.body ??
+        node?.data?.instruction ??
+        node?.data?.template ??
+        node?.data?.label ??
+        "",
+    );
     if (!text) {
       setMessage("Este nodo no tiene contenido para copiar.");
       return;
@@ -1321,6 +1412,108 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       setMessage("Contenido copiado al portapapeles.");
     } catch {
       setMessage("No se pudo copiar el contenido.");
+    }
+  }
+
+  async function generateDynamicAudio(nodeId: string) {
+    if (!run) return;
+    const node = nodeMap.get(nodeId);
+    if (!node || node.type !== "DYNAMIC_AUDIO") {
+      setMessage("Este nodo no es de audio dinámico.");
+      return;
+    }
+
+    const template = normalizeDynamicAudioTemplate(String(node.data?.template ?? "")).trim();
+    if (!template) {
+      setMessage("Este nodo no tiene plantilla configurada.");
+      return;
+    }
+
+    const variables = (() => {
+      const configured = Array.isArray(node.data?.variables)
+        ? node.data?.variables.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+        : [];
+      return configured.length > 0 ? configured : extractDynamicAudioVariables(template);
+    })();
+
+    const draftValues = (dynamicAudioDrafts[nodeId] ?? {}) as Record<string, string>;
+    const missingVariables = variables.filter((variable) => !String(draftValues[variable] ?? "").trim());
+
+    if (missingVariables.length > 0) {
+      setMessage(`Completa las variables: ${missingVariables.map((variable) => `{{${variable}}}`).join(", ")}.`);
+      return;
+    }
+
+    const resolvedText = resolveDynamicAudioTemplate(template, draftValues);
+
+    setDynamicAudioGeneratingNodeId(nodeId);
+    setMessage(null);
+    try {
+      const result = await api<DynamicAudioGenerationResponse>(`/narrative-runs/${run.id}/dynamic-audio`, {
+        method: "POST",
+        body: JSON.stringify({
+          text: resolvedText,
+          defaultVoiceId: String(node.data?.voiceId ?? "") || undefined,
+          defaultModelId: String(node.data?.modelId ?? "") || undefined,
+          defaultOutputFormat: String(node.data?.outputFormat ?? "") || undefined,
+          stability: node.data?.stability !== undefined ? Number(node.data.stability) : undefined,
+          similarityBoost: node.data?.similarityBoost !== undefined ? Number(node.data.similarityBoost) : undefined,
+          style: node.data?.style !== undefined ? Number(node.data.style) : undefined,
+          speed: node.data?.speed !== undefined ? Number(node.data.speed) : undefined,
+          speakerBoost: typeof node.data?.speakerBoost === "boolean" ? node.data.speakerBoost : undefined,
+        }),
+      });
+
+      const objectUrl = buildDynamicAudioObjectUrl(result.contentType, result.audioBase64);
+      setDynamicAudioClips((current) => {
+        const previousClip = current[nodeId];
+        if (previousClip?.objectUrl) {
+          URL.revokeObjectURL(previousClip.objectUrl);
+        }
+        return {
+          ...current,
+          [nodeId]: {
+            objectUrl,
+            fileName: result.fileName,
+            contentType: result.contentType,
+            sizeBytes: result.sizeBytes,
+            generatedAt: new Date().toISOString(),
+            text: resolvedText,
+          },
+        };
+      });
+      setMessage("Audio dinámico generado. Ya puedes reproducirlo cuando quieras.");
+    } catch (error) {
+      setMessage(handleApiError(error, "No se pudo generar el audio dinámico."));
+    } finally {
+      setDynamicAudioGeneratingNodeId(null);
+    }
+  }
+
+  async function playDynamicAudio(nodeId: string) {
+    const clip = dynamicAudioClips[nodeId];
+    if (!clip) {
+      setMessage("Primero genera el audio dinámico.");
+      return;
+    }
+
+    if (!audioRef.current) {
+      setMessage("No se pudo inicializar el reproductor de audio.");
+      return;
+    }
+
+    try {
+      if (audioRef.current.src) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      audioRef.current.src = clip.objectUrl;
+      audioRef.current.volume = 1;
+      await audioRef.current.play();
+      setPlaybackState("playing");
+      setMessage("Audio dinámico en reproducción.");
+    } catch (error) {
+      setMessage(handleApiError(error, "No se pudo reproducir el audio dinámico."));
     }
   }
 
@@ -1915,9 +2108,17 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 }}
                 onNodeContextMenu={(e, node) => {
                   e.preventDefault();
-                  // Prevenir salirse de la pantalla aproximando anchos (w-80 = 320px)
-                  const safeX = Math.min(e.clientX, typeof window !== "undefined" ? window.innerWidth - 340 : e.clientX);
-                  const safeY = Math.min(e.clientY, typeof window !== "undefined" ? window.innerHeight - 400 : e.clientY);
+                  // Prevenir salirse de la pantalla aproximando el tamaño del popup.
+                  const popupWidth = 430;
+                  const popupHeight = 640;
+                  const safeX = Math.min(
+                    e.clientX,
+                    typeof window !== "undefined" ? window.innerWidth - popupWidth - 16 : e.clientX,
+                  );
+                  const safeY = Math.min(
+                    e.clientY,
+                    typeof window !== "undefined" ? window.innerHeight - popupHeight - 16 : e.clientY,
+                  );
                   setContextMenu({ isOpen: true, x: safeX, y: safeY, nodeId: node.id });
                   if (node.type === "AUDIO_BUTTON") {
                     const audioButtonId = String(node.data?.audioButtonId ?? "");
@@ -1973,7 +2174,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               {/* CONTEXTUAL POPOVER MENU */}
               {contextMenu.isOpen && contextMenu.nodeId && (
                 <div
-                  className="fixed z-50 w-80 overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-elevation-3 animate-fade-in"
+                  className="fixed z-50 w-[430px] max-w-[calc(100vw-16px)] max-h-[calc(100vh-16px)] overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-elevation-3 animate-fade-in"
                   style={{ top: contextMenu.y, left: contextMenu.x }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -1984,12 +2185,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                     
                     return (
                       <div className="flex flex-col">
-                        <div className="flex items-center justify-between border-b border-outline-variant bg-surface-container px-4 py-3">
+                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant bg-surface-container/95 px-4 py-3 backdrop-blur">
                           <div className="flex items-center gap-2">
                             <span className={`inline-flex h-2.5 w-2.5 rounded-full ${status === "current" ? "bg-primary animate-pulse" : status === "completed" ? "bg-emerald-400" : "bg-slate-500"}`} />
                             <div>
                               <p className="text-sm font-semibold text-on-surface">{nodeLabel(ctxNode)}</p>
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
                                 {status === "current" ? "Paso actual" : status === "completed" ? "Ya completado" : status === "locked" ? "Bloqueado" : ctxNode.type}
                               </p>
                             </div>
@@ -2002,7 +2203,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             ×
                           </button>
                         </div>
-                        <div className="p-4 space-y-4">
+                        <div className="max-h-[calc(100vh-104px)] space-y-3 overflow-y-auto px-4 py-3 pr-3">
                           {/* === AUDIO / AUDIO_BUTTON actions === */}
                           {(ctxNode.type === "AUDIO" || ctxNode.type === "AUDIO_BUTTON") && (() => {
                             const isCurrentNode = ctxNode.id === run?.currentNodeId;
@@ -2060,6 +2261,139 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                   )}
                                   {!canAct && (
                                     <p className="text-xs text-on-surface-variant">Disponible como acción cuando sea el paso actual.</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* === DYNAMIC_AUDIO actions === */}
+                          {ctxNode.type === "DYNAMIC_AUDIO" && (() => {
+                            const dynamicAudioData = ctxNode.data as any;
+                            const template = normalizeDynamicAudioTemplate(String(dynamicAudioData?.template ?? ""));
+                            const variables: string[] = (() => {
+                              const configured = Array.isArray(dynamicAudioData?.variables)
+                                ? dynamicAudioData.variables.filter((variable: unknown): variable is string => typeof variable === "string" && Boolean(variable.trim()))
+                                : [];
+                              return configured.length > 0 ? Array.from(new Set(configured)) : extractDynamicAudioVariables(template);
+                            })();
+                            const draftValues = (dynamicAudioDrafts[ctxNode.id] ?? {}) as Record<string, string>;
+                            const missingVariables = variables.filter((variable) => !String(draftValues[variable] ?? "").trim());
+                            const resolvedText = resolveDynamicAudioTemplate(template, draftValues);
+                            const generatedClip = dynamicAudioClips[ctxNode.id] ?? null;
+                            const canGenerate =
+                              run?.status === "RUNNING" &&
+                              Boolean(template.trim()) &&
+                              missingVariables.length === 0 &&
+                              dynamicAudioGeneratingNodeId !== ctxNode.id;
+                            return (
+                              <div className="space-y-3">
+                                <div className="grid gap-3 rounded-2xl border border-outline-variant bg-surface-container p-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Variables del run</p>
+                                      <p className="mt-1 text-[11px] text-on-surface-variant">Completa cada valor antes de generar el audio.</p>
+                                    </div>
+                                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${missingVariables.length ? "border-amber-300/30 bg-amber-500/10 text-amber-200" : "border-emerald-300/30 bg-emerald-500/10 text-emerald-200"}`}>
+                                      {missingVariables.length ? `${missingVariables.length} pendiente(s)` : "Listo"}
+                                    </span>
+                                  </div>
+
+                                  {variables.length > 0 ? (
+                                    <div className="grid gap-2">
+                                      {variables.map((variable) => (
+                                        <label key={variable} className="grid gap-1.5">
+                                          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">{`{{${variable}}}`}</span>
+                                          <input
+                                            type="text"
+                                            value={dynamicAudioDrafts[ctxNode.id]?.[variable] ?? ""}
+                                            onChange={(event) => {
+                                              const value = event.target.value;
+                                              setDynamicAudioDrafts((current) => ({
+                                                ...current,
+                                                [ctxNode.id]: {
+                                                  ...(current[ctxNode.id] ?? {}),
+                                                  [variable]: value,
+                                                },
+                                              }));
+                                            }}
+                                            placeholder={`Valor para ${variable}`}
+                                            className="h-9 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                                          />
+                                        </label>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-on-surface-variant">
+                                      No hay variables detectadas en esta plantilla.
+                                    </p>
+                                  )}
+
+                                  <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Texto resuelto</p>
+                                    <p className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-on-surface">{resolvedText || "Sin texto resuelto"}</p>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => { void copyNodeText(ctxNode.id); }}
+                                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-primary"
+                                    >
+                                      <Copy className="h-3.5 w-3.5" /> Copiar plantilla
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { void generateDynamicAudio(ctxNode.id); }}
+                                      disabled={!canGenerate}
+                                      className="inline-flex items-center gap-2 rounded-xl bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-white hover:bg-fuchsia-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <WandSparkles className="h-3.5 w-3.5" />
+                                      {dynamicAudioGeneratingNodeId === ctxNode.id ? "Generando..." : "Generar audio"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { void playDynamicAudio(ctxNode.id); }}
+                                      disabled={!generatedClip}
+                                      className="inline-flex items-center gap-2 rounded-xl border border-fuchsia-300/30 bg-fuchsia-500/10 px-3 py-2 text-sm font-semibold text-fuchsia-100 hover:bg-fuchsia-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <Play className="h-3.5 w-3.5 fill-current" />
+                                      Reproducir audio
+                                    </button>
+                                    {generatedClip ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => { void stopAudio(); }}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-red-400 hover:text-red-400"
+                                      >
+                                        <Square className="h-3.5 w-3.5 fill-current" />
+                                        Detener
+                                      </button>
+                                    ) : null}
+                                  </div>
+
+                                  {generatedClip ? (
+                                    <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-3 text-sm text-emerald-50">
+                                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">Audio generado</p>
+                                      <p className="mt-2 truncate font-semibold text-on-surface">{generatedClip.fileName}</p>
+                                      <p className="mt-1 text-xs text-on-surface-variant">
+                                        {generatedClip.sizeBytes.toLocaleString("es-CO")} bytes · {formatDateTime(generatedClip.generatedAt)}
+                                      </p>
+                                      <div className="mt-3">
+                                        <a
+                                          href={generatedClip.objectUrl}
+                                          download={generatedClip.fileName}
+                                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/25"
+                                        >
+                                          <Copy className="h-3.5 w-3.5" />
+                                          Descargar audio
+                                        </a>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-on-surface-variant">
+                                      Genera primero el audio para habilitar la reproducción manual.
+                                    </p>
                                   )}
                                 </div>
                               </div>

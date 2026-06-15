@@ -66,6 +66,21 @@ type AudioButtonOption = {
   };
 };
 
+type ElevenLabsVoiceOption = {
+  voiceId: string;
+  name: string;
+  category?: string | null;
+  labels?: Record<string, string> | null;
+  previewUrl?: string | null;
+};
+
+type ElevenLabsModelOption = {
+  modelId: string;
+  name: string;
+  description?: string | null;
+  languages?: string[] | null;
+};
+
 type ApiCollection<T> = T[] | { data?: T[]; items?: T[] };
 
 type FlowNodeData = NarrativeBuilderNodeData;
@@ -81,6 +96,7 @@ const NODE_PALETTE: NodePaletteItem[] = [
   { type: "START", label: "Inicio", description: "Punto de arranque único.", accent: "from-emerald-500 to-teal-500" },
   { type: "AUDIO", label: "Audio", description: "Reproduce un audio existente.", accent: "from-violet-500 to-fuchsia-500" },
   { type: "AUDIO_BUTTON", label: "Botón de Audio", description: "Reproduce audio asociado a un botón.", accent: "from-indigo-500 to-blue-500" },
+  { type: "DYNAMIC_AUDIO", label: "Audio dinámico IA", description: "Texto con variables para TTS.", accent: "from-fuchsia-500 to-purple-500" },
   { type: "SCRIPT_TEXT", label: "Texto / Guion", description: "Texto para leer al aire.", accent: "from-sky-500 to-cyan-500" },
   { type: "PAUSE", label: "Pausa", description: "Esperar o pausar manualmente.", accent: "from-slate-500 to-slate-700" },
   { type: "DECISION", label: "Decisión", description: "Ramificación con opciones.", accent: "from-pink-500 to-rose-500" },
@@ -91,12 +107,65 @@ const ANNOTATION_PALETTE: NodePaletteItem[] = [
   { type: "INSTRUCTION", label: "Nota operativa", description: "Anotación: no cuenta como paso ni bloquea el flujo.", accent: "from-amber-400 to-yellow-600" },
 ];
 
+const ELEVENLABS_OUTPUT_FORMAT_OPTIONS = [
+  "mp3_44100_128",
+  "mp3_44100_64",
+  "mp3_22050_32",
+  "wav_44100",
+  "wav_22050",
+  "pcm_44100",
+  "pcm_16000",
+  "ulaw_8000",
+];
+
 function isAnnotationNodeType(type: NarrativeNodeType) {
   return type === "INSTRUCTION";
 }
 
 function isFlowNodeType(type: NarrativeNodeType) {
   return !isAnnotationNodeType(type);
+}
+
+function normalizeDynamicAudioTemplate(template: string) {
+  return template
+    .replace(/<\s*([A-Za-z][A-Za-z0-9_-]*)\s*>/g, "{{$1}}")
+    .replace(/{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g, "{{$1}}");
+}
+
+function extractDynamicAudioVariables(template: string) {
+  const variables = new Set<string>();
+  const pattern = /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(template))) {
+    variables.add(match[1]);
+  }
+
+  return Array.from(variables);
+}
+
+function buildDynamicAudioPreview(template: string, variables: string[]) {
+  const sampleValues = [
+    "Carlos",
+    "María",
+    "Bogotá",
+    "ciento veinticuatro",
+    "tu nombre",
+    "tu ciudad",
+  ];
+  const replacements = new Map(
+    variables.map((variable, index) => [variable, sampleValues[index % sampleValues.length]]),
+  );
+
+  return normalizeDynamicAudioTemplate(template).replace(
+    /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g,
+    (_match, variable: string) => replacements.get(variable) ?? variable,
+  );
+}
+
+function isInvalidDynamicAudioTemplate(template: string) {
+  const stripped = template.replace(/{{\s*[A-Za-z][A-Za-z0-9_-]*\s*}}/g, "");
+  return stripped.includes("{") || stripped.includes("}") || /<\s*[^<>]+\s*>/.test(template);
 }
 
 function getNodeType(node?: Pick<Node<FlowNodeData>, "type" | "data"> | null) {
@@ -155,6 +224,24 @@ const DEFAULT_NODE_DATA: Record<NarrativeNodeType, Record<string, unknown>> = {
     audioButtonId: "",
     operatorNotes: "",
     required: true,
+  },
+  DYNAMIC_AUDIO: {
+    title: "Audio dinámico IA",
+    label: "Audio dinámico IA",
+    template: "Bienvenido, {{nombre}}. Respira profundo y permite que este momento te reciba con calma.",
+    variables: ["nombre"],
+    voiceId: "",
+    modelId: "eleven_flash_v2_5",
+    outputFormat: "mp3_44100_128",
+    stability: 0.6,
+    similarityBoost: 0.75,
+    style: 0.2,
+    speed: 1,
+    speakerBoost: true,
+    description: "",
+    required: true,
+    allowReplay: true,
+    operatorNotes: "",
   },
   SCRIPT_TEXT: {
     title: "Guion",
@@ -272,6 +359,13 @@ function nodeSummary(node: Node<FlowNodeData>) {
   const data = node.data ?? { nodeType };
   if (nodeType === "AUDIO") return data.audioAssetId ? `Audio: ${String(data.audioAssetId)}` : "Audio sin asignar";
   if (nodeType === "AUDIO_BUTTON") return data.audioButtonId ? `Botón: ${String(data.audioButtonId)}` : "Botón sin asignar";
+  if (nodeType === "DYNAMIC_AUDIO") {
+    const template = String(data.template ?? "").trim();
+    const variables = extractDynamicAudioVariables(template);
+    return template
+      ? `${template.slice(0, 80)}${template.length > 80 ? "…" : ""}${variables.length ? ` · ${variables.length} variable(s)` : ""}`
+      : "Audio dinámico sin plantilla";
+  }
   if (nodeType === "SCRIPT_TEXT") return data.body ? String(data.body).slice(0, 80) : "Sin texto";
   if (nodeType === "INSTRUCTION") return data.instruction ? String(data.instruction).slice(0, 80) : "Sin instrucción";
   if (nodeType === "PAUSE") return getPauseMode(data) === "timer" ? `Temporizada${data.durationSeconds ? ` · ${data.durationSeconds}s` : ""}` : "Pausa manual";
@@ -357,6 +451,16 @@ function normalizeBuilderNodeData(
     ...(data ?? {}),
   } as FlowNodeData;
 
+  if (nodeType === "DYNAMIC_AUDIO") {
+    const template = normalizeDynamicAudioTemplate(String(baseData.template ?? ""));
+    const variables = extractDynamicAudioVariables(template);
+    return {
+      ...baseData,
+      template,
+      variables,
+    };
+  }
+
   if (nodeType === "DECISION") {
     return {
       ...baseData,
@@ -373,6 +477,16 @@ function serializeNodeData(nodeType: NarrativeNodeType, data: FlowNodeData) {
   delete persistedData.builderStatus;
   delete persistedData.builderStatusLabel;
   delete persistedData.builderBadges;
+
+  if (nodeType === "DYNAMIC_AUDIO") {
+    const template = normalizeDynamicAudioTemplate(String(persistedData.template ?? ""));
+    const variables = extractDynamicAudioVariables(template);
+    return {
+      ...persistedData,
+      template,
+      variables,
+    };
+  }
 
   if (nodeType === "DECISION") {
     return {
@@ -447,6 +561,38 @@ function toCollectionItems<T>(value: ApiCollection<T>) {
   return value.data ?? value.items ?? [];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toVoiceItems(value: unknown) {
+  if (Array.isArray(value)) return value as ElevenLabsVoiceOption[];
+  if (isRecord(value) && Array.isArray(value.voices)) {
+    return value.voices as ElevenLabsVoiceOption[];
+  }
+  if (isRecord(value) && Array.isArray(value.data)) {
+    return value.data as ElevenLabsVoiceOption[];
+  }
+  if (isRecord(value) && Array.isArray(value.items)) {
+    return value.items as ElevenLabsVoiceOption[];
+  }
+  return [];
+}
+
+function toModelItems(value: unknown) {
+  if (Array.isArray(value)) return value as ElevenLabsModelOption[];
+  if (isRecord(value) && Array.isArray(value.models)) {
+    return value.models as ElevenLabsModelOption[];
+  }
+  if (isRecord(value) && Array.isArray(value.data)) {
+    return value.data as ElevenLabsModelOption[];
+  }
+  if (isRecord(value) && Array.isArray(value.items)) {
+    return value.items as ElevenLabsModelOption[];
+  }
+  return [];
+}
+
 function nodeClassName(nodeType: NarrativeNodeType) {
   switch (nodeType) {
     case "START":
@@ -455,6 +601,8 @@ function nodeClassName(nodeType: NarrativeNodeType) {
       return "border-violet-300 bg-violet-500/15 text-violet-950 dark:border-violet-900/60 dark:bg-violet-500/15 dark:text-violet-100";
     case "AUDIO_BUTTON":
       return "border-indigo-300 bg-indigo-500/15 text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-500/15 dark:text-indigo-100";
+    case "DYNAMIC_AUDIO":
+      return "border-fuchsia-300 bg-fuchsia-500/15 text-fuchsia-950 dark:border-fuchsia-900/60 dark:bg-fuchsia-500/15 dark:text-fuchsia-100";
     case "SCRIPT_TEXT":
       return "border-sky-300 bg-sky-500/15 text-sky-950 dark:border-sky-900/60 dark:bg-sky-500/15 dark:text-sky-100";
     case "INSTRUCTION":
@@ -746,6 +894,8 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   });
   const [audios, setAudios] = useState<{ id: string; name: string }[]>([]);
   const [buttons, setButtons] = useState<{ id: string; label: string; category?: { name: string } }[]>([]);
+  const [voices, setVoices] = useState<ElevenLabsVoiceOption[]>([]);
+  const [models, setModels] = useState<ElevenLabsModelOption[]>([]);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
 
   const audioMap = useMemo(
@@ -1026,6 +1176,73 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
             nodeId: node.id,
             nodeLabel,
             issueType: "audio-button-resource",
+            source: "local",
+          });
+        }
+      }
+
+      if (nodeType === "DYNAMIC_AUDIO") {
+        const template = normalizeDynamicAudioTemplate(String(node.data?.template ?? "")).trim();
+        const variables = extractDynamicAudioVariables(template);
+        const voiceId = String(node.data?.voiceId ?? "").trim();
+        const modelId = String(node.data?.modelId ?? "").trim();
+
+        if (!template) {
+          issues.push({
+            id: `dynamic-audio-empty-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" no tiene plantilla de texto.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-template",
+            source: "local",
+          });
+        }
+
+        if (isInvalidDynamicAudioTemplate(String(node.data?.template ?? ""))) {
+          issues.push({
+            id: `dynamic-audio-invalid-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" usa variables mal formadas. Usa {{variable}}.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-placeholder",
+            source: "local",
+          });
+        }
+
+        if (variables.length === 0 && template) {
+          issues.push({
+            id: `dynamic-audio-variables-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" necesita al menos una variable con el formato {{variable}}.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-variables",
+            source: "local",
+          });
+        }
+
+        if (!voiceId) {
+          issues.push({
+            id: `dynamic-audio-voice-${node.id}`,
+            level: "warning",
+            message: `El nodo "${nodeLabel}" no tiene voz de ElevenLabs seleccionada.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-voice",
+            source: "local",
+          });
+        }
+
+        if (!modelId) {
+          issues.push({
+            id: `dynamic-audio-model-${node.id}`,
+            level: "warning",
+            message: `El nodo "${nodeLabel}" no tiene modelo de ElevenLabs seleccionado.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-model",
             source: "local",
           });
         }
@@ -1345,7 +1562,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     setMessage(null);
 
 try {
-        const [result, audiosRes, buttonsRes] = await Promise.all([
+        const [result, audiosRes, buttonsRes, voicesRes, modelsRes] = await Promise.all([
           api<NarrativeBuilderState>(`/narratives/${narrativeId}/builder`),
           api<ApiCollection<AudioAssetOption>>("/audio-assets").catch(
             () => [] as AudioAssetOption[],
@@ -1353,6 +1570,8 @@ try {
           api<ApiCollection<AudioButtonOption>>("/audio-buttons").catch(
             () => [] as AudioButtonOption[],
           ),
+          api<unknown>("/integrations/elevenlabs/voices").catch(() => []),
+          api<unknown>("/integrations/elevenlabs/models").catch(() => []),
         ]);
 
         setBuilder(result);
@@ -1363,6 +1582,8 @@ try {
           })),
         );
         setButtons(toCollectionItems(buttonsRes));
+        setVoices(toVoiceItems(voicesRes));
+        setModels(toModelItems(modelsRes));
 
         const graph = graphFromVersions(result.draftVersion ?? result.publishedVersion);
 
@@ -1393,6 +1614,8 @@ try {
       setBuilder(null);
       setNodes([]);
       setEdges([]);
+      setVoices([]);
+      setModels([]);
       setSelectedNodeIds([]);
       setSelectedNodeId(null);
       setSelectedEdgeIds([]);
@@ -1486,6 +1709,33 @@ try {
               markWarning("Botón no cargado");
             } else {
               badges.push({ label: "Botón listo", tone: "valid" });
+            }
+            break;
+          }
+          case "DYNAMIC_AUDIO": {
+            const template = normalizeDynamicAudioTemplate(String(node.data?.template ?? "")).trim();
+            const variables = extractDynamicAudioVariables(template);
+            const voice = String(node.data?.voiceId ?? "").trim();
+            const model = String(node.data?.modelId ?? "").trim();
+            summary = template
+              ? `${template.slice(0, 90)}${template.length > 90 ? "…" : ""}`
+              : "Define la plantilla del audio dinámico";
+            badges.push({
+              label: `${variables.length} variable${variables.length === 1 ? "" : "s"}`,
+              tone: "info",
+            });
+            if (!template) {
+              markError("Sin plantilla");
+            } else if (variables.length === 0) {
+              markError("Sin variables");
+            } else {
+              badges.push({ label: "Variables detectadas", tone: "valid" });
+            }
+            if (!voice) {
+              markWarning("Sin voz");
+            }
+            if (!model) {
+              markWarning("Sin modelo");
             }
             break;
           }
@@ -2009,6 +2259,24 @@ try {
     editingNode?.data?.nodeType === "DECISION"
       ? decisionRouteCoverage(editingDecisionOptions, editingDecisionRoutes)
       : null;
+  const editingDynamicAudioTemplate =
+    editingNode?.data?.nodeType === "DYNAMIC_AUDIO"
+      ? normalizeDynamicAudioTemplate(String(editingNode.data.template ?? ""))
+      : "";
+  const editingDynamicAudioVariables = editingDynamicAudioTemplate
+    ? extractDynamicAudioVariables(editingDynamicAudioTemplate)
+    : [];
+  const editingDynamicAudioPreview = editingDynamicAudioTemplate
+    ? buildDynamicAudioPreview(editingDynamicAudioTemplate, editingDynamicAudioVariables)
+    : "";
+  const selectedDynamicVoice = useMemo(
+    () => voices.find((voice) => voice.voiceId === String(editingNode?.data?.voiceId ?? "")) ?? null,
+    [editingNode?.data?.voiceId, voices],
+  );
+  const selectedDynamicModel = useMemo(
+    () => models.find((model) => model.modelId === String(editingNode?.data?.modelId ?? "")) ?? null,
+    [editingNode?.data?.modelId, models],
+  );
 
   const modalPanel = editingNode ? (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
@@ -2190,6 +2458,266 @@ try {
               <ModalSection
                 title="Notas para operador"
                 description="Contexto interno para ejecutar este botón dentro de la narrativa."
+              >
+                <label className="grid gap-1.5">
+                  <FieldLabel>Notas para operador</FieldLabel>
+                  <textarea
+                    value={String(editingNode.data.operatorNotes ?? "")}
+                    onChange={(event) => saveNodePatch(editingNode.id, { operatorNotes: event.target.value })}
+                    className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+              </ModalSection>
+            </>
+          )}
+
+          {editingNode.data?.nodeType === "DYNAMIC_AUDIO" && (
+            <>
+              <ModalSection
+                title="Plantilla y variables"
+                description="Escribe el texto con placeholders usando el formato {{variable}}."
+              >
+                <label className="grid gap-1.5">
+                  <FieldLabel>Título / etiqueta</FieldLabel>
+                  <input
+                    value={String(editingNode.data.title ?? editingNode.data.label ?? "")}
+                    onChange={(event) =>
+                      saveNodePatch(editingNode.id, {
+                        title: event.target.value,
+                        label: event.target.value,
+                      })
+                    }
+                    className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <FieldLabel>Texto plantilla</FieldLabel>
+                  <textarea
+                    value={String(editingNode.data.template ?? "")}
+                    onChange={(event) => {
+                      const template = normalizeDynamicAudioTemplate(event.target.value);
+                      saveNodePatch(editingNode.id, {
+                        template,
+                        variables: extractDynamicAudioVariables(template),
+                      });
+                    }}
+                    placeholder="Bienvenido, {{nombre}}. Respira profundo..."
+                    className="min-h-32 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+                <div className="rounded-2xl border border-outline-variant bg-surface-container px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">
+                        Variables detectadas
+                      </p>
+                      <p className="mt-1 text-sm text-on-surface-variant">
+                        El builder normaliza los placeholders a{" "}
+                        <span className="font-semibold text-on-surface">{"{{variable}}"}</span>.
+                      </p>
+                    </div>
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(editingDynamicAudioVariables.length > 0 ? "valid" : "warning")}`}>
+                      {editingDynamicAudioVariables.length > 0 ? `${editingDynamicAudioVariables.length} variable(s)` : "Sin variables"}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {editingDynamicAudioVariables.length > 0 ? (
+                      editingDynamicAudioVariables.map((variable) => (
+                        <span
+                          key={variable}
+                          className="inline-flex rounded-full border border-fuchsia-300/40 bg-fuchsia-500/10 px-3 py-1 text-xs font-semibold text-fuchsia-700 dark:text-fuchsia-200"
+                        >
+                          {variable}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-sm text-on-surface-variant">
+                        Agrega al menos una variable con el formato{" "}
+                        <span className="font-semibold text-on-surface">{"{{nombre}}"}</span>.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-outline-variant bg-surface-container px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">
+                    Vista previa
+                  </p>
+                  <p className="mt-3 whitespace-pre-wrap rounded-2xl border border-outline-variant bg-surface px-4 py-4 text-sm leading-7 text-on-surface">
+                    {editingDynamicAudioPreview || "La vista previa aparecerá cuando el texto contenga variables válidas."}
+                  </p>
+                </div>
+              </ModalSection>
+
+              <ModalSection
+                title="Configuración ElevenLabs"
+                description="Define la voz y el modelo que generarán el audio dinámico."
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Voice ID</FieldLabel>
+                    {voices.length > 0 ? (
+                      <select
+                        value={String(editingNode.data.voiceId ?? "")}
+                        onChange={(event) => saveNodePatch(editingNode.id, { voiceId: event.target.value })}
+                        className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                      >
+                        <option value="">Selecciona una voz...</option>
+                        {voices.map((voice) => (
+                          <option key={voice.voiceId} value={voice.voiceId}>
+                            {voice.name}
+                            {voice.category ? ` · ${voice.category}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={String(editingNode.data.voiceId ?? "")}
+                        onChange={(event) => saveNodePatch(editingNode.id, { voiceId: event.target.value })}
+                        placeholder="voice_id"
+                        className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                      />
+                    )}
+                    <p className="text-xs text-on-surface-variant">
+                      {voices.length > 0
+                        ? "La lista se sincroniza desde ElevenLabs."
+                        : "No hay voces sincronizadas. Puedes escribir el Voice ID manualmente."}
+                    </p>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Model ID</FieldLabel>
+                    {models.length > 0 ? (
+                      <select
+                        value={String(editingNode.data.modelId ?? "")}
+                        onChange={(event) => saveNodePatch(editingNode.id, { modelId: event.target.value })}
+                        className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                      >
+                        <option value="">Selecciona un modelo...</option>
+                        {models.map((model) => (
+                          <option key={model.modelId} value={model.modelId}>
+                            {model.name}
+                            {model.languages?.length ? ` · ${model.languages.join(", ")}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={String(editingNode.data.modelId ?? "")}
+                        onChange={(event) => saveNodePatch(editingNode.id, { modelId: event.target.value })}
+                        placeholder="model_id"
+                        className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                      />
+                    )}
+                    <p className="text-xs text-on-surface-variant">
+                      {models.length > 0
+                        ? "La lista se sincroniza desde ElevenLabs."
+                        : "No hay modelos sincronizados. Puedes escribir el Model ID manualmente."}
+                    </p>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Output format</FieldLabel>
+                    <select
+                      value={String(editingNode.data.outputFormat ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { outputFormat: event.target.value })}
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    >
+                      <option value="">Selecciona un formato...</option>
+                      {ELEVENLABS_OUTPUT_FORMAT_OPTIONS.map((format) => (
+                        <option key={format} value={format}>
+                          {format}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {ELEVENLABS_OUTPUT_FORMAT_OPTIONS.map((format) => {
+                        const isSelected = String(editingNode.data.outputFormat ?? "") === format;
+                        return (
+                          <span
+                            key={format}
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                              isSelected
+                                ? "border-fuchsia-300/50 bg-fuchsia-500/15 text-fuchsia-200"
+                                : "border-outline-variant bg-surface-container text-on-surface-variant"
+                            }`}
+                          >
+                            {format}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Stability</FieldLabel>
+                    <input
+                      value={String(editingNode.data.stability ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { stability: event.target.value })}
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Similarity boost</FieldLabel>
+                    <input
+                      value={String(editingNode.data.similarityBoost ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { similarityBoost: event.target.value })}
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Style</FieldLabel>
+                    <input
+                      value={String(editingNode.data.style ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { style: event.target.value })}
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Speed</FieldLabel>
+                    <input
+                      value={String(editingNode.data.speed ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { speed: event.target.value })}
+                      type="number"
+                      min="0.5"
+                      max="2"
+                      step="0.01"
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                </div>
+                {selectedDynamicVoice ? (
+                  <div className="rounded-2xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+                    <p className="font-semibold text-on-surface">{selectedDynamicVoice.name}</p>
+                    <p className="mt-1">Voice ID: {selectedDynamicVoice.voiceId}</p>
+                    <p className="mt-1">Categoría: {selectedDynamicVoice.category ?? "Sin categoría"}</p>
+                  </div>
+                ) : null}
+                {selectedDynamicModel ? (
+                  <div className="rounded-2xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+                    <p className="font-semibold text-on-surface">{selectedDynamicModel.name}</p>
+                    <p className="mt-1">Model ID: {selectedDynamicModel.modelId}</p>
+                    <p className="mt-1">{selectedDynamicModel.languages?.length ? `Idiomas: ${selectedDynamicModel.languages.join(", ")}` : "Sin idiomas declarados"}</p>
+                  </div>
+                ) : null}
+                <BooleanPill
+                  value={Boolean(editingNode.data.speakerBoost)}
+                  onChange={(value) => saveNodePatch(editingNode.id, { speakerBoost: value })}
+                  label="Speaker boost"
+                />
+              </ModalSection>
+
+              <ModalSection
+                title="Notas internas"
+                description="Observaciones del nodo y guía para la ejecución futura."
               >
                 <label className="grid gap-1.5">
                   <FieldLabel>Notas para operador</FieldLabel>
