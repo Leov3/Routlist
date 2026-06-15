@@ -9,15 +9,13 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, type MaintenanceBackup, type MaintenanceBackupSetting } from '@prisma/client';
-import { randomUUID } from 'crypto';
 import {
-  mkdir,
-  readdir,
-  rm,
-  stat,
-  writeFile,
-} from 'fs/promises';
+  Prisma,
+  type MaintenanceBackup,
+  type MaintenanceBackupSetting,
+} from '@prisma/client';
+import { randomUUID } from 'crypto';
+import { mkdir, readdir, rm, stat, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { promisify } from 'util';
 import { execFile, spawn, type ChildProcess } from 'child_process';
@@ -31,6 +29,7 @@ import type {
   MaintenanceStatusResponse,
 } from './maintenance.types';
 import { CreateMaintenanceBackupDto } from './dto/create-maintenance-backup.dto';
+import { RestoreMaintenanceBackupDto } from './dto/restore-maintenance-backup.dto';
 import { UpdateMaintenanceSettingsDto } from './dto/update-maintenance-settings.dto';
 
 const SCHEDULER_INTERVAL_MS = 60 * 1000;
@@ -44,6 +43,11 @@ type MigrationRow = {
   rolled_back_at: Date | null;
   started_at: Date | null;
   applied_steps_count: number | null;
+};
+
+type MaintenanceRestoreFiles = {
+  databaseDump?: Express.Multer.File[];
+  storageArchive?: Express.Multer.File[];
 };
 
 @Injectable()
@@ -75,13 +79,14 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
   async status(user: AuthenticatedUser): Promise<MaintenanceStatusResponse> {
     this.ensureOwner(user);
 
-    const [migration, settings, backups, audit, backupBytes] = await Promise.all([
-      this.getMigrationStatus(),
-      this.ensureSettings(user.organizationId),
-      this.listBackups(user),
-      this.listAudit(user),
-      this.directorySize(this.backupRootPath()),
-    ]);
+    const [migration, settings, backups, audit, backupBytes] =
+      await Promise.all([
+        this.getMigrationStatus(),
+        this.ensureSettings(user.organizationId),
+        this.listBackups(user),
+        this.listAudit(user),
+        this.directorySize(this.backupRootPath()),
+      ]);
 
     return {
       migration,
@@ -95,7 +100,9 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async migrations(user: AuthenticatedUser): Promise<MaintenanceMigrationStatus> {
+  async migrations(
+    user: AuthenticatedUser,
+  ): Promise<MaintenanceMigrationStatus> {
     this.ensureOwner(user);
     return this.getMigrationStatus();
   }
@@ -139,19 +146,27 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    await this.writeAudit(user, 'MAINTENANCE_SETTINGS_UPDATED', 'MaintenanceBackupSetting', updated.id, {
-      isEnabled: updated.isEnabled,
-      includeDatabase: updated.includeDatabase,
-      includeStorage: updated.includeStorage,
-      scheduleMode: updated.scheduleMode,
-      everyHours: updated.everyHours,
-      retentionDays: updated.retentionDays,
-    }).catch(() => undefined);
+    await this.writeAudit(
+      user,
+      'MAINTENANCE_SETTINGS_UPDATED',
+      'MaintenanceBackupSetting',
+      updated.id,
+      {
+        isEnabled: updated.isEnabled,
+        includeDatabase: updated.includeDatabase,
+        includeStorage: updated.includeStorage,
+        scheduleMode: updated.scheduleMode,
+        everyHours: updated.everyHours,
+        retentionDays: updated.retentionDays,
+      },
+    ).catch(() => undefined);
 
     return this.serializeSettings(updated);
   }
 
-  async listBackups(user: AuthenticatedUser): Promise<MaintenanceBackupListItem[]> {
+  async listBackups(
+    user: AuthenticatedUser,
+  ): Promise<MaintenanceBackupListItem[]> {
     this.ensureOwner(user);
     const backups = await this.prisma.maintenanceBackup.findMany({
       where: { organizationId: user.organizationId },
@@ -206,18 +221,29 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
           label: dto.label?.trim() || null,
           includeDatabase,
           includeStorage,
-          backupDirectoryKey: this.backupDirectoryKey(user.organizationId, backupId),
+          backupDirectoryKey: this.backupDirectoryKey(
+            user.organizationId,
+            backupId,
+          ),
           archiveFileName: `${backupId}.tar.gz`,
           sizeBytes: 0,
           startedAt: new Date(),
         },
       });
 
-      const backupRoot = this.organizationBackupRoot(user.organizationId, backup.id);
-      const archivePath = join(this.organizationBackupParent(user.organizationId), `${backup.id}.tar.gz`);
+      const backupRoot = this.organizationBackupRoot(
+        user.organizationId,
+        backup.id,
+      );
+      const archivePath = join(
+        this.organizationBackupParent(user.organizationId),
+        `${backup.id}.tar.gz`,
+      );
       const manifestPath = join(backupRoot, 'manifest.json');
       const databaseDumpName = includeDatabase ? 'postgres.dump' : null;
-      const databaseDumpPath = databaseDumpName ? join(backupRoot, databaseDumpName) : null;
+      const databaseDumpPath = databaseDumpName
+        ? join(backupRoot, databaseDumpName)
+        : null;
       await mkdir(backupRoot, { recursive: true });
 
       try {
@@ -250,7 +276,7 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
             },
             null,
             2,
-            ),
+          ),
         );
 
         await this.execFileAsync('tar', [
@@ -266,10 +292,13 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
           (await this.safeFileSize(archivePath));
 
         const expiresAt = this.computeExpiresAt(settings.retentionDays);
-      const completed = await this.prisma.maintenanceBackup.update({
+        const completed = await this.prisma.maintenanceBackup.update({
           where: { id: backup.id },
           data: {
-            backupDirectoryKey: this.backupDirectoryKey(user.organizationId, backup.id),
+            backupDirectoryKey: this.backupDirectoryKey(
+              user.organizationId,
+              backup.id,
+            ),
             archiveFileName: `${backup.id}.tar.gz`,
             databaseDumpFileName: databaseDumpName,
             storageArchiveFileName: null,
@@ -317,7 +346,9 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
           },
         });
 
-        await rm(backupRoot, { recursive: true, force: true }).catch(() => undefined);
+        await rm(backupRoot, { recursive: true, force: true }).catch(
+          () => undefined,
+        );
         await rm(archivePath, { force: true }).catch(() => undefined);
 
         throw new ServiceUnavailableException(
@@ -330,7 +361,10 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
   async downloadPath(user: AuthenticatedUser, id: string) {
     this.ensureOwner(user);
     const backup = await this.backupOrThrow(user.organizationId, id);
-    const archivePath = this.organizationBackupArchivePath(user.organizationId, backup.id);
+    const archivePath = this.organizationBackupArchivePath(
+      user.organizationId,
+      backup.id,
+    );
     return { backup: this.serializeBackup(backup), path: archivePath };
   }
 
@@ -339,10 +373,15 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     const backup = await this.backupOrThrow(user.organizationId, id);
 
     if (!backup.includeDatabase || !backup.databaseDumpFileName) {
-      throw new NotFoundException('Database dump not available for this backup');
+      throw new NotFoundException(
+        'Database dump not available for this backup',
+      );
     }
 
-    const backupRoot = this.organizationBackupRoot(user.organizationId, backup.id);
+    const backupRoot = this.organizationBackupRoot(
+      user.organizationId,
+      backup.id,
+    );
     const path = join(backupRoot, backup.databaseDumpFileName);
 
     return { backup: this.serializeBackup(backup), path };
@@ -353,7 +392,9 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     const backup = await this.backupOrThrow(user.organizationId, id);
 
     if (!backup.includeStorage) {
-      throw new NotFoundException('Storage archive not available for this backup');
+      throw new NotFoundException(
+        'Storage archive not available for this backup',
+      );
     }
 
     const archiveName = `${backup.id}-storage.tar.gz`;
@@ -366,7 +407,10 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     this.ensureOwner(user);
     return this.withLock(user.organizationId, async () => {
       const backup = await this.backupOrThrow(user.organizationId, id);
-      const backupRoot = this.organizationBackupRoot(user.organizationId, backup.id);
+      const backupRoot = this.organizationBackupRoot(
+        user.organizationId,
+        backup.id,
+      );
       const databaseDumpPath = backup.databaseDumpFileName
         ? join(backupRoot, backup.databaseDumpFileName)
         : null;
@@ -397,15 +441,115 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
         ]);
       }
 
-      await this.writeAudit(user, 'MAINTENANCE_BACKUP_RESTORED', 'MaintenanceBackup', backup.id, {
-        includeDatabase: backup.includeDatabase,
-        includeStorage: backup.includeStorage,
-      }).catch(() => undefined);
+      await this.writeAudit(
+        user,
+        'MAINTENANCE_BACKUP_RESTORED',
+        'MaintenanceBackup',
+        backup.id,
+        {
+          includeDatabase: backup.includeDatabase,
+          includeStorage: backup.includeStorage,
+        },
+      ).catch(() => undefined);
 
       return {
         ok: true,
         restoredAt: new Date().toISOString(),
       };
+    });
+  }
+
+  async restoreFromUploads(
+    user: AuthenticatedUser,
+    dto: RestoreMaintenanceBackupDto,
+    files: MaintenanceRestoreFiles,
+  ) {
+    this.ensureOwner(user);
+    return this.withLock(user.organizationId, async () => {
+      if (!dto.confirmRestore) {
+        throw new BadRequestException(
+          'Debes confirmar la restauración antes de continuar.',
+        );
+      }
+
+      const databaseDump = files.databaseDump?.[0];
+      const storageArchive = files.storageArchive?.[0];
+
+      if (!databaseDump || !storageArchive) {
+        throw new BadRequestException(
+          'Debes subir un dump de base de datos y un archivo de storage.',
+        );
+      }
+
+      const cleanupFiles = [databaseDump.path, storageArchive.path];
+
+      try {
+        await this.validateDatabaseDump(databaseDump.path);
+        await this.validateStorageArchive(storageArchive.path);
+
+        await this.execFileAsync('pg_restore', [
+          '--clean',
+          '--if-exists',
+          '--no-owner',
+          '--no-privileges',
+          '--dbname',
+          this.databaseBackupUrl(),
+          databaseDump.path,
+        ]);
+
+        await mkdir(this.storageRootPath(), { recursive: true });
+        await this.clearStorageRoot();
+        await this.execFileAsync('tar', [
+          '-xzf',
+          storageArchive.path,
+          '-C',
+          this.storageRootPath(),
+        ]);
+
+        await this.writeAudit(
+          user,
+          'MAINTENANCE_BACKUP_RESTORED_FROM_UPLOADS',
+          'MaintenanceBackup',
+          null,
+          {
+            databaseDumpFileName: databaseDump.originalname,
+            storageArchiveFileName: storageArchive.originalname,
+            databaseDumpSize: databaseDump.size,
+            storageArchiveSize: storageArchive.size,
+          },
+        ).catch(() => undefined);
+
+        return {
+          ok: true,
+          restoredAt: new Date().toISOString(),
+        };
+      } catch (error) {
+        await this.writeAudit(
+          user,
+          'MAINTENANCE_BACKUP_RESTORE_FROM_UPLOADS_FAILED',
+          'MaintenanceBackup',
+          null,
+          {
+            databaseDumpFileName: databaseDump.originalname,
+            storageArchiveFileName: storageArchive.originalname,
+            error: this.errorMessage(error),
+          },
+        ).catch(() => undefined);
+
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+
+        throw new ServiceUnavailableException(
+          'No se pudo restaurar desde los archivos cargados. Revisa que el dump sea compatible y que el archivo de storage esté íntegro.',
+        );
+      } finally {
+        await Promise.all(
+          cleanupFiles.map(async (path) => {
+            await rm(path, { force: true }).catch(() => undefined);
+          }),
+        );
+      }
     });
   }
 
@@ -417,9 +561,15 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
       where: { id: backup.id },
     });
 
-    await this.writeAudit(user, 'MAINTENANCE_BACKUP_DELETED', 'MaintenanceBackup', backup.id, {
-      label: backup.label,
-    }).catch(() => undefined);
+    await this.writeAudit(
+      user,
+      'MAINTENANCE_BACKUP_DELETED',
+      'MaintenanceBackup',
+      backup.id,
+      {
+        label: backup.label,
+      },
+    ).catch(() => undefined);
 
     return { ok: true };
   }
@@ -488,20 +638,21 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
 
   private async runScheduledMaintenance() {
     const now = new Date();
-    const scheduledSettings = await this.prisma.maintenanceBackupSetting.findMany({
-      where: {
-        isEnabled: true,
-        scheduleMode: 'EVERY_HOURS',
-        OR: [{ nextRunAt: null }, { nextRunAt: { lte: now } }],
-      },
-      select: {
-        organizationId: true,
-        includeDatabase: true,
-        includeStorage: true,
-        everyHours: true,
-      },
-      take: 20,
-    });
+    const scheduledSettings =
+      await this.prisma.maintenanceBackupSetting.findMany({
+        where: {
+          isEnabled: true,
+          scheduleMode: 'EVERY_HOURS',
+          OR: [{ nextRunAt: null }, { nextRunAt: { lte: now } }],
+        },
+        select: {
+          organizationId: true,
+          includeDatabase: true,
+          includeStorage: true,
+          everyHours: true,
+        },
+        take: 20,
+      });
 
     for (const settings of scheduledSettings) {
       const key = this.lockKey(settings.organizationId);
@@ -510,7 +661,9 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        const organizationUser = await this.findAnyOrganizationOwner(settings.organizationId);
+        const organizationUser = await this.findAnyOrganizationOwner(
+          settings.organizationId,
+        );
         if (!organizationUser) {
           continue;
         }
@@ -608,20 +761,29 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
 
     const applied = dbRows.map((row) => ({
       name: row.migration_name,
-      finishedAt: row.finished_at ? new Date(row.finished_at).toISOString() : null,
-      rolledBackAt: row.rolled_back_at ? new Date(row.rolled_back_at).toISOString() : null,
+      finishedAt: row.finished_at
+        ? new Date(row.finished_at).toISOString()
+        : null,
+      rolledBackAt: row.rolled_back_at
+        ? new Date(row.rolled_back_at).toISOString()
+        : null,
       startedAt: row.started_at ? new Date(row.started_at).toISOString() : null,
       appliedStepsCount: row.applied_steps_count,
     }));
 
     const dbAppliedNames = new Set(applied.map((item) => item.name));
-    const migrationDirs = await readdir(migrationsDir, { withFileTypes: true }).catch(() => []);
+    const migrationDirs = await readdir(migrationsDir, {
+      withFileTypes: true,
+    }).catch(() => []);
     const available = migrationDirs
-      .filter((entry) => entry.isDirectory() && entry.name !== 'migration_lock.toml')
+      .filter(
+        (entry) => entry.isDirectory() && entry.name !== 'migration_lock.toml',
+      )
       .map((entry) => entry.name)
       .sort((left, right) => left.localeCompare(right));
     const pending = available.filter((name) => !dbAppliedNames.has(name));
-    const lastAppliedAt = applied.find((item) => item.finishedAt)?.finishedAt ?? null;
+    const lastAppliedAt =
+      applied.find((item) => item.finishedAt)?.finishedAt ?? null;
 
     return {
       currentVersion: applied[0]?.name ?? null,
@@ -641,7 +803,8 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
       isEnabled: settings.isEnabled,
       includeDatabase: settings.includeDatabase,
       includeStorage: settings.includeStorage,
-      scheduleMode: settings.scheduleMode === 'EVERY_HOURS' ? 'EVERY_HOURS' : 'MANUAL',
+      scheduleMode:
+        settings.scheduleMode === 'EVERY_HOURS' ? 'EVERY_HOURS' : 'MANUAL',
       everyHours: settings.everyHours,
       retentionDays: settings.retentionDays,
       lastRunAt: settings.lastRunAt ? settings.lastRunAt.toISOString() : null,
@@ -690,7 +853,9 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async listAudit(user: AuthenticatedUser): Promise<MaintenanceAuditItem[]> {
+  private async listAudit(
+    user: AuthenticatedUser,
+  ): Promise<MaintenanceAuditItem[]> {
     const events = await this.prisma.systemAuditEvent.findMany({
       where: { organizationId: user.organizationId },
       orderBy: { createdAt: 'desc' },
@@ -761,7 +926,9 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
 
   private ensureOwner(user: AuthenticatedUser) {
     if (user.role !== 'OWNER') {
-      throw new ForbiddenException('Only OWNER can manage migrations and backups');
+      throw new ForbiddenException(
+        'Only OWNER can manage migrations and backups',
+      );
     }
   }
 
@@ -769,10 +936,15 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     return `maintenance:${organizationId}`;
   }
 
-  private async withLock<T>(organizationId: string, fn: () => Promise<T>): Promise<T> {
+  private async withLock<T>(
+    organizationId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
     const key = this.lockKey(organizationId);
     if (this.activeLocks.has(key)) {
-      throw new ConflictException('Ya existe una operación de mantenimiento en curso.');
+      throw new ConflictException(
+        'Ya existe una operación de mantenimiento en curso.',
+      );
     }
 
     this.activeLocks.add(key);
@@ -784,13 +956,17 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
   }
 
   private storageRootPath() {
-    return this.configService.get<string>('storage.localStoragePath') ??
-      '/var/www/routlis/storage';
+    return (
+      this.configService.get<string>('storage.localStoragePath') ??
+      '/var/www/routlis/storage'
+    );
   }
 
   private backupRootPath() {
-    return this.configService.get<string>('storage.localBackupPath') ??
-      join(this.storageRootPath(), 'backups');
+    return (
+      this.configService.get<string>('storage.localBackupPath') ??
+      join(this.storageRootPath(), 'backups')
+    );
   }
 
   private databaseUrl() {
@@ -820,8 +996,14 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     return join(this.organizationBackupParent(organizationId), backupId);
   }
 
-  private organizationBackupArchivePath(organizationId: string, backupId: string) {
-    return join(this.organizationBackupParent(organizationId), `${backupId}.tar.gz`);
+  private organizationBackupArchivePath(
+    organizationId: string,
+    backupId: string,
+  ) {
+    return join(
+      this.organizationBackupParent(organizationId),
+      `${backupId}.tar.gz`,
+    );
   }
 
   private backupDirectoryKey(organizationId: string, backupId: string) {
@@ -829,7 +1011,9 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async storageEntriesForArchive() {
-    const entries = await readdir(this.storageRootPath(), { withFileTypes: true }).catch(() => []);
+    const entries = await readdir(this.storageRootPath(), {
+      withFileTypes: true,
+    }).catch(() => []);
     return entries
       .filter((entry) => entry.name !== 'backups')
       .map((entry) => entry.name);
@@ -841,12 +1025,18 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
   }> {
     const entries = await this.storageEntriesForArchive();
     if (!entries.length) {
-      throw new NotFoundException('Storage archive not available for this backup');
+      throw new NotFoundException(
+        'Storage archive not available for this backup',
+      );
     }
 
-    const child = spawn('tar', ['-czf', '-', '-C', this.storageRootPath(), ...entries], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      'tar',
+      ['-czf', '-', '-C', this.storageRootPath(), ...entries],
+      {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
 
     return {
       stream: child.stdout,
@@ -854,17 +1044,47 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async removeBackupArtifacts(organizationId: string, backupId: string) {
-    const archivePath = this.organizationBackupArchivePath(organizationId, backupId);
+  private async validateDatabaseDump(path: string) {
+    try {
+      await this.execFileAsync('pg_restore', ['--list', path]);
+    } catch (error) {
+      throw new BadRequestException(
+        `El archivo de base de datos no es un dump válido de PostgreSQL compatible con pg_restore: ${this.errorMessage(error)}`,
+      );
+    }
+  }
+
+  private async validateStorageArchive(path: string) {
+    try {
+      await this.execFileAsync('tar', ['-tzf', path]);
+    } catch (error) {
+      throw new BadRequestException(
+        `El archivo de storage no es un archive tar.gz válido: ${this.errorMessage(error)}`,
+      );
+    }
+  }
+
+  private async removeBackupArtifacts(
+    organizationId: string,
+    backupId: string,
+  ) {
+    const archivePath = this.organizationBackupArchivePath(
+      organizationId,
+      backupId,
+    );
     const backupRoot = this.organizationBackupRoot(organizationId, backupId);
     await rm(archivePath, { force: true }).catch(() => undefined);
-    await rm(backupRoot, { recursive: true, force: true }).catch(() => undefined);
+    await rm(backupRoot, { recursive: true, force: true }).catch(
+      () => undefined,
+    );
   }
 
   private async clearStorageRoot() {
     const root = this.storageRootPath();
     await mkdir(root, { recursive: true });
-    const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+    const entries = await readdir(root, { withFileTypes: true }).catch(
+      () => [],
+    );
 
     await Promise.all(
       entries.map(async (entry) => {
@@ -872,7 +1092,10 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
           return;
         }
 
-        await rm(join(root, entry.name), { recursive: true, force: true }).catch(() => undefined);
+        await rm(join(root, entry.name), {
+          recursive: true,
+          force: true,
+        }).catch(() => undefined);
       }),
     );
   }
