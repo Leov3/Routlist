@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -241,32 +242,100 @@ export class AuthService {
           },
         });
       } else {
-        await tx.userSession.updateMany({
+        const existingActiveSession = await tx.userSession.findFirst({
           where: {
             userId: user.id,
             isActive: true,
           },
-          data: {
-            isActive: false,
-            status: 'REVOKED',
-            revokedAt: new Date(),
-            revokedReason: 'replaced-by-new-session',
+          orderBy: {
+            updatedAt: 'desc',
           },
         });
 
-        const session = await tx.userSession.create({
-          data: {
-            userId: user.id,
-            organizationId,
-            sessionId: randomUUID(),
-            isActive: true,
-            lastSeenAt: new Date(),
-            userAgent: context.userAgent?.trim() || null,
-            ipAddress: context.ipAddress?.trim() || null,
-          },
-        });
+        if (existingActiveSession) {
+          const session = await tx.userSession.update({
+            where: { id: existingActiveSession.id },
+            data: {
+              organizationId,
+              lastSeenAt: new Date(),
+              userAgent: context.userAgent?.trim() || existingActiveSession.userAgent,
+              ipAddress: context.ipAddress?.trim() || existingActiveSession.ipAddress,
+              isActive: true,
+              status: 'ACTIVE',
+              revokedAt: null,
+              revokedReason: null,
+            },
+          });
 
-        sessionId = session.sessionId;
+          await tx.userSession.updateMany({
+            where: {
+              userId: user.id,
+              isActive: true,
+              id: { not: session.id },
+            },
+            data: {
+              isActive: false,
+              status: 'REVOKED',
+              revokedAt: new Date(),
+              revokedReason: 'replaced-by-new-session',
+            },
+          });
+
+          sessionId = session.sessionId;
+        } else {
+          try {
+            const session = await tx.userSession.create({
+              data: {
+                userId: user.id,
+                organizationId,
+                sessionId: randomUUID(),
+                isActive: true,
+                lastSeenAt: new Date(),
+                userAgent: context.userAgent?.trim() || null,
+                ipAddress: context.ipAddress?.trim() || null,
+              },
+            });
+
+            sessionId = session.sessionId;
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              const fallbackSession = await tx.userSession.findFirst({
+                where: {
+                  userId: user.id,
+                  isActive: true,
+                },
+                orderBy: {
+                  updatedAt: 'desc',
+                },
+              });
+
+              if (!fallbackSession) {
+                throw error;
+              }
+
+              await tx.userSession.update({
+                where: { id: fallbackSession.id },
+                data: {
+                  organizationId,
+                  lastSeenAt: new Date(),
+                  userAgent: context.userAgent?.trim() || fallbackSession.userAgent,
+                  ipAddress: context.ipAddress?.trim() || fallbackSession.ipAddress,
+                  isActive: true,
+                  status: 'ACTIVE',
+                  revokedAt: null,
+                  revokedReason: null,
+                },
+              });
+
+              sessionId = fallbackSession.sessionId;
+            } else {
+              throw error;
+            }
+          }
+        }
       }
 
       const authUser: AuthenticatedUser = {
