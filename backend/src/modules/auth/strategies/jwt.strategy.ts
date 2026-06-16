@@ -5,6 +5,7 @@ import { Strategy, ExtractJwt } from 'passport-jwt';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PERMISSIONS, GLOBAL_ROLE_NAME } from '../../../shared/constants/rbac.constants';
 import { AuthenticatedUser } from '../../../shared/types/authenticated-user';
+import { AccessSettingsService } from '../../access-settings/access-settings.service';
 
 type JwtPayload = {
   sub: string;
@@ -17,6 +18,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly accessSettingsService: AccessSettingsService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -109,13 +111,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid session');
     }
 
+    const permissions = await this.accessSettingsService.resolveEffectivePermissions(
+      member.role.name,
+      member.organizationId,
+    );
+
     return {
       id: member.userId,
       email: user.email,
       fullName: user.fullName,
       organizationId: member.organizationId,
       role: member.role.name,
-      permissions: member.role.permissions.map(({ permission }) => permission.key),
+      permissions,
       sessionId: session.sessionId,
     };
   }

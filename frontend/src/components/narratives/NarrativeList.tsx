@@ -10,6 +10,7 @@ type NarrativeListProps = {
   onRefresh: () => void;
   onDuplicate: (id: string) => Promise<void>;
   canCreate: boolean;
+  currentOrganizationId?: string;
 };
 
 function narrativeStatusLabel(status: NarrativeListItem["status"]) {
@@ -44,7 +45,13 @@ export function NarrativeList({
   onRefresh,
   onDuplicate,
   canCreate,
+  currentOrganizationId,
 }: NarrativeListProps) {
+  const visibleNarratives = currentOrganizationId
+    ? narratives.filter((narrative) => narrative.organizationId === currentOrganizationId)
+    : narratives;
+  const hiddenCount = narratives.length - visibleNarratives.length;
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -67,20 +74,27 @@ export function NarrativeList({
         </button>
       </div>
 
-      {narratives.length > 0 ? (
+      {hiddenCount > 0 ? (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+          Se ocultaron {hiddenCount} narrativa(s) que no pertenecen a la organización activa.
+        </div>
+      ) : null}
+
+      {visibleNarratives.length > 0 ? (
         <div className="overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container shadow-elevation-1">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase tracking-widest text-on-surface-variant">
               <tr>
                 <th className="px-5 py-3">Narrativa</th>
                 <th className="px-5 py-3">Estado</th>
+                <th className="px-5 py-3">Organización</th>
                 <th className="px-5 py-3">Versiones</th>
                 <th className="px-5 py-3">Actualizada</th>
                 <th className="px-5 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {narratives.map((narrative) => (
+              {visibleNarratives.map((narrative) => (
                 <tr key={narrative.id} className="border-t border-outline-variant">
                   <td className="px-5 py-4">
                     <div className="space-y-1">
@@ -94,6 +108,16 @@ export function NarrativeList({
                     <span className="inline-flex rounded-full border border-outline-variant bg-surface px-3 py-1 text-xs font-semibold text-on-surface">
                       {narrativeStatusLabel(narrative.status)}
                     </span>
+                  </td>
+                  <td className="px-5 py-4 text-sm text-on-surface-variant">
+                    <div className="space-y-1">
+                      <p className="font-medium text-on-surface">
+                        {narrative.organization?.name ?? "—"}
+                      </p>
+                      <p className="text-xs">
+                        {narrative.organizationId ?? narrative.organization?.id ?? "—"}
+                      </p>
+                    </div>
                   </td>
                   <td className="px-5 py-4 text-sm text-on-surface-variant">
                     {narrative._count?.versions ?? 0} versiones

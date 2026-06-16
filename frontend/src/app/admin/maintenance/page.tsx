@@ -15,7 +15,7 @@ import {
   Upload,
   Trash2,
 } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -274,7 +274,7 @@ export default function MaintenancePage() {
   }
 
   return (
-    <ProtectedPage allowedRoles={["OWNER"]}>
+    <AdminProtectedPage>
       {loading ? (
         <DataState>Cargando mantenimiento...</DataState>
       ) : (
@@ -838,7 +838,7 @@ export default function MaintenancePage() {
           </section>
         </>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }
 

@@ -21,6 +21,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { createReadStream } from 'fs';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AccessModule } from '../../common/decorators/access-module.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -33,6 +34,7 @@ import { UpdateAudioButtonDto } from './dto/update-audio-button.dto';
 @ApiTags('audio-buttons')
 @ApiCookieAuth('cookie')
 @Controller('audio-buttons')
+@AccessModule('admin.buttons')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AudioButtonsController {
   constructor(private readonly audioButtonsService: AudioButtonsService) {}

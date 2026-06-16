@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { AccessModule } from '../../../common/decorators/access-module.decorator';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
@@ -11,6 +12,7 @@ import { ElevenLabsSettingsDto, GenerateElevenLabsAudioDto } from './dto/elevenl
 @ApiTags('integrations-elevenlabs')
 @ApiCookieAuth('cookie')
 @Controller('integrations/elevenlabs')
+@AccessModule('admin.integrations')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ElevenLabsController {
   constructor(private readonly elevenLabsService: ElevenLabsService) {}

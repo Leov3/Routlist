@@ -3,24 +3,31 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Sparkles } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
 import { NarrativeCreateForm } from "@/components/narratives/NarrativeCreateForm";
 import { NarrativeList } from "@/components/narratives/NarrativeList";
+import type { AuthUser } from "@/types/routlis";
 import type { NarrativeListItem } from "@/types/narratives";
 
 export default function AdminNarrativesPage() {
   const [narratives, setNarratives] = useState<NarrativeListItem[]>([]);
+  const [currentOrganizationId, setCurrentOrganizationId] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   async function load() {
     setLoading(true);
     try {
-      const result = await api<NarrativeListItem[]>("/narratives");
+      const [me, result] = await Promise.all([
+        api<{ user: AuthUser }>("/auth/me"),
+        api<NarrativeListItem[]>("/narratives"),
+      ]);
+      setCurrentOrganizationId(me.user.organizationId);
       setNarratives(result);
     } catch {
       setNarratives([]);
+      setCurrentOrganizationId("");
     } finally {
       setLoading(false);
     }
@@ -45,7 +52,7 @@ export default function AdminNarrativesPage() {
   }, []);
 
   return (
-    <ProtectedPage requiredPermissions={["narratives:view"]}>
+    <AdminProtectedPage>
       <div className="space-y-6">
         <PageHeader
           title="Narrativas"
@@ -86,10 +93,11 @@ export default function AdminNarrativesPage() {
               onRefresh={load}
               onDuplicate={duplicateNarrative}
               canCreate
+              currentOrganizationId={currentOrganizationId}
             />
           </div>
         </div>
       </div>
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }

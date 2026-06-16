@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowUpDown, CheckCircle, Pencil, Plus, Search, XCircle } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
@@ -137,7 +137,7 @@ export default function UsersPage() {
   }
 
   return (
-    <ProtectedPage requiredPermissions={["user:create"]}>
+    <AdminProtectedPage>
       <PageHeader title="Usuarios" description="Miembros, roles y permisos de acceso." />
       <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_1fr_1fr_160px_auto]">
         <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Nombre" className="h-10 rounded-xl border border-outline px-3 text-sm" required />
@@ -215,6 +215,6 @@ export default function UsersPage() {
       ) : (
         <DataState>No hay usuarios.</DataState>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }

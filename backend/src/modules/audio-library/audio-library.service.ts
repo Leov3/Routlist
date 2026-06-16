@@ -116,6 +116,7 @@ export class AudioLibraryService {
     await this.prisma.$transaction(async (tx) => {
       await tx.playbackEvent.deleteMany({
         where: {
+          organizationId: user.organizationId,
           OR: [
             { audioAssetId: id },
             ...(buttonIds.length ? [{ audioButtonId: { in: buttonIds } }] : []),
@@ -125,12 +126,18 @@ export class AudioLibraryService {
 
       if (buttonIds.length) {
         await tx.audioButton.deleteMany({
-          where: { id: { in: buttonIds } },
+          where: {
+            id: { in: buttonIds },
+            organizationId: user.organizationId,
+          },
         });
       }
 
-      await tx.audioAsset.delete({
-        where: { id },
+      await tx.audioAsset.deleteMany({
+        where: {
+          id,
+          organizationId: user.organizationId,
+        },
       });
     });
 
@@ -241,6 +248,7 @@ export class AudioLibraryService {
     await this.prisma.$transaction(async (tx) => {
       await tx.playbackEvent.deleteMany({
         where: {
+          organizationId: user.organizationId,
           OR: [
             { audioAssetId: { in: assetIds } },
             ...(buttonIds.length ? [{ audioButtonId: { in: buttonIds } }] : []),
@@ -250,12 +258,18 @@ export class AudioLibraryService {
 
       if (buttonIds.length) {
         await tx.audioButton.deleteMany({
-          where: { id: { in: buttonIds } },
+          where: {
+            id: { in: buttonIds },
+            organizationId: user.organizationId,
+          },
         });
       }
 
       await tx.audioAsset.deleteMany({
-        where: { id: { in: assetIds } },
+        where: {
+          id: { in: assetIds },
+          organizationId: user.organizationId,
+        },
       });
     });
 

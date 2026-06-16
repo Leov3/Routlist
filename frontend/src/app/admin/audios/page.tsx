@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CheckCircle, Music, Pencil, Trash2, Upload, XCircle } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SearchBar } from "@/components/ui/SearchBar";
@@ -157,7 +157,7 @@ export default function AudiosPage() {
   }
 
   return (
-    <ProtectedPage requiredPermissions={["audio:create"]}>
+    <AdminProtectedPage>
       <PageHeader title="Audios" description="Biblioteca de archivos MP3 y WAV." />
 
       {/* Upload panel */}
@@ -305,6 +305,6 @@ export default function AudiosPage() {
           void load();
         }}
       />
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }

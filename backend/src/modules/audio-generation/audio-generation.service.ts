@@ -418,6 +418,7 @@ export class AudioGenerationService {
 
     if (asset.lifecycleStatus === 'PERSISTED' && asset.autoCreatedButtonId) {
       return this.createButtonResponse(
+        user.organizationId,
         asset.autoCreatedButtonId,
         asset,
         dto,
@@ -487,8 +488,11 @@ export class AudioGenerationService {
       });
     }
 
-    await this.prisma.audioAsset.delete({
-      where: { id: asset.id },
+    await this.prisma.audioAsset.deleteMany({
+      where: {
+        id: asset.id,
+        organizationId: user.organizationId,
+      },
     });
 
     return { ok: true };
@@ -531,6 +535,8 @@ export class AudioGenerationService {
     await this.prisma.audioAsset.deleteMany({
       where: {
         id: { in: expiredAssets.map((asset) => asset.id) },
+        sourceType: 'TTS',
+        lifecycleStatus: 'TEMPORARY',
       },
     });
 
@@ -607,10 +613,17 @@ export class AudioGenerationService {
       },
     });
 
-    return this.createButtonResponse(button.id, asset, dto, category);
+    return this.createButtonResponse(
+      user.organizationId,
+      button.id,
+      asset,
+      dto,
+      category,
+    );
   }
 
   private async createButtonResponse(
+    organizationId: string,
     buttonId: string,
     asset: {
       id: string;
@@ -622,9 +635,12 @@ export class AudioGenerationService {
     },
     dto: CreateGeneratedButtonDto,
     category?: { id: string; name: string },
-  ) {
+    ) {
     const button = await this.prisma.audioButton.findFirst({
-      where: { id: buttonId },
+      where: {
+        id: buttonId,
+        organizationId,
+      },
       include: {
         category: true,
         audioAsset: {

@@ -36,6 +36,43 @@ export class ApiError extends Error {
   }
 }
 
+export type AccessPolicy = {
+  id: string;
+  moduleKey: string;
+  organizationId: string | null;
+  userId: string | null;
+  roleName: string | null;
+  allowed: boolean;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccessModuleDefinition = {
+  key: string;
+  label: string;
+  description: string;
+  category: 'panel' | 'admin' | 'workspace';
+  ownerOnly?: boolean;
+};
+
+export type AccessOverview = {
+  modules: AccessModuleDefinition[];
+  organizations: { id: string; name: string; status: string }[];
+  users: { id: string; fullName: string; email: string; status: string }[];
+  roles: { id: string; name: string; description: string | null }[];
+  policies: AccessPolicy[];
+};
+
+export type AccessSettings = {
+  id: string;
+  roleDefaults: Record<string, Record<string, boolean>>;
+  organizationOverrides: Record<string, Record<string, boolean>>;
+  organizationRoleDefaults: Record<string, Record<string, Record<string, boolean>>>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function apiUrl(path: string) {
   return `${API_URL}${path}`;
 }

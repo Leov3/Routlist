@@ -36,6 +36,12 @@ export class NarrativesService {
       where: { organizationId: user.organizationId },
       orderBy: [{ createdAt: 'desc' }],
       include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             versions: true,
@@ -77,6 +83,12 @@ export class NarrativesService {
       },
       orderBy: [{ updatedAt: 'desc' }],
       include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         publishedVersion: {
           select: {
             id: true,
@@ -175,7 +187,11 @@ export class NarrativesService {
 
   async duplicate(user: AuthenticatedUser, id: string) {
     const narrative = await this.getNarrativeOrThrow(user, id);
-    const sourceVersion = await this.getEditableVersion(narrative.id, false);
+    const sourceVersion = await this.getEditableVersion(
+      narrative.id,
+      user.organizationId,
+      false,
+    );
     const sourceGraph = cloneGraphJson(
       (sourceVersion?.graphJson ??
         narrative.publishedVersion?.graphJson ??
@@ -209,12 +225,19 @@ export class NarrativesService {
 
   async getBuilderState(user: AuthenticatedUser, id: string) {
     const narrative = await this.getNarrativeOrThrow(user, id);
-    const draftVersion = await this.getEditableVersion(narrative.id, true);
+    const draftVersion = await this.getEditableVersion(
+      narrative.id,
+      user.organizationId,
+      true,
+    );
     const publishedVersion = narrative.publishedVersionId
       ? await this.prisma.narrativeVersion.findFirst({
           where: {
             id: narrative.publishedVersionId,
             narrativeId: narrative.id,
+            narrative: {
+              organizationId: user.organizationId,
+            },
           },
         })
       : null;
@@ -244,7 +267,11 @@ export class NarrativesService {
       throw new BadRequestException(validation.errors);
     }
 
-    const draftVersion = await this.getEditableVersion(narrative.id, true);
+    const draftVersion = await this.getEditableVersion(
+      narrative.id,
+      user.organizationId,
+      true,
+    );
 
     if (!draftVersion) {
       throw new NotFoundException('Editable narrative version not found');
@@ -281,7 +308,7 @@ export class NarrativesService {
 
     const payload =
       graphJson ??
-      (await this.getEditableVersion(id, false))?.graphJson ??
+      (await this.getEditableVersion(id, user.organizationId, false))?.graphJson ??
       emptyGraphJson();
     const validation = validateNarrativeGraph(payload);
 
@@ -301,7 +328,11 @@ export class NarrativesService {
 
   async publish(user: AuthenticatedUser, id: string) {
     const narrative = await this.getNarrativeOrThrow(user, id);
-    const draftVersion = await this.getEditableVersion(narrative.id, true);
+    const draftVersion = await this.getEditableVersion(
+      narrative.id,
+      user.organizationId,
+      true,
+    );
 
     if (!draftVersion) {
       throw new NotFoundException('Editable narrative version not found');
@@ -370,6 +401,9 @@ export class NarrativesService {
       where: {
         id: narrative.publishedVersionId,
         narrativeId: narrative.id,
+        narrative: {
+          organizationId: user.organizationId,
+        },
       },
     });
 
@@ -392,6 +426,12 @@ export class NarrativesService {
         },
         updatedBy: {
           select: { id: true, fullName: true, email: true },
+        },
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
         publishedVersion: {
           select: {
@@ -433,12 +473,16 @@ export class NarrativesService {
 
   private async getEditableVersion(
     narrativeId: string,
+    organizationId: string,
     createIfMissing: boolean,
   ) {
     const draftVersion = await this.prisma.narrativeVersion.findFirst({
       where: {
         narrativeId,
         status: DRAFT_STATUS,
+        narrative: {
+          organizationId,
+        },
       },
       orderBy: {
         versionNumber: 'desc',
@@ -450,7 +494,12 @@ export class NarrativesService {
     }
 
     const latestVersion = await this.prisma.narrativeVersion.findFirst({
-      where: { narrativeId },
+      where: {
+        narrativeId,
+        narrative: {
+          organizationId,
+        },
+      },
       orderBy: {
         versionNumber: 'desc',
       },

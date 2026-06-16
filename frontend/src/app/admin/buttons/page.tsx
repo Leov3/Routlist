@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowUpDown, CheckCircle, Copy, Pencil, Plus, Search, Trash2, XCircle } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api, apiUrl } from "@/lib/api";
@@ -259,7 +259,7 @@ export default function ButtonsPage() {
   }
 
   return (
-    <ProtectedPage requiredPermissions={["button:create"]}>
+    <AdminProtectedPage>
       <PageHeader title="Botones" description="Accesos operativos asociados a audios." />
       {errorMessage ? (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -361,6 +361,6 @@ export default function ButtonsPage() {
       ) : (
         <DataState>No hay botones.</DataState>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }

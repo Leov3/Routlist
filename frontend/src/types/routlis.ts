@@ -10,6 +10,7 @@ export type AuthUser = {
 export type Organization = {
   id: string;
   name: string;
+  slug?: string;
   status: string;
   createdAt: string;
   updatedAt: string;
