@@ -14,7 +14,7 @@ Dejar Routlis listo para:
 
 ## 1. GitHub
 
-- [ ] Crear los secretos `VPS_HOST`, `VPS_USER`, `VPS_APP_DIR`, `VPS_SSH_PRIVATE_KEY`, `VPS_COMPOSE_PROFILE`.
+- [ ] Crear los secretos `VPS_HOST`, `VPS_USER`, `VPS_APP_DIR`, `VPS_SSH_PRIVATE_KEY`, `VPS_SSH_PORT`, `VPS_COMPOSE_PROFILE`.
 - [ ] Verificar que `VPS_APP_DIR` apunte al clon real del repo en el VPS.
 - [ ] Confirmar que la rama protegida o automatizada es `principal`.
 

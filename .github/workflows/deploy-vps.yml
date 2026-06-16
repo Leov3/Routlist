@@ -21,8 +21,36 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VPS_ENV_FILE: /opt/routlis/.env
+      VPS_CONNECT_TIMEOUT: 10
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
+      - name: Resolve SSH target
+        run: |
+          host='${{ secrets.VPS_HOST }}'
+          host="${host#http://}"
+          host="${host#https://}"
+          port='${{ secrets.VPS_SSH_PORT }}'
+          if [[ -z "$port" ]]; then
+            port=22
+          fi
+          if [[ "$host" == *:* ]]; then
+            port="${host##*:}"
+            host="${host%:*}"
+          fi
+          if [[ -z "$host" ]]; then
+            echo "VPS_HOST is empty" >&2
+            exit 1
+          fi
+          if [[ -z "${{ secrets.VPS_USER }}" ]]; then
+            echo "VPS_USER is empty" >&2
+            exit 1
+          fi
+          echo "VPS target: ${host}:${port}"
+
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -43,8 +71,8 @@ jobs:
             port="${host##*:}"
             host="${host%:*}"
           fi
-          scp -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.tar.gz "${{ secrets.VPS_USER }}@$host:/tmp/routlis.tar.gz"
-          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "mkdir -p '${{ secrets.VPS_APP_DIR }}' && find '${{ secrets.VPS_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
+          scp -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.tar.gz "${{ secrets.VPS_USER }}@$host:/tmp/routlis.tar.gz"
+          ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "mkdir -p '${{ secrets.VPS_APP_DIR }}' && find '${{ secrets.VPS_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
 
       - name: Ensure VPS env file exists
         run: |
@@ -58,8 +86,8 @@ jobs:
             port="${host##*:}"
             host="${host%:*}"
           fi
-          scp -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.env "${{ secrets.VPS_USER }}@$host:${{ env.VPS_ENV_FILE }}"
-          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "chmod 600 '${{ env.VPS_ENV_FILE }}' && chown '${{ secrets.VPS_USER }}':'${{ secrets.VPS_USER }}' '${{ env.VPS_ENV_FILE }}'"
+          scp -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.env "${{ secrets.VPS_USER }}@$host:${{ env.VPS_ENV_FILE }}"
+          ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "chmod 600 '${{ env.VPS_ENV_FILE }}' && chown '${{ secrets.VPS_USER }}':'${{ secrets.VPS_USER }}' '${{ env.VPS_ENV_FILE }}'"
           rm -f /tmp/routlis.env
 
       - name: Preflight on VPS
@@ -73,7 +101,7 @@ jobs:
             port="${host##*:}"
             host="${host%:*}"
           fi
-          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"
+          ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"
 
       - name: Deploy app on VPS
         run: |
@@ -86,7 +114,7 @@ jobs:
             port="${host##*:}"
             host="${host%:*}"
           fi
-          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"
+          ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"
 
       - name: Verify deploy on VPS
         run: |
@@ -99,7 +127,7 @@ jobs:
             port="${host##*:}"
             host="${host%:*}"
           fi
-          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"
+          ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"
 
       - name: Bootstrap seed on demand
         if: github.event_name == 'workflow_dispatch' && inputs.run_seed == true
@@ -112,4 +140,4 @@ jobs:
             port="${host##*:}"
             host="${host%:*}"
           fi
-          ssh -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"
+          ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"
