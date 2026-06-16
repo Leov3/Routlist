@@ -246,6 +246,18 @@ Si solo quieres sembrar datos demo en el bootstrap inicial:
 ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh seed
 ```
 
+Limpieza conservadora de Docker en el VPS:
+
+```bash
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh prune
+```
+
+Puedes programarlo, por ejemplo, una vez por semana con cron:
+
+```cron
+0 4 * * 0 cd /opt/routlis/app && ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh prune >/var/log/routlis-prune.log 2>&1
+```
+
 El seed no debe ejecutarse en cada despliegue automatico.
 
 Flujo de ramas:
