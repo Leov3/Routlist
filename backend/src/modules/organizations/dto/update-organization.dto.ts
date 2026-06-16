@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 const ORGANIZATION_STATUSES = ['ACTIVE', 'DISABLED'] as const;
 
@@ -20,4 +20,10 @@ export class UpdateOrganizationDto {
   @IsString()
   @MinLength(2)
   slug?: string;
+
+  @ApiPropertyOptional({ example: 5, minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxUsers?: number;
 }

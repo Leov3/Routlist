@@ -21,7 +21,7 @@ function routePolicy(pathname: string) {
     return { allowedRoles: ["OWNER"] };
   }
   if (pathname === "/admin/organizations") {
-    return { requiredPermissions: ["organization:read"] };
+    return { allowedRoles: ["OWNER"] };
   }
   if (pathname === "/admin/users") {
     return { requiredPermissions: ["user:read"] };
@@ -51,6 +51,9 @@ function routePolicy(pathname: string) {
     return { requiredPermissions: ["history:read"] };
   }
   if (pathname === "/admin/storage" || pathname === "/admin/maintenance") {
+    return { allowedRoles: ["OWNER"] };
+  }
+  if (pathname === "/admin/mail") {
     return { allowedRoles: ["OWNER"] };
   }
   return {};

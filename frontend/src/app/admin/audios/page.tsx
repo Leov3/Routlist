@@ -14,6 +14,7 @@ import type { AudioAsset, AudioCategory } from "@/types/routlis";
 
 type SortKey = "originalName" | "mimeType" | "sizeBytes" | "isActive";
 type StatusFilter = "all" | "active" | "inactive";
+type LifecycleFilter = "all" | "temporary" | "permanent";
 
 function SortBtn({
   sortKey,
@@ -48,6 +49,12 @@ const STATUS_OPTIONS = [
   { value: "inactive" as const, label: "Inactivos" },
 ];
 
+const LIFECYCLE_OPTIONS = [
+  { value: "all" as const, label: "Todos" },
+  { value: "temporary" as const, label: "Temporales" },
+  { value: "permanent" as const, label: "Permanentes" },
+];
+
 export default function AudiosPage() {
   const [audios, setAudios] = useState<AudioAsset[]>([]);
   const [categories, setCategories] = useState<AudioCategory[]>([]);
@@ -56,6 +63,7 @@ export default function AudiosPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [lifecycleFilter, setLifecycleFilter] = useState<LifecycleFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("originalName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -87,14 +95,18 @@ export default function AudiosPage() {
       .filter((a) => {
         const matchSearch = `${a.originalName} ${a.mimeType}`.toLowerCase().includes(term);
         const matchStatus = statusFilter === "all" || (statusFilter === "active" ? a.isActive : !a.isActive);
-        return matchSearch && matchStatus;
+        const isTemporary = a.lifecycleStatus === "TEMPORARY" || Boolean(a.expiresAt);
+        const matchLifecycle =
+          lifecycleFilter === "all" ||
+          (lifecycleFilter === "temporary" ? isTemporary : !isTemporary);
+        return matchSearch && matchStatus && matchLifecycle;
       })
       .sort((a, b) => {
         const l = a[sortKey]; const r = b[sortKey];
         const res = typeof l === "number" && typeof r === "number" ? l - r : String(l).localeCompare(String(r));
         return sortDir === "asc" ? res : -res;
       });
-  }, [audios, search, sortDir, sortKey, statusFilter]);
+  }, [audios, lifecycleFilter, search, sortDir, sortKey, statusFilter]);
 
   function sortBy(key: SortKey) {
     if (sortKey === key) { setSortDir((d) => (d === "asc" ? "desc" : "asc")); return; }
@@ -199,6 +211,7 @@ export default function AudiosPage() {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchBar value={search} onChange={setSearch} placeholder="Filtrar por nombre o tipo..." />
         <FilterBar value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
+        <FilterBar value={lifecycleFilter} onChange={setLifecycleFilter} options={LIFECYCLE_OPTIONS} />
       </div>
 
       {/* Table */}
@@ -213,6 +226,7 @@ export default function AudiosPage() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="mimeType" label="Tipo" /></th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="sizeBytes" label="Tamaño" /></th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Duración</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Lifecycle</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="isActive" label="Estado" /></th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Acciones</th>
               </tr>
@@ -220,7 +234,7 @@ export default function AudiosPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-on-surface-variant">Sin resultados.</td>
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-on-surface-variant">Sin resultados.</td>
                 </tr>
               ) : (
                 filtered.map((audio) => (
@@ -256,6 +270,19 @@ export default function AudiosPage() {
                       ) : (
                         <span className="text-on-surface-variant">{audio.durationSeconds ? `${audio.durationSeconds}s` : "–"}</span>
                       )}
+                    </td>
+                    {/* Lifecycle */}
+                    <td className="px-4 py-3.5">
+                      <div className="grid gap-1">
+                        <span className="text-on-surface-variant">
+                          {isTemporaryAudio(audio) ? "Temporal" : "Permanente"}
+                        </span>
+                        {isTemporaryAudio(audio) ? (
+                          <span className="text-xs text-on-surface-variant">
+                            {getRemainingTimeLabel(audio.expiresAt)}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     {/* Status */}
                     <td className="px-4 py-3.5"><StatusBadge active={audio.isActive} /></td>
@@ -307,4 +334,31 @@ export default function AudiosPage() {
       />
     </AdminProtectedPage>
   );
+}
+
+function isTemporaryAudio(audio: AudioAsset) {
+  return audio.lifecycleStatus === "TEMPORARY" || Boolean(audio.expiresAt);
+}
+
+function getRemainingTimeLabel(expiresAt?: string | null) {
+  if (!expiresAt) return "Sin vencimiento";
+
+  const expiresAtDate = new Date(expiresAt);
+  const diffMs = expiresAtDate.getTime() - Date.now();
+
+  if (Number.isNaN(expiresAtDate.getTime())) return "Vencimiento inválido";
+  if (diffMs <= 0) return "Vencido";
+
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts = [
+    days > 0 ? `${days}d` : null,
+    hours > 0 ? `${hours}h` : null,
+    minutes > 0 ? `${minutes}m` : null,
+  ].filter(Boolean);
+
+  return `Le quedan ${parts.length ? parts.join(" ") : "menos de 1m"}`;
 }

@@ -12,6 +12,7 @@ export type Organization = {
   name: string;
   slug?: string;
   status: string;
+  maxUsers?: number;
   createdAt: string;
   updatedAt: string;
   _count?: {

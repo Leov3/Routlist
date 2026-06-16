@@ -6,6 +6,7 @@ import {
   Activity,
   Clock,
   Database,
+  Mail,
   HardDrive,
   History,
   Library,
@@ -13,6 +14,7 @@ import {
   PanelTop,
   RefreshCw,
   Server,
+  Trash2,
   Users,
 } from "lucide-react";
 import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
@@ -51,6 +53,16 @@ type DashboardData = {
   buttons: AudioButton[];
   users: UserRow[];
   history: PlaybackEvent[];
+  invites: {
+    id: string;
+    email: string;
+    role: string;
+    status: string;
+    expiresAt: string;
+    createdAt: string;
+    organization: { id: string; name: string };
+    invitedBy?: { id: string; fullName: string; email: string } | null;
+  }[];
 };
 
 type StorageHealth = {
@@ -97,6 +109,7 @@ const emptyData: DashboardData = {
   buttons: [],
   users: [],
   history: [],
+  invites: [],
 };
 
 export default function AdminDashboardPage() {
@@ -112,6 +125,7 @@ export default function AdminDashboardPage() {
   const [storage, setStorage] = useState<StorageHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
   async function loadDashboard(showSpinner = false) {
     if (showSpinner) setRefreshing(true);
@@ -150,15 +164,19 @@ export default function AdminDashboardPage() {
       api<UserRow[]>("/users"),
       api<PlaybackEvent[]>("/audit/playback-events"),
       currentUser.role === "OWNER"
+        ? api<DashboardData["invites"]>("/admin/mail/invites")
+        : Promise.resolve([]),
+      currentUser.role === "OWNER"
         ? api<StorageHealth>("/health/storage")
         : Promise.resolve(null),
-    ]).then(([audios, categories, buttons, users, history, storageResult]) => {
+    ]).then(([audios, categories, buttons, users, history, invitesResult, storageResult]) => {
       setData({
         audios: audios.status === "fulfilled" ? audios.value : [],
         categories: categories.status === "fulfilled" ? categories.value : [],
         buttons: buttons.status === "fulfilled" ? buttons.value : [],
         users: users.status === "fulfilled" ? users.value : [],
         history: history.status === "fulfilled" ? history.value : [],
+        invites: invitesResult.status === "fulfilled" ? invitesResult.value : [],
       });
       setStorage(storageResult.status === "fulfilled" ? storageResult.value : null);
     });
@@ -207,6 +225,14 @@ export default function AdminDashboardPage() {
         roles: ["OWNER"],
       },
       {
+        label: "Correo",
+        value: "SMTP",
+        href: "/admin/mail",
+        icon: Mail,
+        permission: "audio:update",
+        roles: ["OWNER"],
+      },
+      {
         label: "Categorias",
         value: counts.categories,
         href: "/admin/categories",
@@ -243,6 +269,19 @@ export default function AdminDashboardPage() {
       ? metric.roles.includes(user?.role ?? "")
       : user?.permissions.includes(metric.permission),
   );
+  const pendingInvites = data.invites.filter((invite) => invite.status === "PENDING");
+
+  async function revokeInvite(inviteId: string, organizationId: string) {
+    setRevokingInviteId(inviteId);
+    try {
+      await api(`/organizations/${organizationId}/invites/${inviteId}/revoke`, {
+        method: "POST",
+      });
+      await loadDashboard(true);
+    } finally {
+      setRevokingInviteId(null);
+    }
+  }
 
   const statusBars = useMemo(
     () => [
@@ -390,6 +429,70 @@ export default function AdminDashboardPage() {
               <LineChart data={playbackSeries} />
             </div>
           </section>
+
+          {user?.role === "OWNER" ? (
+            <section className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+              <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight text-on-surface">
+                    Invitaciones pendientes
+                  </h2>
+                  <p className="text-sm text-on-surface-variant">
+                    Vista global de invitaciones activas por organización.
+                  </p>
+                </div>
+                <span className="text-xs font-medium text-on-surface-variant">
+                  {pendingInvites.length} pendientes
+                </span>
+              </div>
+
+              {pendingInvites.length ? (
+                <div className="overflow-hidden rounded-xl border border-outline-variant">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
+                      <tr>
+                        <th className="px-4 py-3">Email</th>
+                        <th className="px-4 py-3">Organización</th>
+                        <th className="px-4 py-3">Rol</th>
+                        <th className="px-4 py-3">Vence</th>
+                        <th className="px-4 py-3 text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingInvites.map((invite) => (
+                        <tr key={invite.id} className="border-t border-outline-variant">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-on-surface">{invite.email}</p>
+                            <p className="text-xs text-on-surface-variant">
+                              {invite.invitedBy?.fullName ?? "Sistema"}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 text-on-surface-variant">{invite.organization.name}</td>
+                          <td className="px-4 py-3 text-on-surface-variant">{invite.role}</td>
+                          <td className="px-4 py-3 text-on-surface-variant">
+                            {new Date(invite.expiresAt).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => void revokeInvite(invite.id, invite.organization.id)}
+                              disabled={revokingInviteId === invite.id}
+                              className="inline-flex items-center gap-2 rounded-xl border border-red-400/30 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {revokingInviteId === invite.id ? "Revocando..." : "Revocar"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <DataState>No hay invitaciones pendientes.</DataState>
+              )}
+            </section>
+          ) : null}
 
           <section className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
             <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">

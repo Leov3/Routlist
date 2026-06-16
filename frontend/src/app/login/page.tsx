@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 
@@ -102,6 +103,24 @@ export default function LoginPage() {
       setError(err instanceof ApiError ? err.message : "No se pudo iniciar sesion");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!recoverEmail.trim()) {
+      showToast("Escribe un correo para continuar.");
+      return;
+    }
+
+    try {
+      await api("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: recoverEmail.trim() }),
+      });
+      showToast("Si el correo existe, se enviará un enlace de recuperación.");
+      setModalOpen(false);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "No se pudo enviar el enlace.");
     }
   }
 
@@ -362,14 +381,18 @@ export default function LoginPage() {
             <button
               type="button"
               className="login-send"
-              onClick={() => {
-                setModalOpen(false);
-                showToast("Enlace de recuperación simulado.");
-              }}
+              onClick={handleForgotPassword}
             >
               Enviar enlace
             </button>
           </div>
+          <p className="mt-4 text-center text-xs text-[#aeb4c2]">
+            También puedes abrir el flujo completo en{" "}
+            <Link href="/forgot-password" className="text-[#8e5dff] underline underline-offset-4">
+              /forgot-password
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </>
