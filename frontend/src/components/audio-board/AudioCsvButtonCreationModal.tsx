@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ImagePlus, Pause, Play, Save, SkipForward, X } from "lucide-react";
+import type { CsvImportQueueItem } from "@/components/audio-board/audio-csv-types";
 import { api, formatBytes, mediaUrl } from "@/lib/api";
 import type { AudioCategory } from "@/types/routlis";
 
@@ -16,26 +17,6 @@ type Draft = {
 };
 
 type AssetStatus = "pending" | "created" | "skipped" | "error";
-
-type CsvImportQueueItem = {
-  id: string;
-  rowNumber: number;
-  originalName: string;
-  fileName: string;
-  path: string | null;
-  text: string;
-  mimeType: string | null;
-  sizeBytes: number | null;
-  transcript: string;
-  label: string | null;
-  buttonTitle: string | null;
-  description: string | null;
-  tag: string | null;
-  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE" | "CREATE_FAILED";
-  matchedFileName: string | null;
-  assetId: string | null;
-  errorMessage: string | null;
-};
 
 type Props = {
   open: boolean;
@@ -95,16 +76,17 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
 
-  const currentItem = queue[currentIndex] ?? null;
+  const creatableQueue = queue.filter((item) => Boolean(item.assetId));
+  const currentItem = creatableQueue[currentIndex] ?? null;
   const currentDraft = currentItem
     ? drafts[currentItem.id] ?? createDraft(currentItem, availableCategories, defaults, currentIndex)
     : null;
 
-  const pendingItems = queue.filter((item) => !statuses[item.id] || statuses[item.id] === "pending");
-  const createdCount = queue.filter((item) => statuses[item.id] === "created").length;
-  const skippedCount = queue.filter((item) => statuses[item.id] === "skipped").length;
-  const errorCount = queue.filter((item) => statuses[item.id] === "error").length;
-  const progress = queue.length ? ((createdCount + skippedCount) / queue.length) * 100 : 0;
+  const pendingItems = creatableQueue.filter((item) => !statuses[item.id] || statuses[item.id] === "pending");
+  const createdCount = creatableQueue.filter((item) => statuses[item.id] === "created").length;
+  const skippedCount = creatableQueue.filter((item) => statuses[item.id] === "skipped").length;
+  const errorCount = creatableQueue.filter((item) => statuses[item.id] === "error").length;
+  const progress = creatableQueue.length ? ((createdCount + skippedCount) / creatableQueue.length) * 100 : 0;
 
   useEffect(() => {
     if (!open) return;
@@ -187,11 +169,11 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
 
     if (action === "skip") {
       setStatuses((current) => ({ ...current, [currentItem.id]: "skipped" }));
-      if (currentIndex >= queue.length - 1) {
+      if (currentIndex >= creatableQueue.length - 1) {
         onFinished?.();
         return;
       }
-      setCurrentIndex((index) => Math.min(index + 1, queue.length - 1));
+      setCurrentIndex((index) => Math.min(index + 1, creatableQueue.length - 1));
       setErrorMessage(null);
       return;
     }
@@ -238,11 +220,11 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
         },
       }));
 
-      if (currentIndex >= queue.length - 1) {
+      if (currentIndex >= creatableQueue.length - 1) {
         onFinished?.();
         return;
       }
-      setCurrentIndex((index) => Math.min(index + 1, queue.length - 1));
+      setCurrentIndex((index) => Math.min(index + 1, creatableQueue.length - 1));
     } catch (error) {
       setStatuses((current) => ({ ...current, [currentItem.id]: "error" }));
       setErrorMessage(error instanceof Error ? error.message : "No se pudo crear el botón.");
@@ -296,7 +278,7 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
                   <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Cola importada</p>
                   <p className="mt-1 text-sm text-on-surface-variant">Cada fila conserva la metadata del CSV y puedes ajustar solo lo necesario antes de crear el botón.</p>
                 </div>
-                <span className="rounded-full border border-outline-variant bg-surface px-3 py-1 text-[11px] font-medium text-on-surface-variant">{queue.length} filas</span>
+                <span className="rounded-full border border-outline-variant bg-surface px-3 py-1 text-[11px] font-medium text-on-surface-variant">{creatableQueue.length} filas</span>
               </div>
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-container-high">
                 <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${progress}%` }} />
@@ -310,7 +292,7 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
             </div>
 
             <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {queue.map((item, index) => {
+              {creatableQueue.map((item, index) => {
                 const status = statuses[item.id] ?? "pending";
                 const isCurrent = index === currentIndex;
                 return (
@@ -325,7 +307,7 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
                     <p className="truncate text-sm font-semibold text-on-surface">{item.buttonTitle || item.label || item.originalName}</p>
                     <p className="mt-1 truncate text-xs text-on-surface-variant">{item.tag || item.path || item.fileName}</p>
                     <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-on-surface-variant">
-                      <span className="truncate">{item.assetId ? `${item.mimeType || "N/D"} · ${formatOptionalBytes(item.sizeBytes)}` : item.errorMessage || "Sin audio importado"}</span>
+                      <span className="truncate">{`${item.mimeType || "N/D"} · ${formatOptionalBytes(item.sizeBytes)}`}</span>
                       <span className={status === "created" ? "text-emerald-300" : status === "error" ? "text-red-300" : "text-on-surface-variant"}>{status}</span>
                     </div>
                   </button>
@@ -347,7 +329,7 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                      {currentIndex + 1} / {queue.length}
+                      {currentIndex + 1} / {creatableQueue.length}
                     </span>
                   </div>
                   <div className="mt-4 grid gap-2 rounded-[20px] border border-outline-variant bg-surface p-4 sm:grid-cols-3">
@@ -369,22 +351,6 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
                   </div>
                 </div>
 
-                <div className="mt-4 shrink-0 rounded-[24px] border border-outline-variant bg-surface-container p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Origen CSV</p>
-                  <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                    <InfoBlock label="Archivo" value={currentItem.fileName} />
-                    <InfoBlock label="Path" value={currentItem.path || "N/D"} />
-                    <InfoBlock label="Button title" value={currentItem.buttonTitle || "N/D"} />
-                    <InfoBlock label="Label" value={currentItem.label || "N/D"} />
-                    <div className="xl:col-span-2">
-                      <InfoBlock label="Descripción CSV" value={currentItem.description || "Sin descripción en el CSV"} />
-                    </div>
-                    <div className="xl:col-span-2">
-                      <InfoBlock label="Texto / transcripción" value={currentItem.transcript || "Sin texto en el CSV"} />
-                    </div>
-                  </div>
-                </div>
-
                 <div className="mt-4 shrink-0 rounded-[24px] border border-outline-variant bg-surface-container p-3 sm:p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap gap-2">
@@ -392,7 +358,7 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
                         <ChevronLeft className="h-4 w-4" />
                         Volver
                       </button>
-                      <button type="button" onClick={() => setCurrentIndex((index) => Math.min(index + 1, queue.length - 1))} disabled={currentIndex >= queue.length - 1 || busy} className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container px-3 py-2 text-xs font-medium text-on-surface sm:px-4 sm:text-sm">
+                      <button type="button" onClick={() => setCurrentIndex((index) => Math.min(index + 1, creatableQueue.length - 1))} disabled={currentIndex >= creatableQueue.length - 1 || busy} className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container px-3 py-2 text-xs font-medium text-on-surface sm:px-4 sm:text-sm">
                         Siguiente
                         <ChevronRight className="h-4 w-4" />
                       </button>
@@ -411,7 +377,24 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
                 </div>
 
                 <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 pb-4 overscroll-contain" style={{ scrollbarGutter: "stable" }}>
-                  <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="space-y-4">
+                    <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Origen CSV</p>
+                      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                        <InfoBlock label="Archivo" value={currentItem.fileName} />
+                        <InfoBlock label="Path" value={currentItem.path || "N/D"} />
+                        <InfoBlock label="Button title" value={currentItem.buttonTitle || "N/D"} />
+                        <InfoBlock label="Label" value={currentItem.label || "N/D"} />
+                        <div className="xl:col-span-2">
+                          <InfoBlock label="Descripción CSV" value={currentItem.description || "Sin descripción en el CSV"} />
+                        </div>
+                        <div className="xl:col-span-2">
+                          <InfoBlock label="Texto / transcripción" value={currentItem.transcript || "Sin texto en el CSV"} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-2">
                     <div className="min-w-0 rounded-[24px] border border-outline-variant bg-surface-container p-4">
                       <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Datos del botón</p>
                       <div className="mt-4 grid gap-3">
@@ -467,6 +450,7 @@ export function AudioCsvButtonCreationModal({ open, queue, categories, onClose, 
                           <p className="mt-1 text-sm leading-6 text-on-surface-variant">{currentDraft.description || "Sin descripción adicional"}</p>
                         </div>
                       </div>
+                    </div>
                     </div>
                   </div>
                 </div>

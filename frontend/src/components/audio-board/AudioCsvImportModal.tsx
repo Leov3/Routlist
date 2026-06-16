@@ -1,53 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileAudio, Files, X } from "lucide-react";
-import type { AudioAsset } from "@/types/routlis";
-
-type CsvPreviewRow = {
-  rowNumber: number;
-  fileName: string;
-  path: string | null;
-  text: string;
-  label: string | null;
-  buttonTitle: string | null;
-  description: string | null;
-  tag: string | null;
-  matchedFileName: string | null;
-  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE" | "CREATE_FAILED";
-};
-
-type CsvImportQueueItem = CsvPreviewRow & {
-  id: string;
-  originalName: string;
-  mimeType: string | null;
-  sizeBytes: number | null;
-  audioBlobUrl?: string | null;
-  transcript: string;
-  assetId: string | null;
-  errorMessage: string | null;
-};
-
-type CsvImportResult = {
-  createdCount: number;
-  skippedCount: number;
-  duplicates: string[];
-  unmatchedFiles: string[];
-  rows: CsvImportQueueItem[];
-  assets: AudioAsset[];
-  queue: CsvImportQueueItem[];
-};
+import type { CsvImportQueueItem, CsvImportResult, CsvPreview } from "@/components/audio-board/audio-csv-types";
 
 type Props = {
   open: boolean;
-  preview: {
-    totalRows: number;
-    matchedCount: number;
-    missingCount: number;
-    duplicates: string[];
-    rows: CsvPreviewRow[];
-    error?: string;
-  } | null;
+  preview: CsvPreview | null;
   queue: CsvImportQueueItem[];
   busy?: boolean;
   onConfirmImport: () => Promise<CsvImportResult>;
@@ -60,6 +19,13 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
   const [result, setResult] = useState<CsvImportResult | null>(null);
 
   const rows = useMemo(() => result?.queue ?? queue, [queue, result?.queue]);
+
+  useEffect(() => {
+    if (!open) return;
+    setResult(null);
+    setErrorMessage(null);
+    setConfirming(false);
+  }, [open]);
 
   if (!open) return null;
 
@@ -142,7 +108,9 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
                   <p className="text-sm font-semibold text-on-surface">{result ? "Importación completada" : "Revisión previa"}</p>
                   <p className="mt-1 text-sm leading-6 text-on-surface-variant">
                     {result
-                      ? `Se crearon ${result.createdCount} audio(s) y se omitieron ${result.skippedCount}. Ahora se abrirá el modal para crear botones.`
+                      ? result.createdCount > 0
+                        ? `Se crearon ${result.createdCount} audio(s) y se omitieron ${result.skippedCount}. Ahora se abrirá el modal para crear botones.`
+                        : `No se crearon audios. Se omitieron ${result.skippedCount} fila(s); revisa archivos faltantes o errores antes de continuar.`
                       : "Confirma la importación para persistir los audios en la biblioteca y continuar con la creación de botones."}
                   </p>
                 </div>

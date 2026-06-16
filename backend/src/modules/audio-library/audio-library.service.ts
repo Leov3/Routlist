@@ -464,8 +464,59 @@ export class AudioLibraryService {
     return cells;
   }
 
-  private fileMatchKey(value: string) {
-    return value.trim().toLowerCase();
+  private normalizeCsvPath(value: string | null | undefined) {
+    return (value ?? '')
+      .replace(/\\/g, '/')
+      .split('/')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join('/')
+      .toLowerCase();
+  }
+
+  private fileMatchKey(value: string | null | undefined) {
+    return this.normalizeCsvPath(value);
+  }
+
+  private csvBasename(value: string | null | undefined) {
+    const normalized = this.normalizeCsvPath(value);
+    if (!normalized) {
+      return '';
+    }
+    return normalized.split('/').pop() ?? '';
+  }
+
+  private csvDirname(value: string | null | undefined) {
+    const normalized = this.normalizeCsvPath(value);
+    const index = normalized.lastIndexOf('/');
+    return index > 0 ? normalized.slice(0, index) : '';
+  }
+
+  private addCsvFileKey(
+    target: Map<string, Express.Multer.File>,
+    value: string | null | undefined,
+    file: Express.Multer.File,
+  ) {
+    const key = this.fileMatchKey(value);
+    if (key && !target.has(key)) {
+      target.set(key, file);
+    }
+  }
+
+  private addCsvFileSuffixKeys(
+    target: Map<string, Express.Multer.File>,
+    value: string | null | undefined,
+    file: Express.Multer.File,
+  ) {
+    const normalized = this.fileMatchKey(value);
+    if (!normalized) {
+      return;
+    }
+
+    const parts = normalized.split('/');
+    for (let index = 0; index < parts.length; index += 1) {
+      this.addCsvFileKey(target, parts.slice(index).join('/'), file);
+    }
   }
 
   private resolveCsvFile(
@@ -473,13 +524,30 @@ export class AudioLibraryService {
     pathFileKeyMap: Map<string, Express.Multer.File>,
     row: CsvAudioRow,
   ) {
-    const pathKey = row.path ? this.fileMatchKey(`${row.path}/${row.fileName}`) : null;
-    if (pathKey && pathFileKeyMap.has(pathKey)) {
-      return pathFileKeyMap.get(pathKey) ?? null;
+    const candidates: string[] = [];
+
+    if (row.path) {
+      candidates.push(`${row.path}/${row.fileName}`);
+      candidates.push(row.path);
+      const pathDirname = this.csvDirname(row.path);
+      if (pathDirname) {
+        candidates.push(`${pathDirname}/${row.fileName}`);
+      }
+    }
+
+    candidates.push(row.fileName);
+    candidates.push(this.csvBasename(row.fileName));
+
+    for (const candidate of candidates) {
+      const pathKey = this.fileMatchKey(candidate);
+      const byPath = pathFileKeyMap.get(pathKey);
+      if (byPath) {
+        return byPath;
+      }
     }
 
     const fileNameKey = this.fileMatchKey(row.fileName);
-    return filesByKey.get(fileNameKey) ?? null;
+    return filesByKey.get(fileNameKey) ?? filesByKey.get(this.csvBasename(row.fileName)) ?? null;
   }
 
   private parsePathHints(pathsJson: string | undefined, expectedCount: number) {
@@ -509,9 +577,14 @@ export class AudioLibraryService {
 
     audioFiles.forEach((file, index) => {
       const hintedPath = pathHints[index] ?? '';
-      const pathKey = this.fileMatchKey(hintedPath || file.originalname);
-      if (!pathFileKeyMap.has(pathKey)) {
-        pathFileKeyMap.set(pathKey, file);
+      const effectivePath = hintedPath || file.originalname;
+      this.addCsvFileSuffixKeys(pathFileKeyMap, effectivePath, file);
+      this.addCsvFileKey(pathFileKeyMap, this.csvBasename(effectivePath), file);
+      this.addCsvFileKey(pathFileKeyMap, file.originalname, file);
+
+      const hintedDirname = this.csvDirname(effectivePath);
+      if (hintedDirname) {
+        this.addCsvFileKey(pathFileKeyMap, `${hintedDirname}/${file.originalname}`, file);
       }
     });
 
@@ -522,6 +595,7 @@ export class AudioLibraryService {
         continue;
       }
       filesByKey.set(key, file);
+      this.addCsvFileKey(filesByKey, this.csvBasename(file.originalname), file);
     }
 
     return { filesByKey, pathFileKeyMap, duplicates };
@@ -546,7 +620,7 @@ export class AudioLibraryService {
     const { filesByKey, pathFileKeyMap, duplicates } = this.buildCsvFileIndexes(audioFiles, pathsJson);
     const previewRows: CsvAudioPreviewRow[] = [];
     const matches: CsvAudioMatch[] = [];
-    const usedFiles = new Set<string>();
+    const usedFiles = new Set<Express.Multer.File>();
 
     for (const row of rows) {
       const matchedFile = this.resolveCsvFile(filesByKey, pathFileKeyMap, row);
@@ -555,19 +629,18 @@ export class AudioLibraryService {
         continue;
       }
 
-      const matchKey = this.fileMatchKey(matchedFile.originalname);
-      if (usedFiles.has(matchKey)) {
+      if (usedFiles.has(matchedFile)) {
         previewRows.push(this.createCsvQueueItem(row, matchedFile, 'DUPLICATE', 'Este archivo ya fue usado por otra fila del CSV.'));
         continue;
       }
 
-      usedFiles.add(matchKey);
+      usedFiles.add(matchedFile);
       previewRows.push(this.createCsvQueueItem(row, matchedFile, 'MATCHED'));
-      matches.push({ row, file: matchedFile, matchKey });
+      matches.push({ row, file: matchedFile, matchKey: this.fileMatchKey(matchedFile.originalname) });
     }
 
     const unmatchedFiles = audioFiles
-      .filter((file) => !usedFiles.has(this.fileMatchKey(file.originalname)))
+      .filter((file) => !usedFiles.has(file))
       .map((file) => file.originalname);
 
     if (!options.persist) {

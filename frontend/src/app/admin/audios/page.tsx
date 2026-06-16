@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, type DragEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type ChangeEvent, type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle, Music, Pencil, Trash2, Upload, XCircle } from "lucide-react";
 import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
@@ -12,6 +12,7 @@ import { api, formatBytes } from "@/lib/api";
 import { AudioCsvButtonCreationModal } from "@/components/audio-board/AudioCsvButtonCreationModal";
 import { AudioCsvImportModal } from "@/components/audio-board/AudioCsvImportModal";
 import { AudioManualCreationModal } from "@/components/audio-board/AudioManualCreationModal";
+import type { CsvImportQueueItem, CsvImportResult, CsvPreview, CsvPreviewRow } from "@/components/audio-board/audio-csv-types";
 import type { AudioAsset, AudioCategory } from "@/types/routlis";
 
 type SortKey = "originalName" | "mimeType" | "sizeBytes" | "isActive";
@@ -81,6 +82,7 @@ export default function AudiosPage() {
   const [csvOpen, setCsvOpen] = useState(false);
   const [csvButtonOpen, setCsvButtonOpen] = useState(false);
   const [csvButtonQueue, setCsvButtonQueue] = useState<CsvImportQueueItem[]>([]);
+  const debugModalWasOpened = useRef(false);
 
   async function load() {
     try { setAudios(await api<AudioAsset[]>("/audio-assets")); }
@@ -110,6 +112,14 @@ export default function AudiosPage() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function resetCsvDerivedState() {
+    setCsvPreview(null);
+    setCsvQueue([]);
+    setCsvButtonQueue([]);
+    setCsvOpen(false);
+    setCsvButtonOpen(false);
   }
 
   useEffect(() => {
@@ -158,9 +168,22 @@ export default function AudiosPage() {
 
   useEffect(() => {
     return () => {
-      csvAudioFiles.forEach((selection) => URL.revokeObjectURL(selection.previewUrl));
+      revokeCsvAudioSelections(csvAudioFiles);
     };
   }, [csvAudioFiles]);
+
+  useEffect(() => {
+    const debugModal = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("debugModal");
+    if (debugModalWasOpened.current || loading || !audios.length) return;
+    if (debugModal !== "csv-buttons") return;
+
+    const debugQueue = buildDebugCsvButtonQueue(audios);
+    if (!debugQueue.length) return;
+
+    debugModalWasOpened.current = true;
+    setCsvButtonQueue(debugQueue);
+    setCsvButtonOpen(true);
+  }, [audios, loading]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -242,23 +265,31 @@ export default function AudiosPage() {
       };
     }
 
-    const fd = new FormData();
-    fd.append("csv", csvFile);
-    fd.append("paths", JSON.stringify(csvAudioFiles.map((selection) => selection.path ?? selection.file.name)));
-    csvAudioFiles.forEach((selection) => fd.append("files", selection.file));
+    setCsvImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("csv", csvFile);
+      fd.append("paths", JSON.stringify(csvAudioFiles.map((selection) => selection.path ?? selection.file.name)));
+      csvAudioFiles.forEach((selection) => fd.append("files", selection.file));
 
-    const result = await api<CsvImportResult>("/audio-assets/import-csv", {
-      method: "POST",
-      body: fd,
-      formData: true,
-    });
+      const result = await api<CsvImportResult>("/audio-assets/import-csv", {
+        method: "POST",
+        body: fd,
+        formData: true,
+      });
 
-    setCsvQueue(mergeCsvQueueItems(csvQueue, result.queue));
-    setCsvFile(null);
-    setCsvAudioFiles([]);
-    setCsvPreview(null);
-    await load();
-    return result;
+      const mergedQueue = mergeCsvQueueItems(csvQueue, result.queue);
+      setCsvQueue(mergedQueue);
+      if (result.createdCount > 0) {
+        setCsvFile(null);
+        setCsvAudioFiles([]);
+        setCsvPreview(null);
+      }
+      await load();
+      return result;
+    } finally {
+      setCsvImporting(false);
+    }
   }
 
   function startEdit(a: AudioAsset) {
@@ -353,7 +384,10 @@ export default function AudiosPage() {
               helper={csvFile ? csvFile.name : "Sin CSV seleccionado"}
               actionLabel="Elegir CSV"
               accept=".csv,text/csv"
-              onChangeFile={setCsvFile}
+              onChangeFile={(file) => {
+                setCsvFile(file);
+                resetCsvDerivedState();
+              }}
             />
             <FilePickerCard
               label="Audios"
@@ -365,19 +399,21 @@ export default function AudiosPage() {
                     ? csvAudioFiles[0].file.name
                     : `${csvAudioFiles.length} archivos seleccionados`
               }
-              actionLabel="Elegir carpeta o archivos"
+              actionLabel="Elegir archivos"
               accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
               multiple
               directory
-              onChangeFiles={(files) =>
+              onChangeFiles={(files) => {
+                revokeCsvAudioSelections(csvAudioFiles);
+                resetCsvDerivedState();
                 setCsvAudioFiles(
                   files.map((file) => ({
                     file,
                     path: getRelativeCsvPath(file),
                     previewUrl: URL.createObjectURL(file),
                   })),
-                )
-              }
+                );
+              }}
             />
             <div className="flex items-end">
               <button
@@ -630,9 +666,13 @@ export default function AudiosPage() {
         onConfirmImport={async () => {
           const result = await confirmCsvImport();
           const nextQueue = result.queue ?? [];
-          setCsvButtonQueue(nextQueue);
-          setCsvButtonOpen(nextQueue.some((item) => Boolean(item.assetId)));
-          setCsvOpen(false);
+          const importedQueue = nextQueue.filter((item) => Boolean(item.assetId));
+          setCsvQueue(nextQueue);
+          setCsvButtonQueue(importedQueue);
+          if (importedQueue.length > 0) {
+            setCsvButtonOpen(true);
+            setCsvOpen(false);
+          }
           return result;
         }}
         onClose={() => setCsvOpen(false)}
@@ -694,59 +734,6 @@ function getRemainingTimeLabel(expiresAt?: string | null) {
 
   return `Le quedan ${parts.length ? parts.join(" ") : "menos de 1m"}`;
 }
-
-type CsvPreviewRow = {
-  rowNumber: number;
-  fileName: string;
-  path: string | null;
-  text: string;
-  label: string | null;
-  buttonTitle: string | null;
-  description: string | null;
-  tag: string | null;
-  matchedFileName: string | null;
-  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE" | "CREATE_FAILED";
-};
-
-type CsvPreview = {
-  totalRows: number;
-  matchedCount: number;
-  missingCount: number;
-  duplicates: string[];
-  rows: CsvPreviewRow[];
-  error?: string;
-};
-
-type CsvImportQueueItem = {
-  id: string;
-  rowNumber: number;
-  originalName: string;
-  fileName: string;
-  path: string | null;
-  text: string;
-  mimeType: string | null;
-  sizeBytes: number | null;
-  audioBlobUrl?: string | null;
-  transcript: string;
-  label: string | null;
-  buttonTitle: string | null;
-  description: string | null;
-  tag: string | null;
-  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE" | "CREATE_FAILED";
-  matchedFileName: string | null;
-  assetId: string | null;
-  errorMessage: string | null;
-};
-
-type CsvImportResult = {
-  createdCount: number;
-  skippedCount: number;
-  duplicates: string[];
-  unmatchedFiles: string[];
-  rows: CsvImportQueueItem[];
-  assets: AudioAsset[];
-  queue: CsvImportQueueItem[];
-};
 
 function mergeCsvQueueItems(
   currentQueue: CsvImportQueueItem[],
@@ -888,43 +875,92 @@ function parseCsvLine(line: string) {
   return cells;
 }
 
-function fileMatchKey(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function resolvePreviewFile(fileIndex: Map<string, CsvAudioSelection>, row: { fileName: string; path: string | null }) {
-  if (row.path) {
-    const pathKey = fileMatchKey(`${row.path}/${row.fileName}`);
-    const byPath = fileIndex.get(pathKey);
-    if (byPath) return byPath;
-  }
-
-  return fileIndex.get(fileMatchKey(row.fileName)) ?? null;
-}
-
 type CsvAudioSelection = {
   file: File;
   path: string | null;
   previewUrl: string;
 };
 
+function normalizeCsvPath(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("/")
+    .toLowerCase();
+}
+
+function csvBasename(value: string | null | undefined) {
+  const normalized = normalizeCsvPath(value);
+  if (!normalized) return "";
+  return normalized.split("/").pop() ?? "";
+}
+
+function csvDirname(value: string | null | undefined) {
+  const normalized = normalizeCsvPath(value);
+  const index = normalized.lastIndexOf("/");
+  return index > 0 ? normalized.slice(0, index) : "";
+}
+
+function addCsvKey(keys: Set<string>, value: string | null | undefined) {
+  const key = normalizeCsvPath(value);
+  if (key) keys.add(key);
+}
+
+function addCsvSuffixKeys(keys: Set<string>, value: string | null | undefined) {
+  const normalized = normalizeCsvPath(value);
+  if (!normalized) return;
+
+  const parts = normalized.split("/");
+  for (let index = 0; index < parts.length; index += 1) {
+    addCsvKey(keys, parts.slice(index).join("/"));
+  }
+}
+
+function resolvePreviewFile(fileIndex: Map<string, CsvAudioSelection>, row: { fileName: string; path: string | null }) {
+  const candidates = new Set<string>();
+
+  if (row.path) {
+    addCsvKey(candidates, `${row.path}/${row.fileName}`);
+    addCsvKey(candidates, row.path);
+    const pathDirname = csvDirname(row.path);
+    if (pathDirname) {
+      addCsvKey(candidates, `${pathDirname}/${row.fileName}`);
+    }
+  }
+
+  addCsvKey(candidates, row.fileName);
+  addCsvKey(candidates, csvBasename(row.fileName));
+
+  for (const key of candidates) {
+    const matched = fileIndex.get(key);
+    if (matched) return matched;
+  }
+
+  return null;
+}
+
 function getCsvSelectionKeys(selection: CsvAudioSelection) {
   const keys = new Set<string>();
   const relativePath = getRelativeCsvPath(selection.file);
   if (relativePath) {
-    keys.add(fileMatchKey(relativePath));
-    const fileName = relativePath.split("/").pop();
-    if (fileName) {
-      keys.add(fileMatchKey(fileName));
-    }
+    addCsvSuffixKeys(keys, relativePath);
+    addCsvKey(keys, csvBasename(relativePath));
   }
 
   if (selection.path) {
-    keys.add(fileMatchKey(selection.path));
-    keys.add(fileMatchKey(`${selection.path}/${selection.file.name}`));
+    addCsvSuffixKeys(keys, selection.path);
+    addCsvKey(keys, csvBasename(selection.path));
+    addCsvKey(keys, `${selection.path}/${selection.file.name}`);
+    const pathDirname = csvDirname(selection.path);
+    if (pathDirname) {
+      addCsvKey(keys, `${pathDirname}/${selection.file.name}`);
+    }
   }
 
-  keys.add(fileMatchKey(selection.file.name));
+  addCsvKey(keys, selection.file.name);
+  addCsvKey(keys, csvBasename(selection.file.name));
 
   return Array.from(keys);
 }
@@ -932,14 +968,14 @@ function getCsvSelectionKeys(selection: CsvAudioSelection) {
 function getCsvSelectionPrimaryKey(selection: CsvAudioSelection) {
   const relativePath = getRelativeCsvPath(selection.file);
   if (relativePath) {
-    return fileMatchKey(relativePath);
+    return normalizeCsvPath(relativePath);
   }
 
   if (selection.path) {
-    return fileMatchKey(`${selection.path}/${selection.file.name}`);
+    return normalizeCsvPath(`${selection.path}/${selection.file.name}`);
   }
 
-  return fileMatchKey(selection.file.name);
+  return normalizeCsvPath(selection.file.name);
 }
 
 function getRelativeCsvPath(file: File) {
@@ -948,6 +984,41 @@ function getRelativeCsvPath(file: File) {
   const trimmed = relativePath.trim();
   if (!trimmed) return null;
   return trimmed;
+}
+
+function revokeCsvAudioSelections(selections: CsvAudioSelection[]) {
+  selections.forEach((selection) => URL.revokeObjectURL(selection.previewUrl));
+}
+
+function buildDebugCsvButtonQueue(audios: AudioAsset[]): CsvImportQueueItem[] {
+  return audios.slice(0, 8).map((audio, index) => {
+    const metadata = audio.importMetadata && typeof audio.importMetadata === "object" ? audio.importMetadata as Record<string, unknown> : null;
+    const csvPath = typeof metadata?.csvPath === "string" ? metadata.csvPath : null;
+    const csvLabel = typeof metadata?.label === "string" ? metadata.label : null;
+    const csvButtonTitle = typeof metadata?.buttonTitle === "string" ? metadata.buttonTitle : null;
+    const csvDescription = typeof metadata?.description === "string" ? metadata.description : null;
+    const csvTag = typeof metadata?.tag === "string" ? metadata.tag : null;
+
+    return {
+      id: `debug-csv-row-${audio.id}`,
+      rowNumber: index + 1,
+      originalName: audio.originalName,
+      fileName: audio.fileName,
+      path: csvPath,
+      text: audio.transcript || audio.generatedText || audio.originalName,
+      mimeType: audio.mimeType || null,
+      sizeBytes: typeof audio.sizeBytes === "number" ? audio.sizeBytes : null,
+      transcript: audio.transcript || audio.generatedText || "",
+      label: csvLabel,
+      buttonTitle: csvButtonTitle,
+      description: csvDescription,
+      tag: csvTag,
+      status: "MATCHED",
+      matchedFileName: audio.fileName,
+      assetId: audio.id,
+      errorMessage: null,
+    };
+  });
 }
 
 function StatBox({ label, value }: { label: string; value: string }) {
@@ -1003,8 +1074,9 @@ function FilePickerCard({
   onChangeFile?: (file: File | null) => void;
   onChangeFiles?: (files: File[]) => void;
 }) {
-  const inputId = `${label.toLowerCase()}-input`;
   const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const directoryInputRef = useRef<HTMLInputElement | null>(null);
 
   function handleFiles(selected: File[]) {
     if (multiple) {
@@ -1019,6 +1091,12 @@ function FilePickerCard({
     setDragActive(false);
     const selected = Array.from(event.dataTransfer.files ?? []);
     handleFiles(selected);
+  }
+
+  function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files ?? []);
+    handleFiles(selected);
+    event.target.value = "";
   }
 
   return (
@@ -1049,24 +1127,44 @@ function FilePickerCard({
         <div className="min-w-0 flex-1 rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
           <p className="truncate text-sm text-on-surface">{helper}</p>
         </div>
-        <label
-          htmlFor={inputId}
-          className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container px-4 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary"
-        >
-          {actionLabel}
-        </label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container px-4 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary"
+          >
+            {actionLabel}
+          </button>
+          {directory ? (
+            <button
+              type="button"
+              onClick={() => directoryInputRef.current?.click()}
+              className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container px-4 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary"
+            >
+              Elegir carpeta
+            </button>
+          ) : null}
+        </div>
       </div>
       <input
-        id={inputId}
+        ref={fileInputRef}
         type="file"
         accept={accept}
         multiple={multiple}
-        {...(directory ? { webkitdirectory: "" } : {})}
-        onChange={(event) => {
-          handleFiles(Array.from(event.target.files ?? []));
-        }}
+        onChange={handleInputChange}
         className="sr-only"
       />
+      {directory ? (
+        <input
+          ref={directoryInputRef}
+          type="file"
+          accept={accept}
+          multiple
+          {...{ webkitdirectory: "" }}
+          onChange={handleInputChange}
+          className="sr-only"
+        />
+      ) : null}
       <div className="mt-3 rounded-xl border border-dashed border-outline-variant px-4 py-3 text-xs text-on-surface-variant">
         {dragActive ? "Suelta los archivos aquí" : "También puedes arrastrar y soltar archivos en esta tarjeta"}
       </div>
