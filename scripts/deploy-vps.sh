@@ -64,6 +64,10 @@ verify_deploy() {
     "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 }
 
+run_migrations() {
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" run --rm --no-deps --build backend npm run prisma:deploy
+}
+
 rollback() {
   local backup_root="${1:-}"
   mkdir -p "$BACKUP_DIR"
@@ -100,8 +104,9 @@ deploy() {
   else
     backup_root="$(backup)"
   fi
-  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d --build
-  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" exec -T backend npm run prisma:deploy
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d postgres
+  run_migrations
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d --build backend frontend
   verify_deploy || {
     echo "Deploy verification failed, rolling back from $backup_root" >&2
     rollback "$backup_root"
