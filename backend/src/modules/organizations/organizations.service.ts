@@ -235,10 +235,6 @@ export class OrganizationsService {
         where: { organizationId: id },
       });
 
-      await tx.accessPolicy.deleteMany({
-        where: { organizationId: id },
-      });
-
       await tx.userSession.deleteMany({
         where: { organizationId: id },
       });
