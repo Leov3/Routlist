@@ -36,7 +36,7 @@ export class AudioLibraryService {
   }
 
   async create(user: AuthenticatedUser, file: Express.Multer.File) {
-    const stored = await this.storage.saveAudio(user.organizationId, file);
+    const stored = await this.storage.saveAudio(user.organizationId, file, 'audio-persisted');
 
     return this.prisma.audioAsset.create({
       data: {
@@ -172,7 +172,7 @@ export class AudioLibraryService {
       }> = [];
 
       for (const file of files) {
-        const stored = await this.storage.saveAudio(user.organizationId, file);
+        const stored = await this.storage.saveAudio(user.organizationId, file, 'audio-persisted');
         const asset = await this.prisma.audioAsset.create({
           data: {
             organizationId: user.organizationId,

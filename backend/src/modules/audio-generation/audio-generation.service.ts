@@ -186,7 +186,7 @@ export class AudioGenerationService {
         originalname: this.fileNameFor(normalizedText, audio.fileName),
         mimetype: audio.contentType,
         size: audio.buffer.length,
-      } as Express.Multer.File);
+      } as Express.Multer.File, 'audio-temporary');
 
       const expiresAt = new Date(Date.now() + TEMPORARY_TTL_MS);
       const asset = await this.prisma.audioAsset.create({
