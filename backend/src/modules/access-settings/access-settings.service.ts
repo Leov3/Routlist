@@ -5,7 +5,7 @@ import {
   getPermissionsForModules,
   mergeModuleFlags,
 } from '../../shared/access/access-presets';
-import { GLOBAL_ROLE_NAME, PERMISSIONS } from '../../shared/constants/rbac.constants';
+import { GLOBAL_ROLE_NAME, PERMISSIONS, ROLE_PERMISSIONS } from '../../shared/constants/rbac.constants';
 import { UpdateAccessSettingsDto } from './dto/update-access-settings.dto';
 
 @Injectable()
@@ -13,13 +13,21 @@ export class AccessSettingsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    await this.ensureDefaults();
+    try {
+      await this.ensureDefaults();
+    } catch {
+      // If migrations are not yet applied, keep auth functional and fall back to role permissions.
+    }
   }
 
   async get() {
-    await this.ensureDefaults();
-    const settings = await this.prisma.accessSettings.findUnique({ where: { id: 'singleton' } });
-    return settings ?? this.createDefault();
+    try {
+      await this.ensureDefaults();
+      const settings = await this.prisma.accessSettings.findUnique({ where: { id: 'singleton' } });
+      return settings ?? this.createDefault();
+    } catch {
+      return null;
+    }
   }
 
   async update(dto: UpdateAccessSettingsDto) {
@@ -49,6 +57,9 @@ export class AccessSettingsService implements OnModuleInit {
     }
 
     const settings = await this.get();
+    if (!settings) {
+      return [...(ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS] ?? [])];
+    }
     const roleDefaults = (settings.roleDefaults ?? DEFAULT_ACCESS_STATE.roleDefaults) as Record<string, Record<string, boolean>>;
     const organizationOverrides = (settings.organizationOverrides ?? {}) as Record<string, Record<string, boolean>>;
     const organizationRoleDefaults = (settings.organizationRoleDefaults ?? {}) as Record<
@@ -73,8 +84,10 @@ export class AccessSettingsService implements OnModuleInit {
   }
 
   private createDefault() {
-    return this.prisma.accessSettings.create({
-      data: {
+    return this.prisma.accessSettings.upsert({
+      where: { id: 'singleton' },
+      update: {},
+      create: {
         id: 'singleton',
         roleDefaults: DEFAULT_ACCESS_STATE.roleDefaults,
         organizationOverrides: DEFAULT_ACCESS_STATE.organizationOverrides,
