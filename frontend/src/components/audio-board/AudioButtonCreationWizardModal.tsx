@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -33,37 +33,47 @@ type ImportQueueItem = {
   originalName: string;
   fileName: string;
   path: string | null;
-  mimeType: string;
-  sizeBytes: number;
+  text: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  audioBlobUrl?: string | null;
   transcript: string;
   label: string | null;
   buttonTitle: string | null;
   description: string | null;
   tag: string | null;
-  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE";
+  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE" | "CREATE_FAILED";
   matchedFileName: string | null;
+  assetId: string | null;
+  errorMessage: string | null;
 };
 
-type WizardItem = Pick<
-  AudioAsset,
-  | "id"
-  | "fileName"
-  | "originalName"
-  | "mimeType"
-  | "sizeBytes"
-  | "durationSeconds"
-  | "transcript"
-  | "isActive"
-  | "createdAt"
-> & {
+type ImportConfirmResult = {
+  assets?: AudioAsset[];
+  queue?: ImportQueueItem[];
+};
+
+type WizardItem = {
+  id: string;
+  assetId: string | null;
+  fileName: string;
+  originalName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  durationSeconds?: number | null;
+  transcript?: string | null;
+  isActive: boolean;
+  createdAt: string;
   audioUrl?: string;
   audioDownloadUrl?: string;
+  audioBlobUrl?: string | null;
   importStatus?: ImportQueueItem["status"];
   importRowNumber?: number;
   importLabel?: string | null;
   importButtonTitle?: string | null;
   importDescription?: string | null;
   importTag?: string | null;
+  importErrorMessage?: string | null;
 };
 
 type Props = {
@@ -71,7 +81,7 @@ type Props = {
   assets: AudioAsset[];
   importQueue?: ImportQueueItem[];
   categories: AudioCategory[];
-  onConfirmImport?: () => Promise<AudioAsset[]>;
+  onConfirmImport?: () => Promise<ImportConfirmResult>;
   onClose: () => void;
   onFinished?: () => void;
 };
@@ -82,6 +92,27 @@ function stripExtension(fileName: string) {
 
 function slugToLabel(value: string) {
   return stripExtension(value).replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function formatOptionalBytes(bytes: number | null | undefined) {
+  if (typeof bytes !== "number" || !Number.isFinite(bytes)) return "N/D";
+  return formatBytes(bytes);
+}
+
+function mergeImportQueueItems(
+  currentQueue: ImportQueueItem[],
+  nextQueue: ImportQueueItem[] | undefined,
+) {
+  if (!nextQueue?.length) return currentQueue;
+  if (!currentQueue.length) return nextQueue;
+
+  const nextByRow = new Map(nextQueue.map((item) => [item.rowNumber, item]));
+  return currentQueue.map((item) => ({
+    ...item,
+    ...Object.fromEntries(
+      Object.entries(nextByRow.get(item.rowNumber) ?? {}).filter(([, value]) => value !== null && value !== undefined),
+    ),
+  }));
 }
 
 function createDraft(asset: WizardItem, categories: AudioCategory[], defaults?: Partial<Draft>, index = 0): Draft {
@@ -140,24 +171,27 @@ export function AudioButtonCreationWizardModal({
   const [defaults, setDefaults] = useState<Partial<Draft>>({});
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [confirmedAssets, setConfirmedAssets] = useState<AudioAsset[]>([]);
+  const [confirmedQueue, setConfirmedQueue] = useState<ImportQueueItem[]>([]);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
 
-  const queueItems: WizardItem[] = confirmedAssets.length
-    ? confirmedAssets
-    : assets.length
+  const activeImportQueue = confirmedQueue.length ? confirmedQueue : importQueue;
+  const queueItems: WizardItem[] = assets.length
       ? assets.map((asset) => ({
           ...asset,
+          assetId: asset.id,
           audioUrl: asset.audioUrl,
           audioDownloadUrl: asset.audioDownloadUrl,
+          audioBlobUrl: null,
         }))
-      : importQueue.map((item) => ({
+      : activeImportQueue.map((item) => ({
           id: item.id,
+          assetId: item.assetId,
           fileName: item.fileName,
           originalName: item.originalName,
           mimeType: item.mimeType,
           sizeBytes: item.sizeBytes,
+          audioBlobUrl: item.audioBlobUrl ?? null,
           transcript: item.transcript,
           isActive: false,
           createdAt: new Date().toISOString(),
@@ -167,19 +201,20 @@ export function AudioButtonCreationWizardModal({
           importButtonTitle: item.buttonTitle,
           importDescription: item.description,
           importTag: item.tag,
+          importErrorMessage: item.errorMessage,
         }));
 
-  const isImportQueueMode = !confirmedAssets.length && !assets.length && importQueue.length > 0;
+  const isImportQueueMode = !assets.length && activeImportQueue.length > 0;
+  const importIsConfirmed = isImportQueueMode && activeImportQueue.some((item) => item.assetId);
   const currentAsset = queueItems[currentIndex] ?? null;
-  const currentDraft = useMemo(() => {
-    if (!currentAsset) return null;
-    return drafts[currentAsset.id] ?? createDraft(currentAsset, categories, defaults, currentIndex);
-  }, [categories, currentAsset, currentIndex, defaults, drafts]);
-  const currentAssetIsPlaceholder = Boolean((currentAsset as WizardItem | null)?.importRowNumber);
+  const currentDraft = currentAsset
+    ? drafts[currentAsset.id] ?? createDraft(currentAsset, categories, defaults, currentIndex)
+    : null;
+  const currentAssetIsPlaceholder = Boolean(isImportQueueMode && !currentAsset?.assetId);
 
   const pendingAssets = queueItems.filter((asset) => !statuses[asset.id] || statuses[asset.id] === "pending");
   const processedCount = queueItems.filter((asset) => statuses[asset.id] === "created" || statuses[asset.id] === "skipped").length;
-  const finished = queueItems.length > 0 && processedCount === queueItems.length && !isImportQueueMode;
+  const finished = queueItems.length > 0 && processedCount === queueItems.length && (!isImportQueueMode || importIsConfirmed);
 
   useEffect(() => {
     if (!open) return;
@@ -187,10 +222,10 @@ export function AudioButtonCreationWizardModal({
     setDrafts({});
     setStatuses({});
     setDefaults({});
-    setConfirmedAssets([]);
+    setConfirmedQueue([]);
     setBusy(false);
     setErrorMessage(null);
-  }, [open, assets, importQueue]);
+  }, [open, assets]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -232,12 +267,16 @@ export function AudioButtonCreationWizardModal({
 
   async function togglePreview() {
     if (!currentAsset) return;
-    if (currentAssetIsPlaceholder) {
-      setErrorMessage("Primero confirma la importación para reproducir el audio.");
+    const source = currentAsset.audioBlobUrl
+      ? currentAsset.audioBlobUrl
+      : currentAsset.assetId
+        ? mediaUrl(`/audio-assets/${currentAsset.assetId}/stream`)
+        : null;
+
+    if (!source) {
+      setErrorMessage("No hay audio disponible para preescucha.");
       return;
     }
-
-    const source = mediaUrl(`/audio-assets/${currentAsset.id}/stream`);
     let audio = previewAudioRef.current;
 
     if (!audio) {
@@ -267,16 +306,6 @@ export function AudioButtonCreationWizardModal({
   async function saveCurrentAndAdvance(action: "create" | "skip") {
     if (!currentAsset || !currentDraft) return;
 
-    if (currentAssetIsPlaceholder) {
-      setErrorMessage("Primero confirma la importación CSV para crear botones.");
-      return;
-    }
-
-    if (!currentDraft.categoryId) {
-      setErrorMessage("Selecciona una categoría antes de crear el botón.");
-      return;
-    }
-
     if (action === "skip") {
       setStatuses((current) => ({ ...current, [currentAsset.id]: "skipped" }));
       if (currentIndex >= queueItems.length - 1) {
@@ -288,6 +317,16 @@ export function AudioButtonCreationWizardModal({
       return;
     }
 
+    if (currentAssetIsPlaceholder) {
+      setErrorMessage("Esta fila no tiene un audio importado para crear botón.");
+      return;
+    }
+
+    if (!currentDraft.categoryId) {
+      setErrorMessage("Selecciona una categoría antes de crear el botón.");
+      return;
+    }
+
     setBusy(true);
     setErrorMessage(null);
 
@@ -296,7 +335,7 @@ export function AudioButtonCreationWizardModal({
       payload.append("label", currentDraft.label.trim() || slugToLabel(currentAsset.originalName) || currentAsset.originalName);
       payload.append("description", currentDraft.description);
       payload.append("categoryId", currentDraft.categoryId);
-      payload.append("audioAssetId", currentAsset.id);
+      payload.append("audioAssetId", currentAsset.assetId ?? currentAsset.id);
       payload.append("color", currentDraft.color);
       payload.append("shortcutKey", currentDraft.shortcutKey);
       payload.append("sortOrder", currentDraft.sortOrder || "0");
@@ -363,8 +402,8 @@ export function AudioButtonCreationWizardModal({
     setBusy(true);
     setErrorMessage(null);
     try {
-      const imported = await onConfirmImport();
-      setConfirmedAssets(imported);
+      const result = await onConfirmImport();
+      setConfirmedQueue(mergeImportQueueItems(activeImportQueue, result.queue));
       setCurrentIndex(0);
       setStatuses({});
       setDrafts({});
@@ -508,8 +547,11 @@ export function AudioButtonCreationWizardModal({
                             <p className="truncate text-sm font-semibold text-on-surface">{asset.originalName}</p>
                           </div>
                           <p className="mt-1 text-xs text-on-surface-variant">
-                            {asset.mimeType} · {formatBytes(asset.sizeBytes)}
+                            {asset.mimeType || "N/D"} · {formatOptionalBytes(asset.sizeBytes)}
                           </p>
+                          {asset.importErrorMessage ? (
+                            <p className="mt-1 line-clamp-2 text-xs text-amber-200">{asset.importErrorMessage}</p>
+                          ) : null}
                         </div>
                         <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${meta.pill}`}>
                           {meta.label}
@@ -532,7 +574,7 @@ export function AudioButtonCreationWizardModal({
               </div>
             </aside>
 
-            <section className="min-h-0 overflow-hidden p-4 lg:p-5">
+            <section className="min-h-0 overflow-y-auto p-4 pr-2 lg:p-5">
               {currentAsset && currentDraft ? (
                 <div className="flex h-full min-h-0 flex-col">
                   <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
@@ -541,9 +583,9 @@ export function AudioButtonCreationWizardModal({
                         <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Audio actual</p>
                         <h4 className="mt-1 truncate text-lg font-semibold text-on-surface">{currentAsset.originalName}</h4>
                         <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-                          {currentAssetIsPlaceholder
-                            ? "Esta fila aún no está persistida. Confirma la importación para usar el audio en la creación del botón."
-                            : "Usa este archivo como base para crear el botón. Los campos inferiores se conservan como defaults."}
+                          {currentAsset.assetId
+                            ? "Usa este archivo como base para crear el botón. Los campos inferiores se conservan como defaults."
+                            : "Esta fila aún no está persistida. Puedes escucharla aquí antes de confirmar la importación."}
                         </p>
                       </div>
                       <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
@@ -552,8 +594,8 @@ export function AudioButtonCreationWizardModal({
                     </div>
 
                     <div className="mt-4 grid gap-2 rounded-[20px] border border-outline-variant bg-surface p-4 sm:grid-cols-3">
-                      <Stat label="Formato" value={currentAsset.mimeType} />
-                      <Stat label="Peso" value={formatBytes(currentAsset.sizeBytes)} />
+                      <Stat label="Formato" value={currentAsset.mimeType || "N/D"} />
+                      <Stat label="Peso" value={formatOptionalBytes(currentAsset.sizeBytes)} />
                       <Stat label="Duración" value={currentAsset.durationSeconds ? `${currentAsset.durationSeconds}s` : "N/D"} />
                     </div>
 
@@ -561,19 +603,27 @@ export function AudioButtonCreationWizardModal({
                       <div className="min-w-0">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Preescucha</p>
                         <p className="mt-1 text-sm text-on-surface-variant">
-                          {currentAssetIsPlaceholder
-                            ? "Disponible después de confirmar la importación."
-                            : "Reproduce el archivo antes de crear el botón."}
+                          {currentAsset.audioBlobUrl && !currentAsset.assetId
+                            ? "Disponible de forma local antes de persistir."
+                            : currentAsset.assetId
+                              ? "Reproduce el archivo antes de crear el botón."
+                              : "Sin archivo disponible para preescucha."}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => void togglePreview()}
-                        disabled={currentAssetIsPlaceholder}
+                        disabled={!currentAsset.audioBlobUrl && !currentAsset.assetId}
                         className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {isPreviewPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                        {currentAssetIsPlaceholder ? "Sin audio" : isPreviewPlaying ? "Pausar" : "Reproducir"}
+                        {!currentAsset.audioBlobUrl && !currentAsset.assetId
+                          ? "Sin audio"
+                          : isPreviewPlaying
+                            ? "Pausar"
+                            : currentAsset.audioBlobUrl && !currentAsset.assetId
+                              ? "Preescuchar"
+                              : "Reproducir"}
                       </button>
                     </div>
                   </div>
@@ -702,7 +752,7 @@ export function AudioButtonCreationWizardModal({
                         Los defaults se conservan para acelerar la tanda actual.
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {isImportQueueMode ? (
+                        {isImportQueueMode && !importIsConfirmed ? (
                           <button
                             type="button"
                             onClick={() => void confirmImport()}
@@ -725,7 +775,7 @@ export function AudioButtonCreationWizardModal({
                         <button
                           type="button"
                           onClick={() => void saveCurrentAndAdvance("skip")}
-                          disabled={busy || currentAssetIsPlaceholder}
+                          disabled={busy || (currentAssetIsPlaceholder && !importIsConfirmed)}
                           className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-200 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <SkipForward className="h-4 w-4" />
@@ -734,11 +784,11 @@ export function AudioButtonCreationWizardModal({
                         <button
                           type="button"
                           onClick={() => void saveCurrentAndAdvance("create")}
-                          disabled={busy || !categories.length || currentAssetIsPlaceholder}
+                          disabled={busy || !categories.length || !currentAsset?.assetId}
                           className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Save className="h-4 w-4" />
-                          {busy ? "Creando..." : currentAssetIsPlaceholder ? "Sin archivo" : "Crear botón"}
+                          {busy ? "Creando..." : !currentAsset?.assetId ? "Sin archivo" : "Crear botón"}
                         </button>
                         <button
                           type="button"

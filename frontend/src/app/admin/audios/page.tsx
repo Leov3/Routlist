@@ -9,7 +9,8 @@ import { SearchBar } from "@/components/ui/SearchBar";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api, formatBytes } from "@/lib/api";
-import { AudioButtonCreationWizardModal } from "@/components/audio-board/AudioButtonCreationWizardModal";
+import { AudioCsvImportModal } from "@/components/audio-board/AudioCsvImportModal";
+import { AudioManualCreationModal } from "@/components/audio-board/AudioManualCreationModal";
 import type { AudioAsset, AudioCategory } from "@/types/routlis";
 
 type SortKey = "originalName" | "mimeType" | "sizeBytes" | "isActive";
@@ -58,7 +59,7 @@ const LIFECYCLE_OPTIONS = [
 export default function AudiosPage() {
   const [audios, setAudios] = useState<AudioAsset[]>([]);
   const [categories, setCategories] = useState<AudioCategory[]>([]);
-  const [importMode, setImportMode] = useState<"manual" | "csv">("csv");
+  const [importMode, setImportMode] = useState<"manual" | "csv">("manual");
   const [files, setFiles] = useState<File[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvAudioFiles, setCsvAudioFiles] = useState<CsvAudioSelection[]>([]);
@@ -74,8 +75,9 @@ export default function AudiosPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ originalName: "", durationSeconds: "", transcript: "" });
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardAssets, setWizardAssets] = useState<AudioAsset[]>([]);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualAssets, setManualAssets] = useState<AudioAsset[]>([]);
+  const [csvOpen, setCsvOpen] = useState(false);
 
   async function load() {
     try { setAudios(await api<AudioAsset[]>("/audio-assets")); }
@@ -123,54 +125,10 @@ export default function AudiosPage() {
 
       try {
         const csvText = await csvFile.text();
-        const rows = parseCsvRows(csvText);
-        const fileIndex = new Map<string, CsvAudioSelection>();
-        const duplicates: string[] = [];
-
-        for (const selection of csvAudioFiles) {
-          const key = fileMatchKey(selection.path ?? selection.file.name);
-          if (fileIndex.has(key)) {
-            duplicates.push(selection.file.name);
-            continue;
-          }
-          fileIndex.set(key, selection);
-        }
-
-        const previewRows = rows.map((row) => {
-          const matched = resolvePreviewFile(fileIndex, row);
-          return {
-            ...row,
-            matchedFileName: matched?.file.name ?? null,
-            status: matched ? "MATCHED" : "MISSING_FILE",
-          } as CsvPreviewRow;
-        });
-
-        const matchedCount = previewRows.filter((row) => row.status === "MATCHED").length;
-        const queue = previewRows.map((row) => ({
-          id: `csv-row-${row.rowNumber}`,
-          rowNumber: row.rowNumber,
-          originalName: row.text?.trim() || row.buttonTitle?.trim() || row.label?.trim() || row.fileName,
-          fileName: row.fileName,
-          path: row.path,
-          mimeType: row.matchedFileName ? resolvePreviewFile(fileIndex, row)?.file.type ?? "audio/mpeg" : "audio/mpeg",
-          sizeBytes: resolvePreviewFile(fileIndex, row)?.file.size ?? 0,
-          transcript: row.text,
-          label: row.label,
-          buttonTitle: row.buttonTitle,
-          description: row.description,
-          tag: row.tag,
-          status: row.status,
-          matchedFileName: row.matchedFileName,
-        }));
+        const { preview, queue } = buildCsvImportQueue(csvText, csvAudioFiles);
 
         if (!cancelled) {
-          setCsvPreview({
-            totalRows: previewRows.length,
-            matchedCount,
-            missingCount: previewRows.length - matchedCount,
-            duplicates,
-            rows: previewRows,
-          });
+          setCsvPreview(preview);
           setCsvQueue(queue);
         }
       } catch {
@@ -194,6 +152,12 @@ export default function AudiosPage() {
       cancelled = true;
     };
   }, [csvAudioFiles, csvFile]);
+
+  useEffect(() => {
+    return () => {
+      csvAudioFiles.forEach((selection) => URL.revokeObjectURL(selection.previewUrl));
+    };
+  }, [csvAudioFiles]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -239,8 +203,8 @@ export default function AudiosPage() {
       }
       setFiles([]);
       if (createdAssets.length > 0) {
-        setWizardAssets(createdAssets);
-        setWizardOpen(true);
+        setManualAssets(createdAssets);
+        setManualOpen(true);
       }
       await load();
     } finally { setUploading(false); }
@@ -252,46 +216,46 @@ export default function AudiosPage() {
 
     setCsvImporting(true);
     try {
-      const fd = new FormData();
-      fd.append("csv", csvFile);
-      fd.append("paths", JSON.stringify(csvAudioFiles.map((selection) => selection.path ?? selection.file.name)));
-      csvAudioFiles.forEach((selection) => fd.append("files", selection.file));
-
-      const result = await api<{ queue?: CsvImportQueueItem[] }>("/audio-assets/import-csv/preview", {
-        method: "POST",
-        body: fd,
-        formData: true,
-      });
-
-      setCsvQueue(result.queue ?? []);
-      setWizardAssets([]);
-      setWizardOpen(true);
+      const csvText = await csvFile.text();
+      const { preview, queue } = buildCsvImportQueue(csvText, csvAudioFiles);
+      setCsvPreview(preview);
+      setCsvQueue(queue);
+      setCsvOpen(true);
     } finally {
       setCsvImporting(false);
     }
   }
 
   async function confirmCsvImport() {
-    if (!csvFile || !csvAudioFiles.length) return [];
+    if (!csvFile || !csvAudioFiles.length) {
+      return {
+        createdCount: 0,
+        skippedCount: csvQueue.length,
+        duplicates: [],
+        unmatchedFiles: [],
+        rows: csvQueue,
+        assets: [],
+        queue: csvQueue,
+      };
+    }
 
     const fd = new FormData();
     fd.append("csv", csvFile);
     fd.append("paths", JSON.stringify(csvAudioFiles.map((selection) => selection.path ?? selection.file.name)));
     csvAudioFiles.forEach((selection) => fd.append("files", selection.file));
 
-    const result = await api<{ assets?: AudioAsset[] }>("/audio-assets/import-csv", {
+    const result = await api<CsvImportResult>("/audio-assets/import-csv", {
       method: "POST",
       body: fd,
       formData: true,
     });
 
-    setWizardAssets(result.assets ?? []);
+    setCsvQueue(mergeCsvQueueItems(csvQueue, result.queue));
     setCsvFile(null);
     setCsvAudioFiles([]);
     setCsvPreview(null);
-    setCsvQueue([]);
     await load();
-    return result.assets ?? [];
+    return result;
   }
 
   function startEdit(a: AudioAsset) {
@@ -398,14 +362,16 @@ export default function AudiosPage() {
                     ? csvAudioFiles[0].file.name
                     : `${csvAudioFiles.length} archivos seleccionados`
               }
-              actionLabel="Elegir audios"
+              actionLabel="Elegir carpeta o archivos"
               accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
               multiple
+              directory
               onChangeFiles={(files) =>
                 setCsvAudioFiles(
                   files.map((file) => ({
                     file,
-                    path: file.name,
+                    path: getRelativeCsvPath(file),
+                    previewUrl: URL.createObjectURL(file),
                   })),
                 )
               }
@@ -416,7 +382,7 @@ export default function AudiosPage() {
                 disabled={!csvFile || !csvAudioFiles.length || csvImporting}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {csvImporting ? "Importando..." : "Importar CSV"}
+                {csvImporting ? "Revisando..." : "Revisar importación"}
               </button>
             </div>
           </div>
@@ -445,7 +411,7 @@ export default function AudiosPage() {
             <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
               <p className="text-sm font-semibold text-on-surface">Vista previa</p>
               <p className="mt-1 text-xs text-on-surface-variant">
-                Se muestran las primeras 10 filas. Las coincidencias quedan listas para importar y los faltantes se marcan como pendientes.
+                Revisa todas las filas detectadas antes de abrir el asistente.
               </p>
             </div>
           </div>
@@ -457,7 +423,7 @@ export default function AudiosPage() {
                   <p className="text-sm font-semibold text-on-surface">Preview del CSV</p>
                   <p className="text-xs text-on-surface-variant">Archivo, texto, etiqueta y estado de match.</p>
                 </div>
-                <p className="text-xs text-on-surface-variant">{Math.min(csvPreview.rows.length, 10)} de {csvPreview.rows.length} filas</p>
+                <p className="text-xs text-on-surface-variant">{csvPreview.rows.length} filas</p>
               </div>
               <div className="max-h-[420px] overflow-auto">
                 <table className="w-full min-w-[900px] text-left text-sm">
@@ -471,7 +437,7 @@ export default function AudiosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {csvPreview.rows.slice(0, 10).map((row) => (
+                    {csvPreview.rows.map((row) => (
                       <tr key={`${row.rowNumber}-${row.fileName}`} className="border-t border-outline-variant/60">
                         <td className="px-4 py-3 font-medium text-on-surface">{row.fileName}</td>
                         <td className="px-4 py-3 text-on-surface-variant">{row.buttonTitle || row.text || row.label || "—"}</td>
@@ -653,15 +619,29 @@ export default function AudiosPage() {
         </div>
       )}
 
-      <AudioButtonCreationWizardModal
-        open={wizardOpen}
-        assets={wizardAssets}
-        importQueue={csvQueue}
+      <AudioCsvImportModal
+        open={csvOpen}
+        preview={csvPreview}
+        queue={csvQueue}
+        busy={csvImporting}
+        onConfirmImport={async () => {
+          const result = await confirmCsvImport();
+          setManualAssets(result.assets ?? []);
+          setManualOpen((result.assets ?? []).length > 0);
+          setCsvOpen(false);
+          return result;
+        }}
+        onClose={() => setCsvOpen(false)}
+      />
+
+      <AudioManualCreationModal
+        open={manualOpen}
+        assets={manualAssets}
         categories={categories}
-        onConfirmImport={() => confirmCsvImport()}
-        onClose={() => setWizardOpen(false)}
+        onClose={() => setManualOpen(false)}
         onFinished={() => {
-          setWizardOpen(false);
+          setManualOpen(false);
+          setManualAssets([]);
           void load();
         }}
       />
@@ -706,7 +686,7 @@ type CsvPreviewRow = {
   description: string | null;
   tag: string | null;
   matchedFileName: string | null;
-  status: "MATCHED" | "MISSING_FILE";
+  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE" | "CREATE_FAILED";
 };
 
 type CsvPreview = {
@@ -724,16 +704,114 @@ type CsvImportQueueItem = {
   originalName: string;
   fileName: string;
   path: string | null;
-  mimeType: string;
-  sizeBytes: number;
+  text: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  audioBlobUrl?: string | null;
   transcript: string;
   label: string | null;
   buttonTitle: string | null;
   description: string | null;
   tag: string | null;
-  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE";
+  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE" | "CREATE_FAILED";
   matchedFileName: string | null;
+  assetId: string | null;
+  errorMessage: string | null;
 };
+
+type CsvImportResult = {
+  createdCount: number;
+  skippedCount: number;
+  duplicates: string[];
+  unmatchedFiles: string[];
+  rows: CsvImportQueueItem[];
+  assets: AudioAsset[];
+  queue: CsvImportQueueItem[];
+};
+
+function mergeCsvQueueItems(
+  currentQueue: CsvImportQueueItem[],
+  nextQueue: CsvImportQueueItem[] | undefined,
+) {
+  if (!nextQueue?.length) {
+    return currentQueue;
+  }
+  if (!currentQueue.length) {
+    return nextQueue;
+  }
+
+  const nextByRow = new Map(nextQueue.map((item) => [item.rowNumber, item]));
+  return currentQueue.map((item) => ({
+    ...item,
+    ...Object.fromEntries(
+      Object.entries(nextByRow.get(item.rowNumber) ?? {}).filter(([, value]) => value !== null && value !== undefined),
+    ),
+  }));
+}
+
+function buildCsvImportQueue(csvText: string, audioFiles: CsvAudioSelection[]) {
+  const rows = parseCsvRows(csvText);
+  const fileIndex = new Map<string, CsvAudioSelection>();
+  const duplicates: string[] = [];
+
+  for (const selection of audioFiles) {
+    const keys = getCsvSelectionKeys(selection);
+    const primaryKey = getCsvSelectionPrimaryKey(selection);
+    if (fileIndex.has(primaryKey)) {
+      duplicates.push(selection.file.name);
+      continue;
+    }
+    for (const key of keys) {
+      if (!fileIndex.has(key)) {
+        fileIndex.set(key, selection);
+      }
+    }
+  }
+
+  const previewRows = rows.map((row) => {
+    const matched = resolvePreviewFile(fileIndex, row);
+    return {
+      ...row,
+      matchedFileName: matched?.file.name ?? null,
+      status: matched ? "MATCHED" : "MISSING_FILE",
+    } as CsvPreviewRow;
+  });
+
+  const queue = previewRows.map((row) => {
+    const matched = resolvePreviewFile(fileIndex, row);
+    return {
+      id: `csv-row-${row.rowNumber}`,
+      rowNumber: row.rowNumber,
+      originalName: row.text?.trim() || row.fileName,
+      fileName: row.fileName,
+      path: row.path,
+      text: row.text,
+      mimeType: matched?.file.type || null,
+      sizeBytes: typeof matched?.file.size === "number" ? matched.file.size : null,
+      audioBlobUrl: matched?.previewUrl ?? null,
+      transcript: row.text,
+      label: row.label,
+      buttonTitle: row.buttonTitle,
+      description: row.description,
+      tag: row.tag,
+      status: row.status,
+      matchedFileName: row.matchedFileName,
+      assetId: null,
+      errorMessage: row.status === "MISSING_FILE" ? "No se encontró un archivo para esta fila." : null,
+    } satisfies CsvImportQueueItem;
+  });
+
+  return {
+    preview: {
+      totalRows: previewRows.length,
+      matchedCount: previewRows.filter((row) => row.status === "MATCHED").length,
+      missingCount: previewRows.filter((row) => row.status !== "MATCHED").length,
+      duplicates,
+      rows: previewRows,
+    } satisfies CsvPreview,
+    queue,
+  };
+}
 
 function parseCsvRows(csvText: string) {
   const lines = csvText.replace(/^\uFEFF/, "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -807,8 +885,51 @@ function resolvePreviewFile(fileIndex: Map<string, CsvAudioSelection>, row: { fi
 
 type CsvAudioSelection = {
   file: File;
-  path: string;
+  path: string | null;
+  previewUrl: string;
 };
+
+function getCsvSelectionKeys(selection: CsvAudioSelection) {
+  const keys = new Set<string>();
+  const relativePath = getRelativeCsvPath(selection.file);
+  if (relativePath) {
+    keys.add(fileMatchKey(relativePath));
+    const fileName = relativePath.split("/").pop();
+    if (fileName) {
+      keys.add(fileMatchKey(fileName));
+    }
+  }
+
+  if (selection.path) {
+    keys.add(fileMatchKey(selection.path));
+    keys.add(fileMatchKey(`${selection.path}/${selection.file.name}`));
+  }
+
+  keys.add(fileMatchKey(selection.file.name));
+
+  return Array.from(keys);
+}
+
+function getCsvSelectionPrimaryKey(selection: CsvAudioSelection) {
+  const relativePath = getRelativeCsvPath(selection.file);
+  if (relativePath) {
+    return fileMatchKey(relativePath);
+  }
+
+  if (selection.path) {
+    return fileMatchKey(`${selection.path}/${selection.file.name}`);
+  }
+
+  return fileMatchKey(selection.file.name);
+}
+
+function getRelativeCsvPath(file: File) {
+  const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath ?? "";
+  if (!relativePath) return null;
+  const trimmed = relativePath.trim();
+  if (!trimmed) return null;
+  return trimmed;
+}
 
 function StatBox({ label, value }: { label: string; value: string }) {
   return (
