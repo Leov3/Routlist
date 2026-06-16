@@ -68,6 +68,13 @@ run_migrations() {
   docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" run --rm --no-deps --build backend npm run prisma:deploy
 }
 
+prune_safe_docker() {
+  docker container prune -f
+  docker image prune -af
+  docker builder prune -af
+  docker network prune -f
+}
+
 rollback() {
   local backup_root="${1:-}"
   mkdir -p "$BACKUP_DIR"
@@ -129,6 +136,9 @@ case "$COMMAND" in
   seed)
     seed
     ;;
+  prune)
+    prune_safe_docker
+    ;;
   preflight)
     preflight
     ;;
@@ -142,7 +152,7 @@ case "$COMMAND" in
     rollback "${2:-}"
     ;;
   *)
-    echo "Usage: $(basename "$0") [deploy|seed|preflight|backup|verify|rollback [backup_dir]]" >&2
+    echo "Usage: $(basename "$0") [deploy|seed|prune|preflight|backup|verify|rollback [backup_dir]]" >&2
     exit 1
     ;;
 esac
