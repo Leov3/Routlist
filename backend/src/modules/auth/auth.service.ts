@@ -2,13 +2,14 @@ import {
   ForbiddenException,
   Injectable,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../shared/types/authenticated-user';
-import { PERMISSIONS, GLOBAL_ROLE_NAME } from '../../shared/constants/rbac.constants';
+import { PERMISSIONS, GLOBAL_ROLE_NAME, ROLE_PERMISSIONS } from '../../shared/constants/rbac.constants';
 import { LoginDto } from './dto/login.dto';
 import { AccessSettingsService } from '../access-settings/access-settings.service';
 
@@ -24,6 +25,8 @@ type SessionContext = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -69,7 +72,7 @@ export class AuthService {
       throw new UnauthorizedException('User has no active organization');
     }
 
-    const permissions = await this.accessSettingsService.resolveEffectivePermissions(
+    const permissions = await this.resolveLoginPermissions(
       member.role.name,
       member.organizationId,
     );
@@ -179,6 +182,27 @@ export class AuthService {
       context,
       reuseSessionId,
     );
+  }
+
+  private async resolveLoginPermissions(
+    role: string,
+    organizationId: string,
+  ): Promise<string[]> {
+    try {
+      return await this.accessSettingsService.resolveEffectivePermissions(
+        role,
+        organizationId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Falling back to static role permissions during login for role=${role} organizationId=${organizationId}`,
+      );
+      this.logger.debug(error);
+
+      return role === GLOBAL_ROLE_NAME
+        ? [...PERMISSIONS]
+        : [...(ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS] ?? [])];
+    }
   }
 
   private async issueSession(
