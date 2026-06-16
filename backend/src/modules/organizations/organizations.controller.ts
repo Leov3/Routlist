@@ -96,6 +96,12 @@ export class OrganizationsController {
     return this.mailService.createInvite(user, id, dto);
   }
 
+  @Get(':id/invites')
+  @Permissions('user:create')
+  listInvites(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.mailService.listOrganizationInvites(user, id);
+  }
+
   @Post(':id/invites/:inviteId/resend')
   @Permissions('user:create')
   resendInvite(

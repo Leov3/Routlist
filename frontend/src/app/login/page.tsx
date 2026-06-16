@@ -105,6 +105,24 @@ export default function LoginPage() {
     }
   }
 
+  async function handleForgotPassword() {
+    if (!recoverEmail.trim()) {
+      showToast("Escribe un correo para continuar.");
+      return;
+    }
+
+    try {
+      await api("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: recoverEmail.trim() }),
+      });
+      showToast("Si el correo existe, se enviará un enlace de recuperación.");
+      setModalOpen(false);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "No se pudo enviar el enlace.");
+    }
+  }
+
   function handleDemo() {
     setEmail("admin@routlis.local");
     setPassword("Admin123*");
@@ -362,10 +380,7 @@ export default function LoginPage() {
             <button
               type="button"
               className="login-send"
-              onClick={() => {
-                setModalOpen(false);
-                showToast("Enlace de recuperación simulado.");
-              }}
+              onClick={handleForgotPassword}
             >
               Enviar enlace
             </button>

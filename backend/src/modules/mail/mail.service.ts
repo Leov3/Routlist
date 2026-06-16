@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { randomBytes, createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -48,6 +48,26 @@ export class MailService {
     return this.prisma.mailDeliveryLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
+    });
+  }
+
+  async listOrganizationInvites(currentUser: AuthenticatedUser, organizationId: string) {
+    await this.ensureOrganizationAccess(currentUser, organizationId);
+
+    return this.prisma.organizationInvite.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        invitedBy: {
+          select: { id: true, fullName: true, email: true },
+        },
+        acceptedBy: {
+          select: { id: true, fullName: true, email: true },
+        },
+        organization: {
+          select: { id: true, name: true },
+        },
+      },
     });
   }
 
@@ -457,5 +477,13 @@ export class MailService {
   private buildFrontendUrl(path: string) {
     const base = process.env.FRONTEND_URL ?? 'http://localhost:3000';
     return `${base.replace(/\/+$/, '')}${path}`;
+  }
+
+  private async ensureOrganizationAccess(currentUser: AuthenticatedUser, organizationId: string) {
+    if (currentUser.role === 'OWNER' || currentUser.organizationId === organizationId) {
+      return;
+    }
+
+    throw new ForbiddenException('No tienes acceso a esta organización');
   }
 }
