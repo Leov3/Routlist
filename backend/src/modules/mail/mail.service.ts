@@ -51,6 +51,24 @@ export class MailService {
     });
   }
 
+  async listAllOrganizationInvites(limit = 100) {
+    return this.prisma.organizationInvite.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        organization: {
+          select: { id: true, name: true },
+        },
+        invitedBy: {
+          select: { id: true, fullName: true, email: true },
+        },
+        acceptedBy: {
+          select: { id: true, fullName: true, email: true },
+        },
+      },
+    });
+  }
+
   async listOrganizationInvites(currentUser: AuthenticatedUser, organizationId: string) {
     await this.ensureOrganizationAccess(currentUser, organizationId);
 

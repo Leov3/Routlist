@@ -41,6 +41,12 @@ export class MailController {
     return this.mailService.listLogs();
   }
 
+  @Get('invites')
+  listInvites(@CurrentUser() user: AuthenticatedUser) {
+    this.ensureOwner(user);
+    return this.mailService.listAllOrganizationInvites();
+  }
+
   private ensureOwner(user: AuthenticatedUser) {
     if (user.role !== 'OWNER') {
       throw new ForbiddenException('Only OWNER can manage mail settings');
