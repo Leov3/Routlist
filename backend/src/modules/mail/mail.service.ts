@@ -73,7 +73,7 @@ export class MailService {
     await this.ensureOrganizationAccess(currentUser, organizationId);
 
     return this.prisma.organizationInvite.findMany({
-      where: { organizationId },
+      where: { organizationId, status: 'PENDING' },
       orderBy: { createdAt: 'desc' },
       include: {
         invitedBy: {
@@ -225,6 +225,8 @@ export class MailService {
       return { ok: false };
     }
 
+    await this.ensureUserCapacity(organizationId, { includePendingInvites: true });
+
     const token = this.generateToken();
     const tokenHash = this.hashToken(token);
     const invite = await this.prisma.organizationInvite.create({
@@ -269,6 +271,8 @@ export class MailService {
       return { ok: false };
     }
 
+    await this.ensureUserCapacity(invite.organizationId, { includePendingInvites: false });
+
     const normalizedEmail = invite.email.toLowerCase();
     const passwordHash = await bcrypt.hash(input.password, 12);
     const user = await this.prisma.user.upsert({
@@ -303,13 +307,13 @@ export class MailService {
       },
       update: {
         roleId: role.id,
-        status: 'PENDING',
+        status: 'ACTIVE',
       },
       create: {
         organizationId: invite.organizationId,
         userId: user.id,
         roleId: role.id,
-        status: 'PENDING',
+        status: 'ACTIVE',
       },
     });
 
@@ -446,6 +450,29 @@ export class MailService {
     return updated;
   }
 
+  async rejectInvite(currentUser: AuthenticatedUser, organizationId: string, inviteId: string) {
+    await this.ensureOrganizationAccess(currentUser, organizationId);
+
+    const invite = await this.prisma.organizationInvite.findFirst({
+      where: { id: inviteId, organizationId },
+      select: { id: true, status: true },
+    });
+
+    if (!invite) {
+      return { ok: false };
+    }
+
+    const updated = await this.prisma.organizationInvite.update({
+      where: { id: invite.id },
+      data: {
+        status: invite.status === 'ACCEPTED' ? invite.status : 'REJECTED',
+        tokenHash: this.hashToken(this.generateToken()),
+      },
+    });
+
+    return updated;
+  }
+
   private async sendTemplate(input: {
     type: MailTemplateType;
     to: string;
@@ -517,7 +544,7 @@ export class MailService {
   }
 
   private buildFrontendUrl(path: string) {
-    const base = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    const base = process.env.FRONTEND_URL ?? 'http://localhost:3001';
     return `${base.replace(/\/+$/, '')}${path}`;
   }
 
@@ -527,5 +554,32 @@ export class MailService {
     }
 
     throw new ForbiddenException('No tienes acceso a esta organización');
+  }
+
+  private async ensureUserCapacity(
+    organizationId: string,
+    options: { includePendingInvites?: boolean } = {},
+  ) {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, maxUsers: true },
+    });
+
+    if (!organization) {
+      throw new ForbiddenException('Organization not found');
+    }
+
+    const activeMembers = await this.prisma.organizationMember.count({
+      where: { organizationId, status: 'ACTIVE' },
+    });
+    const pendingInvites = options.includePendingInvites
+      ? await this.prisma.organizationInvite.count({
+          where: { organizationId, status: 'PENDING' },
+        })
+      : 0;
+
+    if (activeMembers + pendingInvites >= organization.maxUsers) {
+      throw new ForbiddenException('Organization user limit reached');
+    }
   }
 }

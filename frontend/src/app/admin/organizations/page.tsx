@@ -12,6 +12,7 @@ type OrganizationForm = {
   name: string;
   slug: string;
   status: "ACTIVE" | "DISABLED";
+  maxUsers: number;
 };
 
 type OrganizationInvite = {
@@ -30,6 +31,7 @@ const emptyForm: OrganizationForm = {
   name: "",
   slug: "",
   status: "ACTIVE",
+  maxUsers: 5,
 };
 
 export default function OrganizationsPage() {
@@ -62,6 +64,7 @@ export default function OrganizationsPage() {
       ...(payload.name !== undefined ? { name: payload.name } : {}),
       ...(payload.slug?.trim() ? { slug: payload.slug.trim() } : {}),
       ...(payload.status ? { status: payload.status } : {}),
+      ...(payload.maxUsers !== undefined ? { maxUsers: payload.maxUsers } : {}),
     };
   }
 
@@ -95,7 +98,7 @@ export default function OrganizationsPage() {
 
       try {
         const data = await api<OrganizationInvite[]>(`/organizations/${inviteOrganizationId}/invites`);
-        setInvites(data);
+        setInvites(data.filter((invite) => invite.status === "PENDING"));
       } catch {
         setInvites([]);
       }
@@ -155,6 +158,7 @@ export default function OrganizationsPage() {
         name: editingOrganization.name,
         slug: editingOrganization.slug ?? undefined,
         status: editingOrganization.status as OrganizationForm["status"],
+        maxUsers: editingOrganization.maxUsers ?? 5,
       });
       if (updated) {
         setEditingOrganization(null);
@@ -258,6 +262,17 @@ export default function OrganizationsPage() {
       setInvites(data);
     } catch (error) {
       setInviteError(error instanceof Error ? error.message : "No se pudo revocar la invitación.");
+    }
+  }
+
+  async function rejectInvite(inviteId: string) {
+    if (!inviteOrganizationId) return;
+    try {
+      await api(`/organizations/${inviteOrganizationId}/invites/${inviteId}/reject`, { method: "POST" });
+      const data = await api<OrganizationInvite[]>(`/organizations/${inviteOrganizationId}/invites`);
+      setInvites(data);
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : "No se pudo rechazar la invitación.");
     }
   }
 
@@ -397,11 +412,11 @@ export default function OrganizationsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void revokeInvite(invite.id)}
+                          onClick={() => void rejectInvite(invite.id)}
                           disabled={invite.status === "REVOKED"}
                           className="rounded-xl border border-red-400/30 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
                         >
-                          Revocar
+                          Rechazar
                         </button>
                       </div>
                     </td>
@@ -415,7 +430,7 @@ export default function OrganizationsPage() {
         )}
       </div>
 
-      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_1fr_180px_auto]">
+      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_1fr_160px_180px_auto]">
         <input
           value={form.name}
           onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
@@ -427,6 +442,19 @@ export default function OrganizationsPage() {
           value={form.slug}
           onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))}
           placeholder="Slug opcional"
+          className="h-10 rounded-xl border border-outline px-3 text-sm"
+        />
+        <input
+          type="number"
+          min={1}
+          value={form.maxUsers}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              maxUsers: Number(event.target.value) || 1,
+            }))
+          }
+          placeholder="Máx usuarios"
           className="h-10 rounded-xl border border-outline px-3 text-sm"
         />
         <select
@@ -477,12 +505,14 @@ export default function OrganizationsPage() {
         <DataState>Cargando organizaciones...</DataState>
       ) : filteredOrganizations.length ? (
         <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
                 <th className="px-4 py-3">Organización</th>
                 <th className="px-4 py-3">Slug</th>
                 <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Límite usuarios</th>
+                <th className="px-4 py-3">Uso</th>
                 <th className="px-4 py-3">Miembros</th>
                 <th className="px-4 py-3">Audios</th>
                 <th className="px-4 py-3">Categorías</th>
@@ -524,6 +554,10 @@ export default function OrganizationsPage() {
                         )}
                         {organization.status === "ACTIVE" ? "Activa" : "Deshabilitada"}
                       </button>
+                    </td>
+                    <td className="px-4 py-3 text-on-surface-variant">{organization.maxUsers ?? 5}</td>
+                    <td className="px-4 py-3">
+                      {renderUserQuota(organization._count?.members ?? 0, organization.maxUsers ?? 5)}
                     </td>
                     <td className="px-4 py-3 text-on-surface-variant">{organization._count?.members ?? 0}</td>
                     <td className="px-4 py-3 text-on-surface-variant">{organization._count?.audioAssets ?? 0}</td>
@@ -619,6 +653,20 @@ export default function OrganizationsPage() {
                   }
                   className="h-10 rounded-xl border border-outline px-3"
                   placeholder="opcional"
+                />
+              </label>
+              <label className="grid gap-2 text-sm">
+                <span>Límite de usuarios</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={editingOrganization.maxUsers ?? 5}
+                  onChange={(event) =>
+                    setEditingOrganization((current) =>
+                      current ? { ...current, maxUsers: Number(event.target.value) || 1 } : current,
+                    )
+                  }
+                  className="h-10 rounded-xl border border-outline px-3"
                 />
               </label>
               <label className="grid gap-2 text-sm">
@@ -721,5 +769,32 @@ export default function OrganizationsPage() {
         </div>
       ) : null}
     </AdminProtectedPage>
+  );
+}
+
+function renderUserQuota(members: number, maxUsers: number) {
+  const safeMax = Math.max(1, maxUsers || 1);
+  const percent = Math.min(100, Math.round((members / safeMax) * 100));
+  const isCritical = percent >= 100;
+  const isWarning = percent >= 80 && percent < 100;
+
+  return (
+    <div className="min-w-[180px]">
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+        <span className={`font-semibold ${isCritical ? "text-red-400" : isWarning ? "text-amber-400" : "text-on-surface-variant"}`}>
+          {members} / {safeMax}
+        </span>
+        <span className="text-on-surface-variant">{percent}%</span>
+      </div>
+      <div className="h-2 rounded-full bg-surface-container-high">
+        <div
+          className={`h-2 rounded-full ${isCritical ? "bg-red-500" : isWarning ? "bg-amber-500" : "bg-primary"}`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <p className={`mt-1 text-[11px] ${isCritical ? "text-red-400" : isWarning ? "text-amber-400" : "text-on-surface-variant"}`}>
+        {isCritical ? "Cupo completo" : isWarning ? "Cerca del límite" : "Capacidad disponible"}
+      </p>
+    </div>
   );
 }

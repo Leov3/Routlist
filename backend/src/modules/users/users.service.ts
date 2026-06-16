@@ -37,6 +37,7 @@ export class UsersService {
 
   async create(currentUser: AuthenticatedUser, dto: CreateUserDto) {
     this.assertCanAssignRole(currentUser, dto.role);
+    await this.ensureUserCapacity(currentUser.organizationId, { includePendingInvites: true });
 
     const role = await this.prisma.role.findUnique({
       where: { name: dto.role },
@@ -106,6 +107,83 @@ export class UsersService {
         status: true,
       },
     });
+  }
+
+  async remove(currentUser: AuthenticatedUser, id: string) {
+    if (currentUser.id === id) {
+      throw new ForbiddenException('You cannot delete your own account from here');
+    }
+
+    const member = await this.prisma.organizationMember.findFirst({
+      where: {
+        organizationId: currentUser.organizationId,
+        userId: id,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!member) {
+      throw new NotFoundException('User not found in this organization');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.organizationMember.delete({
+        where: { id: member.id },
+      });
+
+      const remainingMemberships = await tx.organizationMember.count({
+        where: { userId: id },
+      });
+
+      if (remainingMemberships === 0) {
+        await tx.userSession.updateMany({
+          where: { userId: id, isActive: true },
+          data: {
+            isActive: false,
+            status: 'REVOKED',
+            revokedAt: new Date(),
+            revokedReason: 'user-removed-from-last-organization',
+          },
+        });
+
+        await tx.user.update({
+          where: { id },
+          data: { status: 'DISABLED' },
+        });
+      }
+    });
+
+    return { ok: true };
+  }
+
+  async ensureUserCapacity(organizationId: string, options: { includePendingInvites?: boolean } = {}) {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, maxUsers: true },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const activeMembers = await this.prisma.organizationMember.count({
+      where: { organizationId, status: 'ACTIVE' },
+    });
+
+    const pendingInvites = options.includePendingInvites
+      ? await this.prisma.organizationInvite.count({
+          where: { organizationId, status: 'PENDING' },
+        })
+      : 0;
+
+    const projectedUsers = activeMembers + pendingInvites;
+    if (projectedUsers >= organization.maxUsers) {
+      throw new ConflictException(
+        `Organization user limit reached (${projectedUsers}/${organization.maxUsers})`,
+      );
+    }
   }
 
   async enable(currentUser: AuthenticatedUser, id: string) {

@@ -14,12 +14,12 @@ function splitOrigins(value: string | undefined) {
 
 export default () => {
   const frontendUrl = normalizeOrigin(
-    process.env.FRONTEND_URL ?? 'http://localhost:3000',
+    process.env.FRONTEND_URL ?? 'http://localhost:3001',
   );
   const defaultCorsOrigins = [
     frontendUrl,
-    'http://localhost:3000',
     'http://localhost:3001',
+    'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
   ];

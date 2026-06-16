@@ -21,7 +21,7 @@ function routePolicy(pathname: string) {
     return { allowedRoles: ["OWNER"] };
   }
   if (pathname === "/admin/organizations") {
-    return { requiredPermissions: ["organization:read"] };
+    return { allowedRoles: ["OWNER"] };
   }
   if (pathname === "/admin/users") {
     return { requiredPermissions: ["user:read"] };

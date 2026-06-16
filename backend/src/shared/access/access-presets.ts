@@ -28,7 +28,7 @@ export const ACCESS_MODULES: AccessModuleDefinition[] = [
   {
     key: 'admin.users',
     label: 'Usuarios',
-    permissions: ['user:create', 'user:read', 'user:update', 'user:disable', 'role:read', 'permission:read'],
+    permissions: ['user:create', 'user:read', 'user:update', 'user:disable', 'user:delete', 'role:read', 'permission:read'],
     category: 'access',
   },
   {

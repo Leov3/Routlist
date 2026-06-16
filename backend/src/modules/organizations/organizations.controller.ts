@@ -38,7 +38,6 @@ export class OrganizationsController {
   }
 
   @Get('current')
-  @Permissions('organization:read')
   current(@CurrentUser() user: AuthenticatedUser) {
     return this.organizationsService.current(user);
   }
@@ -130,5 +129,15 @@ export class OrganizationsController {
     @Param('inviteId') inviteId: string,
   ) {
     return this.mailService.revokeInvite(user, id, inviteId);
+  }
+
+  @Post(':id/invites/:inviteId/reject')
+  @Permissions('user:create')
+  rejectInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('inviteId') inviteId: string,
+  ) {
+    return this.mailService.rejectInvite(user, id, inviteId);
   }
 }
