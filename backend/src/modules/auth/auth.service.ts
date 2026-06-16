@@ -244,7 +244,7 @@ export class AuthService {
         await tx.userSession.updateMany({
           where: {
             userId: user.id,
-            isActive: true,
+            OR: [{ isActive: true }, { status: 'ACTIVE' }],
           },
           data: {
             isActive: false,
