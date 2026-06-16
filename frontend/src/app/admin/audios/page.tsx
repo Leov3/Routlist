@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type DragEvent, useEffect, useMemo, useState } from "react";
 import { CheckCircle, Music, Pencil, Trash2, Upload, XCircle } from "lucide-react";
 import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
@@ -58,10 +58,12 @@ const LIFECYCLE_OPTIONS = [
 export default function AudiosPage() {
   const [audios, setAudios] = useState<AudioAsset[]>([]);
   const [categories, setCategories] = useState<AudioCategory[]>([]);
+  const [importMode, setImportMode] = useState<"manual" | "csv">("csv");
   const [files, setFiles] = useState<File[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvAudioFiles, setCsvAudioFiles] = useState<CsvAudioSelection[]>([]);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
+  const [csvQueue, setCsvQueue] = useState<CsvImportQueueItem[]>([]);
   const [csvImporting, setCsvImporting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -86,6 +88,23 @@ export default function AudiosPage() {
     } catch {
       setCategories([]);
     }
+  }
+
+  function downloadCsvTemplate() {
+    const template = [
+      "file_name,path,text,label,button_title,description,tag",
+      "audio-ejemplo.mp3,carpeta/audio-ejemplo.mp3,\"Texto completo del audio\",\"Etiqueta visible\",\"Título del botón\",\"Descripción corta\",\"tag-1\"",
+    ].join("\n");
+
+    const blob = new Blob([template], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "plantilla-audios-routlis.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   useEffect(() => {
@@ -127,6 +146,22 @@ export default function AudiosPage() {
         });
 
         const matchedCount = previewRows.filter((row) => row.status === "MATCHED").length;
+        const queue = previewRows.map((row) => ({
+          id: `csv-row-${row.rowNumber}`,
+          rowNumber: row.rowNumber,
+          originalName: row.text?.trim() || row.buttonTitle?.trim() || row.label?.trim() || row.fileName,
+          fileName: row.fileName,
+          path: row.path,
+          mimeType: row.matchedFileName ? resolvePreviewFile(fileIndex, row)?.file.type ?? "audio/mpeg" : "audio/mpeg",
+          sizeBytes: resolvePreviewFile(fileIndex, row)?.file.size ?? 0,
+          transcript: row.text,
+          label: row.label,
+          buttonTitle: row.buttonTitle,
+          description: row.description,
+          tag: row.tag,
+          status: row.status,
+          matchedFileName: row.matchedFileName,
+        }));
 
         if (!cancelled) {
           setCsvPreview({
@@ -136,6 +171,7 @@ export default function AudiosPage() {
             duplicates,
             rows: previewRows,
           });
+          setCsvQueue(queue);
         }
       } catch {
         if (!cancelled) {
@@ -147,6 +183,7 @@ export default function AudiosPage() {
             rows: [],
             error: "No se pudo leer el CSV.",
           });
+          setCsvQueue([]);
         }
       }
     }
@@ -220,19 +257,41 @@ export default function AudiosPage() {
       fd.append("paths", JSON.stringify(csvAudioFiles.map((selection) => selection.path ?? selection.file.name)));
       csvAudioFiles.forEach((selection) => fd.append("files", selection.file));
 
-      await api("/audio-assets/import-csv", {
+      const result = await api<{ queue?: CsvImportQueueItem[] }>("/audio-assets/import-csv/preview", {
         method: "POST",
         body: fd,
         formData: true,
       });
 
-      setCsvFile(null);
-      setCsvAudioFiles([]);
-      setCsvPreview(null);
-      await load();
+      setCsvQueue(result.queue ?? []);
+      setWizardAssets([]);
+      setWizardOpen(true);
     } finally {
       setCsvImporting(false);
     }
+  }
+
+  async function confirmCsvImport() {
+    if (!csvFile || !csvAudioFiles.length) return [];
+
+    const fd = new FormData();
+    fd.append("csv", csvFile);
+    fd.append("paths", JSON.stringify(csvAudioFiles.map((selection) => selection.path ?? selection.file.name)));
+    csvAudioFiles.forEach((selection) => fd.append("files", selection.file));
+
+    const result = await api<{ assets?: AudioAsset[] }>("/audio-assets/import-csv", {
+      method: "POST",
+      body: fd,
+      formData: true,
+    });
+
+    setWizardAssets(result.assets ?? []);
+    setCsvFile(null);
+    setCsvAudioFiles([]);
+    setCsvPreview(null);
+    setCsvQueue([]);
+    await load();
+    return result.assets ?? [];
   }
 
   function startEdit(a: AudioAsset) {
@@ -267,49 +326,95 @@ export default function AudiosPage() {
     <AdminProtectedPage>
       <PageHeader title="Audios" description="Biblioteca de archivos MP3 y WAV." />
 
-      <section className="mb-6 rounded-2xl border border-outline-variant bg-surface-container p-5">
-        <div className="mb-4">
-          <p className="text-sm font-semibold text-on-surface">Importación por CSV</p>
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-outline-variant bg-surface-container p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-on-surface">Modo de carga</p>
           <p className="text-xs text-on-surface-variant">
-            Selecciona un CSV con `file_name`, `text`, `label`, `button_title`, `description`, `tag` y, opcionalmente, `path`.
+            Alterna entre subida manual e importación por CSV.
           </p>
         </div>
+        <div className="inline-flex rounded-2xl border border-outline-variant bg-surface-container-high p-1">
+          <button
+            type="button"
+            onClick={() => setImportMode("manual")}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+              importMode === "manual"
+                ? "bg-primary text-on-primary shadow-elevation-1"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            Carga manual
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportMode("csv")}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+              importMode === "csv"
+                ? "bg-primary text-on-primary shadow-elevation-1"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            Importación CSV
+          </button>
+        </div>
+      </div>
 
-        <form onSubmit={importCsv} className="grid gap-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-            <label className="grid gap-2 text-sm">
-              <span>CSV</span>
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
-                className="h-10 rounded-xl border border-outline px-3 text-sm"
-              />
-            </label>
-            <label className="grid gap-2 text-sm">
-              <span>Audios</span>
-              <input
-                type="file"
-                multiple
-                accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
-                // @ts-expect-error webkitdirectory is supported by browsers but not typed by React
-                webkitdirectory=""
-                onChange={(event) =>
-                  setCsvAudioFiles(
-                    Array.from(event.target.files ?? []).map((file) => ({
-                      file,
-                      path: (file as File & { webkitRelativePath?: string }).webkitRelativePath?.trim() || file.name,
-                    })),
-                  )
-                }
-                className="h-10 rounded-xl border border-outline px-3 text-sm"
-              />
-            </label>
+      {importMode === "csv" ? (
+      <section className="mb-6 rounded-3xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+        <div className="mb-5 flex flex-col gap-3 border-b border-outline-variant/60 pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-on-surface-variant">Importación por CSV</p>
+            <h2 className="mt-1 text-xl font-semibold text-on-surface">Carga audios en lote con texto, título y etiquetas</h2>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Selecciona el CSV. Los archivos de audio se emparejan por <code className="rounded bg-surface-container-high px-1 py-0.5">path</code> + <code className="rounded bg-surface-container-high px-1 py-0.5">file_name</code> o por nombre exacto.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={downloadCsvTemplate}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary"
+          >
+            Descargar plantilla CSV
+          </button>
+        </div>
+
+        <form onSubmit={importCsv} className="grid gap-5">
+          <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr_auto]">
+            <FilePickerCard
+              label="CSV"
+              description="Selecciona el CSV"
+              helper={csvFile ? csvFile.name : "Sin CSV seleccionado"}
+              actionLabel="Elegir CSV"
+              accept=".csv,text/csv"
+              onChangeFile={setCsvFile}
+            />
+            <FilePickerCard
+              label="Audios"
+              description="Carga uno o varios audios."
+              helper={
+                csvAudioFiles.length === 0
+                  ? "Sin archivos seleccionados"
+                  : csvAudioFiles.length === 1
+                    ? csvAudioFiles[0].file.name
+                    : `${csvAudioFiles.length} archivos seleccionados`
+              }
+              actionLabel="Elegir audios"
+              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
+              multiple
+              onChangeFiles={(files) =>
+                setCsvAudioFiles(
+                  files.map((file) => ({
+                    file,
+                    path: file.name,
+                  })),
+                )
+              }
+            />
             <div className="flex items-end">
               <button
                 type="submit"
                 disabled={!csvFile || !csvAudioFiles.length || csvImporting}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {csvImporting ? "Importando..." : "Importar CSV"}
               </button>
@@ -317,58 +422,91 @@ export default function AudiosPage() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
-            <StatBox label="Filas" value={String(csvPreview?.totalRows ?? 0)} />
+            <StatBox label="Filas detectadas" value={String(csvPreview?.totalRows ?? 0)} />
             <StatBox label="Coincidencias" value={String(csvPreview?.matchedCount ?? 0)} />
             <StatBox label="Pendientes" value={String(csvPreview?.missingCount ?? 0)} />
           </div>
 
-          {csvPreview?.error ? <p className="text-sm text-red-500">{csvPreview.error}</p> : null}
-          {csvPreview?.duplicates?.length ? (
-            <p className="text-sm text-amber-400">Duplicados detectados: {csvPreview.duplicates.join(", ")}</p>
-          ) : null}
+          <div className="grid gap-4 xl:grid-cols-[1fr_1.1fr]">
+            <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+              <p className="text-sm font-semibold text-on-surface">Estado de la importación</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <SummaryPill label="CSV" value={csvFile ? "Listo" : "Pendiente"} tone={csvFile ? "success" : "muted"} />
+                <SummaryPill label="Audios" value={csvAudioFiles.length ? `${csvAudioFiles.length}` : "Pendiente"} tone={csvAudioFiles.length ? "success" : "muted"} />
+                <SummaryPill label="Importar" value={csvPreview?.error ? "Revisar" : "Listo"} tone={csvPreview?.error ? "warning" : "muted"} />
+              </div>
+
+              {csvPreview?.error ? <p className="mt-4 text-sm text-error">{csvPreview.error}</p> : null}
+              {csvPreview?.duplicates?.length ? (
+                <p className="mt-4 text-sm text-amber-400">Duplicados detectados: {csvPreview.duplicates.join(", ")}</p>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+              <p className="text-sm font-semibold text-on-surface">Vista previa</p>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                Se muestran las primeras 10 filas. Las coincidencias quedan listas para importar y los faltantes se marcan como pendientes.
+              </p>
+            </div>
+          </div>
 
           {csvPreview?.rows?.length ? (
-            <div className="overflow-hidden rounded-2xl border border-outline-variant">
-              <table className="w-full min-w-[900px] text-left text-sm">
-                <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
-                  <tr>
-                    <th className="px-4 py-3">Archivo</th>
-                    <th className="px-4 py-3">Título</th>
-                    <th className="px-4 py-3">Etiqueta</th>
-                    <th className="px-4 py-3">Texto</th>
-                    <th className="px-4 py-3">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {csvPreview.rows.slice(0, 10).map((row) => (
-                    <tr key={`${row.rowNumber}-${row.fileName}`} className="border-t border-outline-variant">
-                      <td className="px-4 py-3">{row.fileName}</td>
-                      <td className="px-4 py-3">{row.buttonTitle || row.label || "—"}</td>
-                      <td className="px-4 py-3">{row.tag || "—"}</td>
-                      <td className="px-4 py-3">
-                        <p className="max-w-[420px] truncate" title={row.text}>{row.text}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={row.status === "MATCHED" ? "text-emerald-400" : "text-amber-400"}>
-                          {row.status === "MATCHED" ? `OK (${row.matchedFileName})` : "Pendiente"}
-                        </span>
-                      </td>
+            <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-high">
+              <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-on-surface">Preview del CSV</p>
+                  <p className="text-xs text-on-surface-variant">Archivo, texto, etiqueta y estado de match.</p>
+                </div>
+                <p className="text-xs text-on-surface-variant">{Math.min(csvPreview.rows.length, 10)} de {csvPreview.rows.length} filas</p>
+              </div>
+              <div className="max-h-[420px] overflow-auto">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead className="bg-surface-container text-xs uppercase text-on-surface-variant">
+                    <tr>
+                      <th className="px-4 py-3">Archivo</th>
+                      <th className="px-4 py-3">Título</th>
+                      <th className="px-4 py-3">Etiqueta</th>
+                      <th className="px-4 py-3">Texto</th>
+                      <th className="px-4 py-3">Estado</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {csvPreview.rows.slice(0, 10).map((row) => (
+                      <tr key={`${row.rowNumber}-${row.fileName}`} className="border-t border-outline-variant/60">
+                        <td className="px-4 py-3 font-medium text-on-surface">{row.fileName}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">{row.buttonTitle || row.text || row.label || "—"}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">{row.tag || "—"}</td>
+                        <td className="px-4 py-3">
+                          <p className="max-w-[420px] truncate text-on-surface-variant" title={row.text}>{row.text}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={row.status === "MATCHED" ? "text-emerald-400" : "text-amber-400"}>
+                            {row.status === "MATCHED" ? `OK (${row.matchedFileName})` : "Pendiente"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : null}
         </form>
       </section>
+      ) : null}
 
-      {/* Upload panel */}
-      <form onSubmit={upload} className="mb-6 flex items-center gap-4 rounded-2xl border border-outline-variant bg-surface-container p-5">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Upload className="h-5 w-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-on-surface">Archivo</p>
+      {importMode === "manual" ? (
+      <form onSubmit={upload} className="mb-6 rounded-2xl border border-outline-variant bg-surface-container p-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Upload className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-on-surface">Subida manual</p>
+              <p className="text-xs text-on-surface-variant">Importa uno o varios audios sin CSV.</p>
+            </div>
+          </div>
           <p className="text-xs text-on-surface-variant">
             {files.length === 0
               ? "Sin archivos seleccionados"
@@ -377,25 +515,28 @@ export default function AudiosPage() {
                 : `${files.length} archivos seleccionados`}
           </p>
         </div>
-        <label className="cursor-pointer rounded-xl border border-outline-variant bg-surface-container-high px-4 py-2 text-sm text-on-surface transition-all hover:border-primary hover:text-primary">
-          Seleccionar
-          <input
-            type="file"
-            multiple
-            accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-            className="sr-only"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={!files.length || uploading}
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Upload className="h-4 w-4" />
-          {uploading ? "Subiendo..." : files.length > 1 ? "Importar lote" : "Subir"}
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container-high px-4 text-sm text-on-surface transition-all hover:border-primary hover:text-primary">
+            Seleccionar archivos
+            <input
+              type="file"
+              multiple
+              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              className="sr-only"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={!files.length || uploading}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Upload className="h-4 w-4" />
+            {uploading ? "Subiendo..." : files.length > 1 ? "Importar lote" : "Subir"}
+          </button>
+        </div>
       </form>
+      ) : null}
 
       {/* Filters row */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -515,7 +656,9 @@ export default function AudiosPage() {
       <AudioButtonCreationWizardModal
         open={wizardOpen}
         assets={wizardAssets}
+        importQueue={csvQueue}
         categories={categories}
+        onConfirmImport={() => confirmCsvImport()}
         onClose={() => setWizardOpen(false)}
         onFinished={() => {
           setWizardOpen(false);
@@ -573,6 +716,23 @@ type CsvPreview = {
   duplicates: string[];
   rows: CsvPreviewRow[];
   error?: string;
+};
+
+type CsvImportQueueItem = {
+  id: string;
+  rowNumber: number;
+  originalName: string;
+  fileName: string;
+  path: string | null;
+  mimeType: string;
+  sizeBytes: number;
+  transcript: string;
+  label: string | null;
+  buttonTitle: string | null;
+  description: string | null;
+  tag: string | null;
+  status: "MATCHED" | "MISSING_FILE" | "DUPLICATE";
+  matchedFileName: string | null;
 };
 
 function parseCsvRows(csvText: string) {
@@ -655,6 +815,121 @@ function StatBox({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-outline-variant bg-surface-container-high px-4 py-3">
       <p className="text-xs uppercase tracking-wider text-on-surface-variant">{label}</p>
       <p className="mt-1 text-xl font-semibold text-on-surface">{value}</p>
+    </div>
+  );
+}
+
+function SummaryPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "warning" | "muted";
+}) {
+  const toneClasses = {
+    success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    warning: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+    muted: "border-outline-variant bg-surface-container text-on-surface-variant",
+  } as const;
+
+  return (
+    <div className={`rounded-2xl border px-3 py-2 ${toneClasses[tone]}`}>
+      <p className="text-[10px] uppercase tracking-[0.22em]">{label}</p>
+      <p className="mt-1 text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function FilePickerCard({
+  label,
+  description,
+  helper,
+  actionLabel,
+  accept,
+  multiple,
+  directory,
+  onChangeFile,
+  onChangeFiles,
+}: {
+  label: string;
+  description: string;
+  helper: string;
+  actionLabel: string;
+  accept: string;
+  multiple?: boolean;
+  directory?: boolean;
+  onChangeFile?: (file: File | null) => void;
+  onChangeFiles?: (files: File[]) => void;
+}) {
+  const inputId = `${label.toLowerCase()}-input`;
+  const [dragActive, setDragActive] = useState(false);
+
+  function handleFiles(selected: File[]) {
+    if (multiple) {
+      onChangeFiles?.(selected);
+      return;
+    }
+    onChangeFile?.(selected[0] ?? null);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    const selected = Array.from(event.dataTransfer.files ?? []);
+    handleFiles(selected);
+  }
+
+  return (
+    <div
+      className={`rounded-2xl border bg-surface-container-high p-4 transition-all ${
+        dragActive ? "border-primary bg-primary/5 shadow-elevation-1" : "border-outline-variant"
+      }`}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setDragActive(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragActive(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDragActive(false);
+      }}
+      onDrop={handleDrop}
+    >
+      <div className="mb-4">
+        <p className="text-sm font-semibold text-on-surface">{label}</p>
+        <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">{description}</p>
+      </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1 rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
+          <p className="truncate text-sm text-on-surface">{helper}</p>
+        </div>
+        <label
+          htmlFor={inputId}
+          className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container px-4 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary"
+        >
+          {actionLabel}
+        </label>
+      </div>
+      <input
+        id={inputId}
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        {...(directory ? { webkitdirectory: "" } : {})}
+        onChange={(event) => {
+          handleFiles(Array.from(event.target.files ?? []));
+        }}
+        className="sr-only"
+      />
+      <div className="mt-3 rounded-xl border border-dashed border-outline-variant px-4 py-3 text-xs text-on-surface-variant">
+        {dragActive ? "Suelta los archivos aquí" : "También puedes arrastrar y soltar archivos en esta tarjeta"}
+      </div>
     </div>
   );
 }

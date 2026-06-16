@@ -96,6 +96,26 @@ export class AudioLibraryController {
     return this.audioLibraryService.importCsv(user, files.csv?.[0], files.files ?? [], pathsJson);
   }
 
+  @Post('import-csv/preview')
+  @Permissions('audio:update')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'csv', maxCount: 1 },
+      { name: 'files', maxCount: 200 },
+    ]),
+  )
+  previewImportCsv(
+    @Body('paths') pathsJson: string | undefined,
+    @UploadedFiles()
+    files: {
+      csv?: Express.Multer.File[];
+      files?: Express.Multer.File[];
+    },
+  ) {
+    return this.audioLibraryService.previewCsv(files.csv?.[0], files.files ?? [], pathsJson);
+  }
+
   @Get(':id')
   @Permissions('audio:read')
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

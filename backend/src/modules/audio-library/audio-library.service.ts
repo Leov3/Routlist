@@ -16,6 +16,19 @@ type CsvAudioRow = {
   tag: string | null;
 };
 
+type CsvAudioMatchStatus = 'MATCHED' | 'DUPLICATE' | 'MISSING_FILE';
+
+type CsvAudioPreviewRow = CsvAudioRow & {
+  matchedFile: string | null;
+  status: CsvAudioMatchStatus;
+};
+
+type CsvAudioMatch = {
+  row: CsvAudioRow;
+  file: Express.Multer.File;
+  matchKey: string;
+};
+
 @Injectable()
 export class AudioLibraryService {
   constructor(
@@ -81,111 +94,20 @@ export class AudioLibraryService {
     audioFiles: Express.Multer.File[],
     pathsJson?: string,
   ) {
-    if (!csvFile) {
-      throw new NotFoundException('CSV file is required');
-    }
-
-    if (!audioFiles.length) {
-      throw new NotFoundException('Audio files are required');
-    }
-
-    const rows = this.parseCsvAudioRows(csvFile.buffer.toString('utf8'));
-    const pathHints = this.parsePathHints(pathsJson, audioFiles.length);
-    const filesByKey = new Map<string, Express.Multer.File>();
-    const pathFileKeyMap = new Map<string, Express.Multer.File>();
-    const duplicates: string[] = [];
-
-    audioFiles.forEach((file, index) => {
-      const hintedPath = pathHints[index] ?? '';
-      const pathKey = this.fileMatchKey(hintedPath || file.originalname);
-      if (!pathFileKeyMap.has(pathKey)) {
-        pathFileKeyMap.set(pathKey, file);
-      }
+    return this.previewCsvImport(csvFile, audioFiles, pathsJson, user.organizationId, {
+      persist: true,
+      createdById: user.id,
     });
+  }
 
-    for (const file of audioFiles) {
-      const key = this.fileMatchKey(file.originalname);
-      if (filesByKey.has(key)) {
-        duplicates.push(file.originalname);
-        continue;
-      }
-      filesByKey.set(key, file);
-    }
-
-    const created: Array<{ id: string; fileName: string; originalName: string; mimeType: string; sizeBytes: number; storageDriver: string; storageKey: string; isActive: boolean; createdAt: Date }> = [];
-    const matchedRows: Array<CsvAudioRow & { matchedFile: string; status: 'MATCHED' | 'DUPLICATE' | 'MISSING_FILE' }> = [];
-    const unmatchedFiles: string[] = [];
-    const usedFiles = new Set<string>();
-
-    for (const row of rows) {
-      const matchedFile = this.resolveCsvFile(filesByKey, pathFileKeyMap, row);
-      if (!matchedFile) {
-        matchedRows.push({ ...row, matchedFile: '', status: 'MISSING_FILE' });
-        continue;
-      }
-
-      const matchKey = this.fileMatchKey(matchedFile.originalname);
-      if (usedFiles.has(matchKey)) {
-        matchedRows.push({ ...row, matchedFile: matchedFile.originalname, status: 'DUPLICATE' });
-        continue;
-      }
-      usedFiles.add(matchKey);
-
-      const stored = await this.storage.saveAudio(user.organizationId, matchedFile, 'audio-persisted');
-      const asset = await this.prisma.audioAsset.create({
-        data: {
-          organizationId: user.organizationId,
-          fileName: stored.fileName,
-          originalName: row.buttonTitle?.trim() || row.label?.trim() || stored.originalName,
-          mimeType: stored.mimeType,
-          sizeBytes: stored.sizeBytes,
-          storageDriver: stored.storageDriver,
-          storageKey: stored.storageKey,
-          createdById: user.id,
-          transcript: row.text,
-          generatedText: row.text,
-          importMetadata: {
-            csvRowNumber: row.rowNumber,
-            csvFileName: row.fileName,
-            csvPath: row.path,
-            label: row.label,
-            buttonTitle: row.buttonTitle,
-            description: row.description,
-            tag: row.tag,
-          },
-        },
-        select: {
-          id: true,
-          fileName: true,
-          originalName: true,
-          mimeType: true,
-          sizeBytes: true,
-          storageDriver: true,
-          storageKey: true,
-          isActive: true,
-          createdAt: true,
-        },
-      });
-
-      created.push(asset);
-      matchedRows.push({ ...row, matchedFile: matchedFile.originalname, status: 'MATCHED' });
-    }
-
-    for (const file of audioFiles) {
-      const key = this.fileMatchKey(file.originalname);
-      if (!usedFiles.has(key)) {
-        unmatchedFiles.push(file.originalname);
-      }
-    }
-
-    return {
-      createdCount: created.length,
-      skippedCount: rows.length - created.length,
-      duplicates,
-      unmatchedFiles,
-      rows: matchedRows,
-      assets: created,
-    };
+  previewCsv(
+    csvFile: Express.Multer.File | undefined,
+    audioFiles: Express.Multer.File[],
+    pathsJson?: string,
+  ) {
+    return this.previewCsvImport(csvFile, audioFiles, pathsJson, null, {
+      persist: false,
+    });
   }
 
   async findOne(user: AuthenticatedUser, id: string) {
@@ -554,5 +476,171 @@ export class AudioLibraryService {
     } catch {
       return [];
     }
+  }
+
+  private buildCsvFileIndexes(audioFiles: Express.Multer.File[], pathsJson?: string) {
+    const pathHints = this.parsePathHints(pathsJson, audioFiles.length);
+    const filesByKey = new Map<string, Express.Multer.File>();
+    const pathFileKeyMap = new Map<string, Express.Multer.File>();
+    const duplicates: string[] = [];
+
+    audioFiles.forEach((file, index) => {
+      const hintedPath = pathHints[index] ?? '';
+      const pathKey = this.fileMatchKey(hintedPath || file.originalname);
+      if (!pathFileKeyMap.has(pathKey)) {
+        pathFileKeyMap.set(pathKey, file);
+      }
+    });
+
+    for (const file of audioFiles) {
+      const key = this.fileMatchKey(file.originalname);
+      if (filesByKey.has(key)) {
+        duplicates.push(file.originalname);
+        continue;
+      }
+      filesByKey.set(key, file);
+    }
+
+    return { filesByKey, pathFileKeyMap, duplicates };
+  }
+
+  private previewCsvImport(
+    csvFile: Express.Multer.File | undefined,
+    audioFiles: Express.Multer.File[],
+    pathsJson: string | undefined,
+    organizationId: string | null,
+    options: { persist: boolean; createdById?: string } = { persist: false },
+  ) {
+    if (!csvFile) {
+      throw new NotFoundException('CSV file is required');
+    }
+
+    if (!audioFiles.length) {
+      throw new NotFoundException('Audio files are required');
+    }
+
+    const rows = this.parseCsvAudioRows(csvFile.buffer.toString('utf8'));
+    const { filesByKey, pathFileKeyMap, duplicates } = this.buildCsvFileIndexes(audioFiles, pathsJson);
+    const previewRows: CsvAudioPreviewRow[] = [];
+    const matches: CsvAudioMatch[] = [];
+    const usedFiles = new Set<string>();
+
+    for (const row of rows) {
+      const matchedFile = this.resolveCsvFile(filesByKey, pathFileKeyMap, row);
+      if (!matchedFile) {
+        previewRows.push({ ...row, matchedFile: null, status: 'MISSING_FILE' });
+        continue;
+      }
+
+      const matchKey = this.fileMatchKey(matchedFile.originalname);
+      if (usedFiles.has(matchKey)) {
+        previewRows.push({ ...row, matchedFile: matchedFile.originalname, status: 'DUPLICATE' });
+        continue;
+      }
+
+      usedFiles.add(matchKey);
+      previewRows.push({ ...row, matchedFile: matchedFile.originalname, status: 'MATCHED' });
+      matches.push({ row, file: matchedFile, matchKey });
+    }
+
+    const unmatchedFiles = audioFiles
+      .filter((file) => !usedFiles.has(this.fileMatchKey(file.originalname)))
+      .map((file) => file.originalname);
+
+    if (!options.persist) {
+      return {
+        createdCount: 0,
+        skippedCount: previewRows.filter((row) => row.status !== 'MATCHED').length,
+        duplicates,
+        unmatchedFiles,
+        rows: previewRows,
+        assets: [],
+        queue: previewRows,
+      };
+    }
+
+    if (!organizationId || !options.createdById) {
+      throw new NotFoundException('Missing persistence context');
+    }
+
+    return this.persistCsvMatches(
+      organizationId,
+      options.createdById,
+      matches,
+      previewRows,
+      duplicates,
+      unmatchedFiles,
+    );
+  }
+
+  private async persistCsvMatches(
+    organizationId: string,
+    createdById: string,
+    matches: CsvAudioMatch[],
+    previewRows: CsvAudioPreviewRow[],
+    duplicates: string[],
+    unmatchedFiles: string[],
+  ) {
+    const created: Array<{
+      id: string;
+      fileName: string;
+      originalName: string;
+      mimeType: string;
+      sizeBytes: number;
+      storageDriver: string;
+      storageKey: string;
+      isActive: boolean;
+      createdAt: Date;
+    }> = [];
+
+    for (const match of matches) {
+      const stored = await this.storage.saveAudio(organizationId, match.file, 'audio-persisted');
+      const asset = await this.prisma.audioAsset.create({
+        data: {
+          organizationId,
+          fileName: stored.fileName,
+          originalName: match.row.text?.trim() || match.row.buttonTitle?.trim() || match.row.label?.trim() || stored.originalName,
+          mimeType: stored.mimeType,
+          sizeBytes: stored.sizeBytes,
+          storageDriver: stored.storageDriver,
+          storageKey: stored.storageKey,
+          createdById,
+          transcript: match.row.text,
+          generatedText: match.row.text,
+          importMetadata: {
+            csvRowNumber: match.row.rowNumber,
+            csvFileName: match.row.fileName,
+            csvPath: match.row.path,
+            label: match.row.label,
+            buttonTitle: match.row.buttonTitle,
+            description: match.row.description,
+            tag: match.row.tag,
+          },
+        },
+        select: {
+          id: true,
+          fileName: true,
+          originalName: true,
+          mimeType: true,
+          sizeBytes: true,
+          storageDriver: true,
+          storageKey: true,
+          isActive: true,
+          createdAt: true,
+        },
+      });
+
+      created.push(asset);
+    }
+
+    return {
+      createdCount: created.length,
+      skippedCount: previewRows.filter((row) => row.status !== 'MATCHED').length,
+      duplicates,
+      unmatchedFiles,
+      rows: previewRows,
+      assets: created,
+      queue: previewRows,
+    };
   }
 }
