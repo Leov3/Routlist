@@ -136,7 +136,7 @@
   --color-sidebar: var(--routlis-sidebar-bg);
   --color-sidebar-border: var(--routlis-sidebar-border);
 
-  --font-sans: var(--font-roboto-flex), "Inter", "Roboto", sans-serif;
+  --font-sans: "Inter", "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
 
   --radius-xs: 4px;
   --radius-sm: 8px;
