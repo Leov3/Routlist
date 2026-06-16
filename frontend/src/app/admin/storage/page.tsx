@@ -16,6 +16,7 @@ import { api, formatBytes } from "@/lib/api";
 import type { AudioAsset } from "@/types/routlis";
 
 type StatusFilter = "all" | "active" | "inactive";
+type LifecycleFilter = "all" | "temporary" | "permanent";
 type SortKey = "originalName" | "sizeBytes" | "mimeType" | "isActive";
 type BulkAction = "ACTIVATE" | "DEACTIVATE" | "DELETE";
 
@@ -43,6 +44,7 @@ export default function StoragePage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [lifecycleFilter, setLifecycleFilter] = useState<LifecycleFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("sizeBytes");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [loading, setLoading] = useState(true);
@@ -76,8 +78,13 @@ export default function StoragePage() {
           statusFilter === "all" ||
           (statusFilter === "active" && audio.isActive) ||
           (statusFilter === "inactive" && !audio.isActive);
+        const isTemporary = audio.lifecycleStatus === "TEMPORARY" || Boolean(audio.expiresAt);
+        const matchesLifecycle =
+          lifecycleFilter === "all" ||
+          (lifecycleFilter === "temporary" && isTemporary) ||
+          (lifecycleFilter === "permanent" && !isTemporary);
 
-        return matchesSearch && matchesStatus;
+        return matchesSearch && matchesStatus && matchesLifecycle;
       })
       .sort((a, b) => {
         const left = a[sortKey];
@@ -89,7 +96,7 @@ export default function StoragePage() {
 
         return sortDirection === "asc" ? result : -result;
       });
-  }, [audios, search, sortDirection, sortKey, statusFilter]);
+  }, [audios, lifecycleFilter, search, sortDirection, sortKey, statusFilter]);
 
   const selectedAudios = useMemo(
     () => audios.filter((audio) => selectedIds.includes(audio.id)),
@@ -176,7 +183,7 @@ export default function StoragePage() {
         />
       </section>
 
-      <section className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 xl:grid-cols-[1fr_180px_auto_auto_auto]">
+      <section className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 xl:grid-cols-[1fr_180px_180px_auto_auto_auto]">
         <label className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
           <input
@@ -194,6 +201,15 @@ export default function StoragePage() {
           <option value="all">Todos</option>
           <option value="active">Activos</option>
           <option value="inactive">Inactivos</option>
+        </select>
+        <select
+          value={lifecycleFilter}
+          onChange={(event) => setLifecycleFilter(event.target.value as LifecycleFilter)}
+          className="h-10 rounded-xl border border-outline px-3 text-sm"
+        >
+          <option value="all">Todos</option>
+          <option value="temporary">Temporales</option>
+          <option value="permanent">Permanentes</option>
         </select>
         <button
           type="button"
@@ -265,6 +281,7 @@ export default function StoragePage() {
                     Estado
                   </button>
                 </th>
+                <th className="px-4 py-3">Lifecycle</th>
                 <th className="px-4 py-3">Creado</th>
               </tr>
             </thead>
@@ -282,6 +299,16 @@ export default function StoragePage() {
                   <td className="px-4 py-3 text-on-surface-variant">{audio.mimeType}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{formatBytes(audio.sizeBytes)}</td>
                   <td className="px-4 py-3">{audio.isActive ? "Activo" : "Inactivo"}</td>
+                  <td className="px-4 py-3">
+                    <div className="grid gap-1">
+                      <span>{isTemporaryAudio(audio) ? "Temporal" : "Permanente"}</span>
+                      {isTemporaryAudio(audio) ? (
+                        <span className="text-xs text-on-surface-variant">
+                          {getRemainingTimeLabel(audio.expiresAt)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-on-surface-variant">
                     {new Date(audio.createdAt).toLocaleString()}
                   </td>
@@ -295,6 +322,33 @@ export default function StoragePage() {
       )}
     </AdminProtectedPage>
   );
+}
+
+function isTemporaryAudio(audio: AudioAsset) {
+  return audio.lifecycleStatus === "TEMPORARY" || Boolean(audio.expiresAt);
+}
+
+function getRemainingTimeLabel(expiresAt?: string | null) {
+  if (!expiresAt) return "Sin vencimiento";
+
+  const expiresAtDate = new Date(expiresAt);
+  const diffMs = expiresAtDate.getTime() - Date.now();
+
+  if (Number.isNaN(expiresAtDate.getTime())) return "Vencimiento inválido";
+  if (diffMs <= 0) return "Vencido";
+
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts = [
+    days > 0 ? `${days}d` : null,
+    hours > 0 ? `${hours}h` : null,
+    minutes > 0 ? `${minutes}m` : null,
+  ].filter(Boolean);
+
+  return `Le quedan ${parts.length ? parts.join(" ") : "menos de 1m"}`;
 }
 
 function StorageCard({
