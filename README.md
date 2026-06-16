@@ -213,10 +213,10 @@ Si vas a mover la app a un VPS con Docker Compose y un proxy externo, este es el
 docker compose -f docker-compose.prod.yml -p routlis up -d --build
 ```
 
-4. Aplica migraciones:
+4. El script de despliegue aplica migraciones antes de levantar el backend. Si necesitas ejecutarlas a mano:
 
 ```bash
-docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:deploy
+docker compose -f docker-compose.prod.yml -p routlis run --rm --no-deps backend npm run prisma:deploy
 ```
 
 5. Solo en el bootstrap inicial o si quieres resembrar datos demo:
