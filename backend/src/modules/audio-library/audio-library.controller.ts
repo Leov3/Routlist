@@ -12,7 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { createReadStream } from 'fs';
@@ -73,6 +73,27 @@ export class AudioLibraryController {
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     return this.audioLibraryService.bulk(user, dto, files);
+  }
+
+  @Post('import-csv')
+  @Permissions('audio:update')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'csv', maxCount: 1 },
+      { name: 'files', maxCount: 200 },
+    ]),
+  )
+  importCsv(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('paths') pathsJson: string | undefined,
+    @UploadedFiles()
+    files: {
+      csv?: Express.Multer.File[];
+      files?: Express.Multer.File[];
+    },
+  ) {
+    return this.audioLibraryService.importCsv(user, files.csv?.[0], files.files ?? [], pathsJson);
   }
 
   @Get(':id')

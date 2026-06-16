@@ -40,6 +40,7 @@ export type AudioAsset = {
   generatedModelId?: string | null;
   generatedOutputFormat?: string | null;
   generatedSettingsJson?: Record<string, unknown> | null;
+  importMetadata?: Record<string, unknown> | null;
   generationJobId?: string | null;
   autoCreatedButtonId?: string | null;
   isActive: boolean;

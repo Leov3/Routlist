@@ -199,6 +199,7 @@ model AudioAsset {
   generatedModelId String?
   generatedOutputFormat String?
   generatedSettingsJson Json?
+  importMetadata Json?
   generationJobId String?  @unique
   autoCreatedButtonId String?
   createdById     String

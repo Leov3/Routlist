@@ -59,6 +59,10 @@ export default function AudiosPage() {
   const [audios, setAudios] = useState<AudioAsset[]>([]);
   const [categories, setCategories] = useState<AudioCategory[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvAudioFiles, setCsvAudioFiles] = useState<CsvAudioSelection[]>([]);
+  const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -88,6 +92,71 @@ export default function AudiosPage() {
     void load();
     void loadCategories();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function buildPreview() {
+      if (!csvFile) {
+        setCsvPreview(null);
+        return;
+      }
+
+      try {
+        const csvText = await csvFile.text();
+        const rows = parseCsvRows(csvText);
+        const fileIndex = new Map<string, CsvAudioSelection>();
+        const duplicates: string[] = [];
+
+        for (const selection of csvAudioFiles) {
+          const key = fileMatchKey(selection.path ?? selection.file.name);
+          if (fileIndex.has(key)) {
+            duplicates.push(selection.file.name);
+            continue;
+          }
+          fileIndex.set(key, selection);
+        }
+
+        const previewRows = rows.map((row) => {
+          const matched = resolvePreviewFile(fileIndex, row);
+          return {
+            ...row,
+            matchedFileName: matched?.file.name ?? null,
+            status: matched ? "MATCHED" : "MISSING_FILE",
+          } as CsvPreviewRow;
+        });
+
+        const matchedCount = previewRows.filter((row) => row.status === "MATCHED").length;
+
+        if (!cancelled) {
+          setCsvPreview({
+            totalRows: previewRows.length,
+            matchedCount,
+            missingCount: previewRows.length - matchedCount,
+            duplicates,
+            rows: previewRows,
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setCsvPreview({
+            totalRows: 0,
+            matchedCount: 0,
+            missingCount: 0,
+            duplicates: [],
+            rows: [],
+            error: "No se pudo leer el CSV.",
+          });
+        }
+      }
+    }
+
+    void buildPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [csvAudioFiles, csvFile]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -140,6 +209,32 @@ export default function AudiosPage() {
     } finally { setUploading(false); }
   }
 
+  async function importCsv(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!csvFile || !csvAudioFiles.length) return;
+
+    setCsvImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("csv", csvFile);
+      fd.append("paths", JSON.stringify(csvAudioFiles.map((selection) => selection.path ?? selection.file.name)));
+      csvAudioFiles.forEach((selection) => fd.append("files", selection.file));
+
+      await api("/audio-assets/import-csv", {
+        method: "POST",
+        body: fd,
+        formData: true,
+      });
+
+      setCsvFile(null);
+      setCsvAudioFiles([]);
+      setCsvPreview(null);
+      await load();
+    } finally {
+      setCsvImporting(false);
+    }
+  }
+
   function startEdit(a: AudioAsset) {
     setEditingId(a.id);
     setEditForm({ originalName: a.originalName, durationSeconds: a.durationSeconds?.toString() ?? "", transcript: a.transcript ?? "" });
@@ -171,6 +266,101 @@ export default function AudiosPage() {
   return (
     <AdminProtectedPage>
       <PageHeader title="Audios" description="Biblioteca de archivos MP3 y WAV." />
+
+      <section className="mb-6 rounded-2xl border border-outline-variant bg-surface-container p-5">
+        <div className="mb-4">
+          <p className="text-sm font-semibold text-on-surface">Importación por CSV</p>
+          <p className="text-xs text-on-surface-variant">
+            Selecciona un CSV con `file_name`, `text`, `label`, `button_title`, `description`, `tag` y, opcionalmente, `path`.
+          </p>
+        </div>
+
+        <form onSubmit={importCsv} className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <label className="grid gap-2 text-sm">
+              <span>CSV</span>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+                className="h-10 rounded-xl border border-outline px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span>Audios</span>
+              <input
+                type="file"
+                multiple
+                accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
+                // @ts-expect-error webkitdirectory is supported by browsers but not typed by React
+                webkitdirectory=""
+                onChange={(event) =>
+                  setCsvAudioFiles(
+                    Array.from(event.target.files ?? []).map((file) => ({
+                      file,
+                      path: (file as File & { webkitRelativePath?: string }).webkitRelativePath?.trim() || file.name,
+                    })),
+                  )
+                }
+                className="h-10 rounded-xl border border-outline px-3 text-sm"
+              />
+            </label>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={!csvFile || !csvAudioFiles.length || csvImporting}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {csvImporting ? "Importando..." : "Importar CSV"}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <StatBox label="Filas" value={String(csvPreview?.totalRows ?? 0)} />
+            <StatBox label="Coincidencias" value={String(csvPreview?.matchedCount ?? 0)} />
+            <StatBox label="Pendientes" value={String(csvPreview?.missingCount ?? 0)} />
+          </div>
+
+          {csvPreview?.error ? <p className="text-sm text-red-500">{csvPreview.error}</p> : null}
+          {csvPreview?.duplicates?.length ? (
+            <p className="text-sm text-amber-400">Duplicados detectados: {csvPreview.duplicates.join(", ")}</p>
+          ) : null}
+
+          {csvPreview?.rows?.length ? (
+            <div className="overflow-hidden rounded-2xl border border-outline-variant">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
+                  <tr>
+                    <th className="px-4 py-3">Archivo</th>
+                    <th className="px-4 py-3">Título</th>
+                    <th className="px-4 py-3">Etiqueta</th>
+                    <th className="px-4 py-3">Texto</th>
+                    <th className="px-4 py-3">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {csvPreview.rows.slice(0, 10).map((row) => (
+                    <tr key={`${row.rowNumber}-${row.fileName}`} className="border-t border-outline-variant">
+                      <td className="px-4 py-3">{row.fileName}</td>
+                      <td className="px-4 py-3">{row.buttonTitle || row.label || "—"}</td>
+                      <td className="px-4 py-3">{row.tag || "—"}</td>
+                      <td className="px-4 py-3">
+                        <p className="max-w-[420px] truncate" title={row.text}>{row.text}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={row.status === "MATCHED" ? "text-emerald-400" : "text-amber-400"}>
+                          {row.status === "MATCHED" ? `OK (${row.matchedFileName})` : "Pendiente"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </form>
+      </section>
 
       {/* Upload panel */}
       <form onSubmit={upload} className="mb-6 flex items-center gap-4 rounded-2xl border border-outline-variant bg-surface-container p-5">
@@ -361,4 +551,110 @@ function getRemainingTimeLabel(expiresAt?: string | null) {
   ].filter(Boolean);
 
   return `Le quedan ${parts.length ? parts.join(" ") : "menos de 1m"}`;
+}
+
+type CsvPreviewRow = {
+  rowNumber: number;
+  fileName: string;
+  path: string | null;
+  text: string;
+  label: string | null;
+  buttonTitle: string | null;
+  description: string | null;
+  tag: string | null;
+  matchedFileName: string | null;
+  status: "MATCHED" | "MISSING_FILE";
+};
+
+type CsvPreview = {
+  totalRows: number;
+  matchedCount: number;
+  missingCount: number;
+  duplicates: string[];
+  rows: CsvPreviewRow[];
+  error?: string;
+};
+
+function parseCsvRows(csvText: string) {
+  const lines = csvText.replace(/^\uFEFF/, "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return [];
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim().toLowerCase());
+  const indexOf = (name: string) => headers.findIndex((header) => header === name.toLowerCase());
+  const fileNameIndex = indexOf("file_name");
+  const textIndex = indexOf("text");
+  if (fileNameIndex === -1 || textIndex === -1) return [];
+
+  return lines.slice(1).map((line, rowIndex) => {
+    const values = parseCsvLine(line);
+    const get = (index: number) => (index >= 0 ? values[index]?.trim() ?? "" : "");
+
+    return {
+      rowNumber: rowIndex + 2,
+      fileName: get(fileNameIndex),
+      path: indexOf("path") >= 0 ? get(indexOf("path")) || null : null,
+      text: get(textIndex),
+      label: indexOf("label") >= 0 ? get(indexOf("label")) || null : null,
+      buttonTitle: indexOf("button_title") >= 0 ? get(indexOf("button_title")) || null : null,
+      description: indexOf("description") >= 0 ? get(indexOf("description")) || null : null,
+      tag: indexOf("tag") >= 0 ? get(indexOf("tag")) || null : null,
+    } satisfies Omit<CsvPreviewRow, "matchedFileName" | "status">;
+  });
+}
+
+function parseCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  cells.push(current);
+  return cells;
+}
+
+function fileMatchKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function resolvePreviewFile(fileIndex: Map<string, CsvAudioSelection>, row: { fileName: string; path: string | null }) {
+  if (row.path) {
+    const pathKey = fileMatchKey(`${row.path}/${row.fileName}`);
+    const byPath = fileIndex.get(pathKey);
+    if (byPath) return byPath;
+  }
+
+  return fileIndex.get(fileMatchKey(row.fileName)) ?? null;
+}
+
+type CsvAudioSelection = {
+  file: File;
+  path: string;
+};
+
+function StatBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-outline-variant bg-surface-container-high px-4 py-3">
+      <p className="text-xs uppercase tracking-wider text-on-surface-variant">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-on-surface">{value}</p>
+    </div>
+  );
 }
