@@ -18,12 +18,18 @@ import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SwitchOrganizationDto } from './dto/switch-organization.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { MailService } from '../mail/mail.service';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly mailService: MailService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -106,5 +112,44 @@ export class AuthController {
     });
 
     return { user: result.user };
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+    @Req() req: Request,
+  ) {
+    await this.mailService.requestPasswordReset(dto.email, {
+      userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
+      ipAddress: typeof req.ip === 'string' ? req.ip : undefined,
+    });
+    return { ok: true };
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.mailService.resetPassword(dto.token, dto.newPassword);
+    return { ok: true };
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  @ApiCookieAuth('cookie')
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await this.mailService.changePassword(user, dto.currentPassword, dto.newPassword);
+    return { ok: true };
+  }
+
+  @Post('accept-invite')
+  @HttpCode(200)
+  async acceptInvite(@Body() dto: AcceptInviteDto) {
+    await this.mailService.acceptInvite(dto);
+    return { ok: true };
   }
 }

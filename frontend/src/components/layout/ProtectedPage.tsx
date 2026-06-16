@@ -53,6 +53,9 @@ function routePolicy(pathname: string) {
   if (pathname === "/admin/storage" || pathname === "/admin/maintenance") {
     return { allowedRoles: ["OWNER"] };
   }
+  if (pathname === "/admin/mail") {
+    return { allowedRoles: ["OWNER"] };
+  }
   return {};
 }
 

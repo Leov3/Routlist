@@ -24,6 +24,7 @@ import { NarrativesModule } from './modules/narratives/narratives.module';
 import { NarrativeRunsModule } from './modules/narrative-runs/narrative-runs.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { AccessSettingsModule } from './modules/access-settings/access-settings.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { AccessSettingsModule } from './modules/access-settings/access-settings.
     NarrativeRunsModule,
     MaintenanceModule,
     AccessSettingsModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -49,6 +49,19 @@ export default () => {
         process.env.JWT_SECRET ??
         'change-me',
     },
+    mail: {
+      enabled: process.env.MAIL_ENABLED === 'true',
+      fromName: process.env.MAIL_FROM_NAME ?? 'Routlis',
+      fromEmail: process.env.MAIL_FROM_EMAIL ?? 'notificaciones@routlis.com',
+      replyTo: process.env.MAIL_REPLY_TO ?? undefined,
+      smtpHost: process.env.MAIL_SMTP_HOST ?? undefined,
+      smtpPort: process.env.MAIL_SMTP_PORT
+        ? parseInt(process.env.MAIL_SMTP_PORT, 10)
+        : undefined,
+      smtpSecure: process.env.MAIL_SMTP_SECURE === 'true',
+      smtpUser: process.env.MAIL_SMTP_USER ?? undefined,
+      smtpPassword: process.env.MAIL_SMTP_PASSWORD ?? undefined,
+    },
     storage: {
       driver: process.env.STORAGE_DRIVER ?? 'local',
       localStoragePath:

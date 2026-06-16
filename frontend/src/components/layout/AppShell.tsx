@@ -17,6 +17,7 @@ import {
   ListMusic,
   LogOut,
   Moon,
+  Mail,
   PanelTop,
   Sparkles,
   Settings,
@@ -72,6 +73,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/access",    label: "Accesos",         icon: ShieldCheck, roles: ["OWNER"], group: "access" },
   { href: "/admin",           label: "Estadísticas",    icon: Gauge,     roles: ["OWNER","ADMIN","SUPERVISOR"], group: "platform" },
   { href: "/admin/organizations", label: "Organizaciones", icon: Database, roles: ["OWNER"], group: "platform" },
+  { href: "/admin/mail",      label: "Correo",          icon: Mail,      roles: ["OWNER"], group: "system" },
   { href: "/admin/users",     label: "Usuarios",         icon: Users,     permissions: ["user:create"], group: "platform" },
   { href: "/admin/integraciones", label: "Integraciones", icon: Zap, permissions: ["integration:manage"], group: "system" },
   { href: "/admin/audios",    label: "Audios",           icon: Library,   permissions: ["audio:create"], group: "content" },
@@ -536,6 +538,7 @@ function getPageTitle(pathname: string) {
   if (pathname === "/admin/audios") return "/Audios";
   if (pathname === "/admin/categories") return "/Categorías";
   if (pathname === "/admin/storage") return "/Almacenamiento";
+  if (pathname === "/admin/mail") return "/Correo";
   if (pathname === "/admin/users") return "/Usuarios";
   if (pathname === "/admin/history") return "/Historial";
   if (pathname === "/admin") return "/Estadísticas";

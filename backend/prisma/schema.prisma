@@ -35,6 +35,8 @@ model Organization {
   maintenanceBackups    MaintenanceBackup[]
   systemAuditEvents     SystemAuditEvent[]
   accessPolicies        AccessPolicy[]
+  mailDeliveryLogs      MailDeliveryLog[]
+  organizationInvites   OrganizationInvite[]
 }
 
 model User {
@@ -62,6 +64,11 @@ model User {
   maintenanceBackupsCreated  MaintenanceBackup[]   @relation("MaintenanceBackupsCreatedBy")
   systemAuditEventsCreated    SystemAuditEvent[]    @relation("SystemAuditEventsCreatedBy")
   accessPolicies              AccessPolicy[]
+  passwordResetTokens         PasswordResetToken[]
+  organizationInvitesCreated  OrganizationInvite[] @relation("OrganizationInvitesCreatedBy")
+  organizationInvitesAccepted OrganizationInvite[] @relation("OrganizationInvitesAcceptedBy")
+  mailDeliveryLogs            MailDeliveryLog[]
+  systemMailSettingsUpdated   SystemMailSettings[] @relation("SystemMailSettingsUpdatedBy")
 }
 
 model UserSession {
@@ -531,6 +538,91 @@ model AccessSettings {
   organizationRoleDefaults Json?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id              String   @id @default(uuid())
+  userId          String
+  tokenHash       String   @unique
+  expiresAt       DateTime
+  usedAt          DateTime?
+  requestIp       String?
+  requestUserAgent String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model OrganizationInvite {
+  id              String   @id @default(uuid())
+  organizationId  String
+  invitedByUserId  String?
+  acceptedByUserId String?
+  email           String
+  role            String
+  tokenHash       String   @unique
+  status          String   @default("PENDING")
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User?        @relation("OrganizationInvitesCreatedBy", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  acceptedBy   User?        @relation("OrganizationInvitesAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model MailDeliveryLog {
+  id               String   @id @default(uuid())
+  organizationId   String?
+  userId           String?
+  type             String
+  to               String
+  subject          String
+  status           String
+  providerMessageId String?
+  errorCode        String?
+  errorMessage     String?
+  contextJson      Json?
+  createdAt        DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model SystemMailSettings {
+  id                    String   @id @default("singleton")
+  provider              String   @default("smtp")
+  enabled               Boolean  @default(false)
+  fromName              String
+  fromEmail             String
+  replyTo               String?
+  smtpHost              String?
+  smtpPort              Int?
+  smtpSecure            Boolean  @default(false)
+  smtpUser              String?
+  smtpPasswordEncrypted String?
+  smtpPasswordIv        String?
+  smtpPasswordAuthTag   String?
+  smtpPasswordLast4     String?
+  lastTestAt            DateTime?
+  lastTestMessage       String?
+  updatedByUserId       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  updatedBy User? @relation("SystemMailSettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 }
 
 model SystemAuditEvent {
