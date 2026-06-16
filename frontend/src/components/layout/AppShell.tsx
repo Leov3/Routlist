@@ -6,12 +6,10 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Database,
-  FolderOpen,
   Gauge,
   HardDrive,
   History,
@@ -25,12 +23,12 @@ import {
   Sun,
   ShieldCheck,
   Workflow,
-  User,
   Users,
   Zap,
 } from "lucide-react";
 import type { AuthUser } from "@/types/routlis";
 import { logout } from "@/lib/auth";
+import { api, formatBytes } from "@/lib/api";
 import { AccountSettingsModal } from "./AccountSettingsModal";
 
 type NavItem = {
@@ -40,6 +38,28 @@ type NavItem = {
   permissions?: string[];
   roles?: string[];
   group?: "operation" | "access" | "platform" | "content" | "system";
+};
+
+type StorageHealth = {
+  filesystem: {
+    totalBytes: number;
+    usedBytes: number;
+    freeBytes: number;
+    usedPercent: number;
+  };
+  usage?: {
+    audioAssetsBytes?: number;
+    trackedBytes?: number;
+  };
+  paths?: {
+    audioPath?: string;
+  };
+  timestamp?: string;
+};
+
+type StorageHealthState = {
+  data: StorageHealth | null;
+  status: "ok" | "partial" | "error";
 };
 
 const navItems: NavItem[] = [
@@ -69,6 +89,11 @@ function canSeeNavItem(user: AuthUser, item: NavItem) {
     !item.permissions ||
     item.permissions.every((p) => user.permissions.includes(p));
   return roleAllowed && permissionsAllowed;
+}
+
+function isLocalHost() {
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 }
 
 const SIDEBAR_COLLAPSED_KEY = "routlis.sidebar.collapsed";
@@ -178,6 +203,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   const [collapsed, setCollapsed] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
+  const [storageState, setStorageState] = useState<StorageHealthState>({ data: null, status: "error" });
   const pageTitle = getPageTitle(pathname);
   const groupedMainItems = navItems.reduce<Record<string, NavItem[]>>((acc, item) => {
     const group = item.group ?? "operation";
@@ -215,6 +241,27 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   useEffect(() => {
     window.localStorage.setItem(UI_DENSITY_KEY, density);
   }, [density]);
+
+  useEffect(() => {
+    if (user.role !== "OWNER") return;
+
+    let cancelled = false;
+    void api<StorageHealth>("/health/storage")
+      .then((result) => {
+        if (!cancelled) {
+          const status =
+            result.paths?.audioPath && result.usage?.trackedBytes !== undefined ? "ok" : "partial";
+          setStorageState({ data: result, status });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStorageState({ data: null, status: "error" });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user.role]);
 
   return (
     <div
@@ -319,7 +366,6 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                         </p>
                         <div className="flex flex-col gap-0.5">
                           {items.map((item) => {
-                            const Icon = item.icon;
                             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                             return (
                               <Link key={item.href} href={item.href}
@@ -345,15 +391,65 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 
         {/* Storage meter */}
         {!collapsed && user.role === "OWNER" && (
-          <div className="mx-3 mb-2 rounded-xl border border-outline-variant bg-surface-container-high p-3">
-            <div className="mb-1.5 flex items-center justify-between">
+          <div
+            className="group mx-3 mb-2 rounded-xl border border-outline-variant bg-surface-container-high p-3"
+            title={
+              storageState.data
+                ? [
+                    `Entorno: ${isLocalHost() ? "Local" : "VPS"}`,
+                    `Lectura: ${storageState.data.timestamp ? new Date(storageState.data.timestamp).toLocaleString("es-CO") : "N/D"}`,
+                    `audioPath: ${storageState.data.paths?.audioPath ?? "N/D"}`,
+                    `trackedBytes: ${
+                      storageState.data.usage?.trackedBytes !== undefined
+                        ? formatBytes(storageState.data.usage.trackedBytes)
+                        : "N/D"
+                    }`,
+                    `audioAssetsBytes: ${
+                      storageState.data.usage?.audioAssetsBytes !== undefined
+                        ? formatBytes(storageState.data.usage.audioAssetsBytes)
+                        : "N/D"
+                    }`,
+                  ].join(" | ")
+                : "Sin lectura del backend"
+            }
+          >
+            <div className="mb-1.5 flex items-center justify-between gap-3">
               <span className="text-xs font-medium text-on-surface-variant">Almacenamiento</span>
-              <span className="text-xs font-bold text-primary">38%</span>
+              <span
+                className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
+                  storageState.status === "ok"
+                    ? "bg-emerald-500/10 text-emerald-300"
+                    : storageState.status === "partial"
+                      ? "bg-amber-500/10 text-amber-300"
+                      : "bg-rose-500/10 text-rose-300"
+                }`}
+              >
+                {storageState.status === "ok"
+                  ? "OK"
+                  : storageState.status === "partial"
+                    ? "Parcial"
+                    : "Sin lectura"}
+              </span>
             </div>
             <div className="h-1.5 w-full rounded-full bg-outline-variant">
-              <div className="progress-bar h-1.5 rounded-full" style={{ width: "38%" }} />
+              <div
+                className="progress-bar h-1.5 rounded-full transition-all"
+                style={{ width: `${storageState.data?.filesystem.usedPercent ?? 0}%` }}
+              />
             </div>
-            <p className="mt-1 text-[10px] text-on-surface-variant">83.26 GB / 217.50 GB</p>
+            <div className="mt-1 space-y-0.5">
+              <p className="text-[10px] text-on-surface-variant">
+                {storageState.data
+                  ? `${formatBytes(storageState.data.filesystem.usedBytes)} / ${formatBytes(storageState.data.filesystem.totalBytes)}`
+                  : "Sin lectura del backend"}
+              </p>
+              <p className="truncate text-[10px] text-on-surface-variant">
+                {storageState.data?.paths?.audioPath ?? "audioPath no disponible"}
+              </p>
+              <p className="text-[10px] text-on-surface-variant">
+                Entorno: {isLocalHost() ? "Local" : "VPS"}
+              </p>
+            </div>
           </div>
         )}
 
