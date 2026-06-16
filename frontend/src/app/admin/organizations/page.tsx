@@ -250,6 +250,17 @@ export default function OrganizationsPage() {
     }
   }
 
+  async function revokeInvite(inviteId: string) {
+    if (!inviteOrganizationId) return;
+    try {
+      await api(`/organizations/${inviteOrganizationId}/invites/${inviteId}/revoke`, { method: "POST" });
+      const data = await api<OrganizationInvite[]>(`/organizations/${inviteOrganizationId}/invites`);
+      setInvites(data);
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : "No se pudo revocar la invitación.");
+    }
+  }
+
   async function auditNarratives(organization: Organization) {
     setIntegrityOrganization(organization);
     setIntegrityReport(null);
@@ -383,6 +394,14 @@ export default function OrganizationsPage() {
                           className="rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-50"
                         >
                           Aprobar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void revokeInvite(invite.id)}
+                          disabled={invite.status === "REVOKED"}
+                          className="rounded-xl border border-red-400/30 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                        >
+                          Revocar
                         </button>
                       </div>
                     </td>

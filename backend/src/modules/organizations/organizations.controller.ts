@@ -121,4 +121,14 @@ export class OrganizationsController {
   ) {
     return this.mailService.approveInvite(user, id, inviteId);
   }
+
+  @Post(':id/invites/:inviteId/revoke')
+  @Permissions('user:create')
+  revokeInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('inviteId') inviteId: string,
+  ) {
+    return this.mailService.revokeInvite(user, id, inviteId);
+  }
 }

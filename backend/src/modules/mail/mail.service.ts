@@ -404,6 +404,30 @@ export class MailService {
     return updated;
   }
 
+  async revokeInvite(currentUser: AuthenticatedUser, organizationId: string, inviteId: string) {
+    await this.ensureOrganizationAccess(currentUser, organizationId);
+
+    const invite = await this.prisma.organizationInvite.findFirst({
+      where: { id: inviteId, organizationId },
+      select: { id: true, status: true },
+    });
+
+    if (!invite) {
+      return { ok: false };
+    }
+
+    const status = invite.status === 'ACCEPTED' ? invite.status : 'REVOKED';
+    const updated = await this.prisma.organizationInvite.update({
+      where: { id: invite.id },
+      data: {
+        status,
+        tokenHash: this.hashToken(this.generateToken()),
+      },
+    });
+
+    return updated;
+  }
+
   private async sendTemplate(input: {
     type: MailTemplateType;
     to: string;

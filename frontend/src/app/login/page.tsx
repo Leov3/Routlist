@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 
@@ -385,6 +386,13 @@ export default function LoginPage() {
               Enviar enlace
             </button>
           </div>
+          <p className="mt-4 text-center text-xs text-[#aeb4c2]">
+            También puedes abrir el flujo completo en{" "}
+            <Link href="/forgot-password" className="text-[#8e5dff] underline underline-offset-4">
+              /forgot-password
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </>
