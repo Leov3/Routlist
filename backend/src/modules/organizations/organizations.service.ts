@@ -239,19 +239,6 @@ export class OrganizationsService {
         where: { organizationId: id },
       });
 
-      await tx.$executeRawUnsafe(
-        'DELETE FROM "Subscription" WHERE "organizationId" = $1',
-        id,
-      );
-      await tx.$executeRawUnsafe(
-        'DELETE FROM "Invite" WHERE "organizationId" = $1',
-        id,
-      );
-      await tx.$executeRawUnsafe(
-        'DELETE FROM "JoinRequest" WHERE "organizationId" = $1',
-        id,
-      );
-
       await tx.userSession.deleteMany({
         where: { organizationId: id },
       });
