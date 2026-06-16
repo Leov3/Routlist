@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AppShell } from "./AppShell";
 import { getCurrentUser } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
@@ -13,14 +13,62 @@ type ProtectedPageProps = {
   allowedRoles?: string[];
 };
 
+function routePolicy(pathname: string) {
+  if (pathname === "/admin") {
+    return { allowedRoles: ["OWNER", "ADMIN", "SUPERVISOR"] };
+  }
+  if (pathname === "/admin/access") {
+    return { allowedRoles: ["OWNER"] };
+  }
+  if (pathname === "/admin/organizations") {
+    return { requiredPermissions: ["organization:read"] };
+  }
+  if (pathname === "/admin/users") {
+    return { requiredPermissions: ["user:read"] };
+  }
+  if (pathname === "/admin/audios") {
+    return { requiredPermissions: ["audio:read"] };
+  }
+  if (pathname === "/admin/categories") {
+    return { requiredPermissions: ["category:read"] };
+  }
+  if (pathname === "/admin/buttons") {
+    return { requiredPermissions: ["button:read"] };
+  }
+  if (pathname === "/admin/narratives") {
+    return { requiredPermissions: ["narratives:view"] };
+  }
+  if (pathname === "/admin/narratives/new") {
+    return { requiredPermissions: ["narratives:create"] };
+  }
+  if (pathname.startsWith("/admin/narratives/") && pathname.endsWith("/builder")) {
+    return { requiredPermissions: ["narratives:update"] };
+  }
+  if (pathname === "/admin/integraciones") {
+    return { requiredPermissions: ["integration:manage"] };
+  }
+  if (pathname === "/admin/history") {
+    return { requiredPermissions: ["history:read"] };
+  }
+  if (pathname === "/admin/storage" || pathname === "/admin/maintenance") {
+    return { allowedRoles: ["OWNER"] };
+  }
+  return {};
+}
+
 export function ProtectedPage({
   children,
   requiredPermissions = [],
   allowedRoles = [],
 }: ProtectedPageProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const policy = routePolicy(pathname);
+  const effectiveAllowedRoles = allowedRoles.length ? allowedRoles : policy.allowedRoles ?? [];
+  const effectiveRequiredPermissions =
+    requiredPermissions.length ? requiredPermissions : policy.requiredPermissions ?? [];
 
   useEffect(() => {
     let cancelled = false;
@@ -102,10 +150,12 @@ export function ProtectedPage({
     return null;
   }
 
-  const hasPermissions = requiredPermissions.every((permission) =>
+  const hasPermissions = effectiveRequiredPermissions.every((permission) =>
     user.permissions.includes(permission),
   );
-  const hasRole = allowedRoles.length === 0 || allowedRoles.includes(user.role);
+  const hasRole =
+    effectiveAllowedRoles.length === 0 ||
+    effectiveAllowedRoles.includes(user.role);
 
   if (!hasPermissions || !hasRole) {
     return (

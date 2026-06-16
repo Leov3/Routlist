@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, CheckCircle, Plus, Search, XCircle } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { ArrowRightLeft, CheckCircle, PencilLine, Plus, Search, Trash2, X, XCircle } from "lucide-react";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
@@ -10,11 +10,13 @@ import type { Organization } from "@/types/routlis";
 
 type OrganizationForm = {
   name: string;
+  slug: string;
   status: "ACTIVE" | "DISABLED";
 };
 
 const emptyForm: OrganizationForm = {
   name: "",
+  slug: "",
   status: "ACTIVE",
 };
 
@@ -22,10 +24,28 @@ export default function OrganizationsPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [form, setForm] = useState<OrganizationForm>(emptyForm);
+  const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
+  const [integrityOrganization, setIntegrityOrganization] = useState<Organization | null>(null);
+  const [integrityReport, setIntegrityReport] = useState<{
+    organization: { id: string; name: string };
+    narrativesCount: number;
+    issuesCount: number;
+    issues: Array<{ narrativeId: string; narrativeTitle: string; type: string; resourceId: string; message: string }>;
+    ok: boolean;
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  function sanitizeOrganizationPayload(payload: Partial<OrganizationForm>) {
+    return {
+      ...(payload.name !== undefined ? { name: payload.name } : {}),
+      ...(payload.slug?.trim() ? { slug: payload.slug.trim() } : {}),
+      ...(payload.status ? { status: payload.status } : {}),
+    };
+  }
 
   async function load() {
     try {
@@ -61,7 +81,7 @@ export default function OrganizationsPage() {
     try {
       await api("/organizations", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify(sanitizeOrganizationPayload(form)),
       });
       setForm(emptyForm);
       await load();
@@ -77,11 +97,59 @@ export default function OrganizationsPage() {
     try {
       await api(`/organizations/${id}`, {
         method: "PATCH",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(sanitizeOrganizationPayload(payload)),
       });
       await load();
+      return true;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar la organización.");
+      return false;
+    }
+  }
+
+  async function saveEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingOrganization) return;
+
+    setSaving(true);
+    setErrorMessage(null);
+    try {
+      const updated = await update(editingOrganization.id, {
+        name: editingOrganization.name,
+        slug: editingOrganization.slug ?? undefined,
+        status: editingOrganization.status as OrganizationForm["status"],
+      });
+      if (updated) {
+        setEditingOrganization(null);
+      }
+    } catch {
+      // handled by update
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeOrganization(organization: Organization) {
+    const confirmed = window.confirm(
+      `Eliminar la organización "${organization.name}" borrará sus módulos, usuarios asociados y configuración. Esta acción no se puede deshacer.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(organization.id);
+    setErrorMessage(null);
+    try {
+      await api(`/organizations/${organization.id}`, {
+        method: "DELETE",
+      });
+      if (currentOrganization?.id === organization.id) {
+        window.location.reload();
+        return;
+      }
+      await load();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo eliminar la organización.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -98,8 +166,25 @@ export default function OrganizationsPage() {
     }
   }
 
+  async function auditNarratives(organization: Organization) {
+    setIntegrityOrganization(organization);
+    setIntegrityReport(null);
+    try {
+      const report = await api<{
+        organization: { id: string; name: string };
+        narrativesCount: number;
+        issuesCount: number;
+        issues: Array<{ narrativeId: string; narrativeTitle: string; type: string; resourceId: string; message: string }>;
+        ok: boolean;
+      }>(`/organizations/${organization.id}/narrative-integrity`);
+      setIntegrityReport(report);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo auditar las narrativas.");
+    }
+  }
+
   return (
-    <ProtectedPage allowedRoles={["OWNER"]}>
+    <AdminProtectedPage>
       <PageHeader
         title="Organizaciones"
         description="Administración global de tenants y cambio de contexto para super admin."
@@ -111,13 +196,19 @@ export default function OrganizationsPage() {
         </div>
       ) : null}
 
-      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_180px_auto]">
+      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_1fr_180px_auto]">
         <input
           value={form.name}
           onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
           placeholder="Nombre de la organización"
           className="h-10 rounded-xl border border-outline px-3 text-sm"
           required
+        />
+        <input
+          value={form.slug}
+          onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))}
+          placeholder="Slug opcional"
+          className="h-10 rounded-xl border border-outline px-3 text-sm"
         />
         <select
           value={form.status}
@@ -167,10 +258,11 @@ export default function OrganizationsPage() {
         <DataState>Cargando organizaciones...</DataState>
       ) : filteredOrganizations.length ? (
         <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container">
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
                 <th className="px-4 py-3">Organización</th>
+                <th className="px-4 py-3">Slug</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3">Miembros</th>
                 <th className="px-4 py-3">Audios</th>
@@ -191,6 +283,7 @@ export default function OrganizationsPage() {
                         <p className="truncate text-xs text-on-surface-variant">{organization.id}</p>
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-on-surface-variant">{organization.slug ?? "—"}</td>
                     <td className="px-4 py-3">
                       <button
                         type="button"
@@ -221,12 +314,37 @@ export default function OrganizationsPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
+                          onClick={() => setEditingOrganization(organization)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-outline px-3 py-2 text-xs font-semibold"
+                        >
+                          <PencilLine className="h-4 w-4" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void auditNarratives(organization)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-outline px-3 py-2 text-xs font-semibold"
+                        >
+                          <Search className="h-4 w-4" />
+                          Auditar narrativas
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => void switchOrganization(organization.id)}
                           disabled={isCurrent}
                           className="inline-flex items-center gap-2 rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-50"
                         >
                           <ArrowRightLeft className="h-4 w-4" />
                           {isCurrent ? "Activa" : "Usar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void removeOrganization(organization)}
+                          disabled={deletingId === organization.id || isCurrent}
+                          className="inline-flex items-center gap-2 rounded-xl border border-red-400/30 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          {deletingId === organization.id ? "Borrando..." : "Eliminar"}
                         </button>
                       </div>
                     </td>
@@ -239,6 +357,150 @@ export default function OrganizationsPage() {
       ) : (
         <DataState>No hay organizaciones.</DataState>
       )}
-    </ProtectedPage>
+
+      {editingOrganization ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-xl rounded-2xl border border-outline-variant bg-surface-container p-5 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Editar organización</h2>
+                <p className="text-sm text-on-surface-variant">Actualiza nombre, slug y estado.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOrganization(null)}
+                className="rounded-full border border-outline p-2 text-on-surface-variant"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={saveEdit} className="grid gap-4">
+              <label className="grid gap-2 text-sm">
+                <span>Nombre</span>
+                <input
+                  value={editingOrganization.name}
+                  onChange={(event) =>
+                    setEditingOrganization((current) =>
+                      current ? { ...current, name: event.target.value } : current,
+                    )
+                  }
+                  className="h-10 rounded-xl border border-outline px-3"
+                  required
+                />
+              </label>
+              <label className="grid gap-2 text-sm">
+                <span>Slug</span>
+                <input
+                  value={editingOrganization.slug ?? ""}
+                  onChange={(event) =>
+                    setEditingOrganization((current) =>
+                      current ? { ...current, slug: event.target.value } : current,
+                    )
+                  }
+                  className="h-10 rounded-xl border border-outline px-3"
+                  placeholder="opcional"
+                />
+              </label>
+              <label className="grid gap-2 text-sm">
+                <span>Estado</span>
+                <select
+                  value={editingOrganization.status}
+                  onChange={(event) =>
+                    setEditingOrganization((current) =>
+                      current ? { ...current, status: event.target.value as OrganizationForm["status"] } : current,
+                    )
+                  }
+                  className="h-10 rounded-xl border border-outline px-3"
+                >
+                  <option value="ACTIVE">Activa</option>
+                  <option value="DISABLED">Deshabilitada</option>
+                </select>
+              </label>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrganization(null)}
+                  className="rounded-xl border border-outline px-4 py-2 text-sm font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-60"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  {saving ? "Guardando..." : "Guardar cambios"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {integrityOrganization ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-outline-variant bg-surface-container p-5 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Auditoría de narrativas</h2>
+                <p className="text-sm text-on-surface-variant">{integrityOrganization.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIntegrityOrganization(null);
+                  setIntegrityReport(null);
+                }}
+                className="rounded-full border border-outline p-2 text-on-surface-variant"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {!integrityReport ? (
+              <DataState>Revisando narrativas...</DataState>
+            ) : integrityReport.ok ? (
+              <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+                No se encontraron problemas. {integrityReport.narrativesCount} narrativas revisadas.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {integrityReport.issuesCount} problema(s) detectado(s) en {integrityReport.narrativesCount} narrativas.
+                </div>
+                <div className="max-h-[420px] overflow-auto rounded-2xl border border-outline-variant">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
+                      <tr>
+                        <th className="px-4 py-3">Narrativa</th>
+                        <th className="px-4 py-3">Tipo</th>
+                        <th className="px-4 py-3">Recurso</th>
+                        <th className="px-4 py-3">Mensaje</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {integrityReport.issues.map((issue) => (
+                        <tr key={`${issue.narrativeId}-${issue.resourceId}-${issue.type}`} className="border-t border-outline-variant">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-on-surface">{issue.narrativeTitle}</p>
+                            <p className="text-xs text-on-surface-variant">{issue.narrativeId}</p>
+                          </td>
+                          <td className="px-4 py-3 text-on-surface-variant">{issue.type}</td>
+                          <td className="px-4 py-3 text-on-surface-variant">{issue.resourceId}</td>
+                          <td className="px-4 py-3 text-on-surface-variant">{issue.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </AdminProtectedPage>
   );
 }

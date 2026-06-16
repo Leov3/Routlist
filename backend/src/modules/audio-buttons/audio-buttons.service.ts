@@ -300,11 +300,17 @@ export class AudioButtonsService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.playbackEvent.deleteMany({
-        where: { audioButtonId: id },
+        where: {
+          audioButtonId: id,
+          organizationId: user.organizationId,
+        },
       });
 
-      await tx.audioButton.delete({
-        where: { id },
+      await tx.audioButton.deleteMany({
+        where: {
+          id,
+          organizationId: user.organizationId,
+        },
       });
     });
 

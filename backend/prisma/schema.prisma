@@ -34,6 +34,7 @@ model Organization {
   maintenanceBackupSetting MaintenanceBackupSetting?
   maintenanceBackups    MaintenanceBackup[]
   systemAuditEvents     SystemAuditEvent[]
+  accessPolicies        AccessPolicy[]
 }
 
 model User {
@@ -60,12 +61,14 @@ model User {
   sessions                   UserSession[]
   maintenanceBackupsCreated  MaintenanceBackup[]   @relation("MaintenanceBackupsCreatedBy")
   systemAuditEventsCreated    SystemAuditEvent[]    @relation("SystemAuditEventsCreatedBy")
+  accessPolicies              AccessPolicy[]
 }
 
 model UserSession {
   id             String   @id @default(uuid())
   userId         String
   organizationId String
+  status         String   @default("ACTIVE")
   sessionId      String   @unique
   ipAddress      String?
   userAgent      String?
@@ -75,6 +78,7 @@ model UserSession {
   revokedAt      DateTime?
   revokedReason  String?
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -128,6 +132,27 @@ model RolePermission {
   permission Permission @relation(fields: [permissionId], references: [id])
 
   @@unique([roleId, permissionId])
+}
+
+model AccessPolicy {
+  id             String   @id @default(uuid())
+  moduleKey      String
+  organizationId String?
+  userId         String?
+  roleName       String?
+  allowed        Boolean  @default(true)
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([moduleKey])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([roleName])
+  @@unique([moduleKey, organizationId, userId, roleName])
 }
 
 model AudioCategory {
@@ -497,6 +522,15 @@ model MaintenanceBackup {
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status, createdAt])
+}
+
+model AccessSettings {
+  id                    String   @id @default("singleton")
+  roleDefaults          Json
+  organizationOverrides Json
+  organizationRoleDefaults Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model SystemAuditEvent {

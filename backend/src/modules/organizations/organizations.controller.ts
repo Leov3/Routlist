@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -58,5 +58,15 @@ export class OrganizationsController {
     @Body() dto: UpdateOrganizationDto,
   ) {
     return this.organizationsService.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.organizationsService.remove(user, id);
+  }
+
+  @Get(':id/narrative-integrity')
+  narrativeIntegrity(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.organizationsService.narrativeIntegrity(user, id);
   }
 }

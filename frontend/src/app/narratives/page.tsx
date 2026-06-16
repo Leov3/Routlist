@@ -8,6 +8,7 @@ import { ProtectedPage } from "@/components/layout/ProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
+import type { AuthUser } from "@/types/routlis";
 import type {
   NarrativeListItem,
   NarrativeRunDetail,
@@ -18,6 +19,7 @@ export default function NarrativesPage() {
   const router = useRouter();
   const [narratives, setNarratives] = useState<NarrativeListItem[]>([]);
   const [runs, setRuns] = useState<NarrativeRunSummary[]>([]);
+  const [currentOrganizationId, setCurrentOrganizationId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [startingNarrativeId, setStartingNarrativeId] = useState<string | null>(null);
@@ -26,16 +28,31 @@ export default function NarrativesPage() {
     setLoading(true);
     setMessage(null);
 
-    const [narrativesResult, runsResult] = await Promise.allSettled([
+    const [sessionResult, narrativesResult, runsResult] = await Promise.allSettled([
+      api<{ user: AuthUser }>("/auth/me"),
       api<NarrativeListItem[]>("/narratives/active"),
       api<NarrativeRunSummary[]>("/narrative-runs"),
     ]);
 
-    setNarratives(
-      narrativesResult.status === "fulfilled" ? narrativesResult.value : [],
-    );
-    setRuns(runsResult.status === "fulfilled" ? runsResult.value : []);
-    if (narrativesResult.status === "rejected" || runsResult.status === "rejected") {
+    if (sessionResult.status === "fulfilled") {
+      setCurrentOrganizationId(sessionResult.value.user.organizationId);
+    } else {
+      setCurrentOrganizationId("");
+    }
+    const activeOrgId =
+      sessionResult.status === "fulfilled" ? sessionResult.value.user.organizationId : "";
+    const visibleNarratives =
+      narrativesResult.status === "fulfilled"
+        ? narrativesResult.value.filter((narrative) => narrative.organizationId === activeOrgId)
+        : [];
+    const visibleRuns =
+      runsResult.status === "fulfilled"
+        ? runsResult.value.filter((run) => run.organizationId === activeOrgId)
+        : [];
+
+    setNarratives(visibleNarratives);
+    setRuns(visibleRuns);
+    if (sessionResult.status === "rejected" || narrativesResult.status === "rejected" || runsResult.status === "rejected") {
       setMessage("No se pudieron cargar todas las narrativas disponibles.");
     }
     setLoading(false);
@@ -80,6 +97,10 @@ export default function NarrativesPage() {
           }
         />
 
+        <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+          Organización activa: <span className="font-medium text-on-surface">{currentOrganizationId || "—"}</span>
+        </div>
+
         {message ? (
           <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
             {message}
@@ -122,6 +143,12 @@ export default function NarrativesPage() {
                           </h3>
                           <p className="mt-1 line-clamp-3 text-sm text-on-surface-variant">
                             {narrative.description || "Sin descripción"}
+                          </p>
+                          <p className="mt-2 text-xs text-on-surface-variant">
+                            Organización:{" "}
+                            <span className="font-medium text-on-surface">
+                              {narrative.organization?.name ?? "—"}
+                            </span>
                           </p>
                         </div>
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-tertiary text-on-tertiary">
@@ -195,6 +222,12 @@ export default function NarrativesPage() {
                       <h3 className="mt-1 text-base font-semibold text-on-surface">
                         {run.narrative.title}
                       </h3>
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        Organización:{" "}
+                        <span className="font-medium text-on-surface">
+                          {run.narrative.organization?.name ?? "—"}
+                        </span>
+                      </p>
                       <p className="mt-1 text-sm text-on-surface-variant">
                         Iniciada v{run.narrativeVersion.versionNumber}
                       </p>

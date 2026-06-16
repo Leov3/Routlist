@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -22,6 +23,7 @@ import { AudioGenerationModule } from './modules/audio-generation/audio-generati
 import { NarrativesModule } from './modules/narratives/narratives.module';
 import { NarrativeRunsModule } from './modules/narrative-runs/narrative-runs.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { AccessSettingsModule } from './modules/access-settings/access-settings.module';
 
 @Module({
   imports: [
@@ -48,6 +50,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
     NarrativesModule,
     NarrativeRunsModule,
     MaintenanceModule,
+    AccessSettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

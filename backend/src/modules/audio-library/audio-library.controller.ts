@@ -17,6 +17,7 @@ import { ApiBody, ApiConsumes, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { createReadStream } from 'fs';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AccessModule } from '../../common/decorators/access-module.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -28,6 +29,7 @@ import { UpdateAudioAssetDto } from './dto/update-audio-asset.dto';
 @ApiTags('audio-assets')
 @ApiCookieAuth('cookie')
 @Controller('audio-assets')
+@AccessModule('admin.audios')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AudioLibraryController {
   constructor(private readonly audioLibraryService: AudioLibraryService) {}

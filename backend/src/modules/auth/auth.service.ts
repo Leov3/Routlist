@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../shared/types/authenticated-user';
 import { PERMISSIONS, GLOBAL_ROLE_NAME } from '../../shared/constants/rbac.constants';
 import { LoginDto } from './dto/login.dto';
+import { AccessSettingsService } from '../access-settings/access-settings.service';
 
 type SessionResult = {
   accessToken: string;
@@ -26,6 +27,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly accessSettingsService: AccessSettingsService,
   ) {}
 
   async login(loginDto: LoginDto, context: SessionContext = {}): Promise<SessionResult> {
@@ -67,7 +69,12 @@ export class AuthService {
       throw new UnauthorizedException('User has no active organization');
     }
 
-    return this.createSession(user.id, member.organizationId, member, context);
+    const permissions = await this.accessSettingsService.resolveEffectivePermissions(
+      member.role.name,
+      member.organizationId,
+    );
+
+    return this.createSession(user.id, member.organizationId, member.role.name, permissions, context);
   }
 
   async switchOrganization(
@@ -78,16 +85,12 @@ export class AuthService {
       throw new ForbiddenException('Only OWNER can switch organizations');
     }
 
+    const permissions = [...PERMISSIONS];
     return this.createSession(
       currentUser.id,
       organizationId,
-      {
-        organizationId,
-        role: {
-          name: GLOBAL_ROLE_NAME,
-          permissions: [...PERMISSIONS].map((key) => ({ permission: { key } })),
-        },
-      },
+      GLOBAL_ROLE_NAME,
+      permissions,
       undefined,
       currentUser.sessionId,
     );
@@ -104,11 +107,12 @@ export class AuthService {
         userId: currentUser.id,
         isActive: true,
       },
-      data: {
-        isActive: false,
-        revokedAt: new Date(),
-        revokedReason: 'logout',
-      },
+        data: {
+          isActive: false,
+          status: 'REVOKED',
+          revokedAt: new Date(),
+          revokedReason: 'logout',
+        },
     });
 
     return { ok: true };
@@ -131,13 +135,8 @@ export class AuthService {
   private async createSession(
     userId: string,
     organizationId: string,
-    organizationMember?: {
-      organizationId: string;
-      role: {
-        name: string;
-        permissions: { permission: { key: string } }[];
-      };
-    },
+    role: string,
+    permissions: string[],
     context: SessionContext = {},
     reuseSessionId?: string,
   ): Promise<SessionResult> {
@@ -149,7 +148,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid session');
     }
 
-    if (organizationMember?.role.name === GLOBAL_ROLE_NAME) {
+    if (role === GLOBAL_ROLE_NAME) {
       const organization = await this.prisma.organization.findFirst({
         where: {
           id: organizationId,
@@ -166,42 +165,17 @@ export class AuthService {
         user,
         organization.id,
         GLOBAL_ROLE_NAME,
-        [...PERMISSIONS],
+        permissions,
         context,
         reuseSessionId,
       );
     }
 
-    const member =
-      organizationMember ??
-      (await this.prisma.organizationMember.findFirst({
-        where: {
-          organizationId,
-          userId,
-          status: 'ACTIVE',
-          organization: { status: 'ACTIVE' },
-          user: { status: 'ACTIVE' },
-        },
-        include: {
-          role: {
-            include: {
-              permissions: {
-                include: { permission: true },
-              },
-            },
-          },
-        },
-      }));
-
-    if (!member) {
-      throw new UnauthorizedException('Invalid session');
-    }
-
     return this.issueSession(
       user,
-      member.organizationId,
-      member.role.name,
-      member.role.permissions.map(({ permission }) => permission.key),
+      organizationId,
+      role,
+      permissions,
       context,
       reuseSessionId,
     );
@@ -250,6 +224,7 @@ export class AuthService {
           },
           data: {
             isActive: false,
+            status: 'REVOKED',
             revokedAt: new Date(),
             revokedReason: 'replaced-by-new-session',
           },

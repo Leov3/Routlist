@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
 import { NarrativeCreateForm } from "@/components/narratives/NarrativeCreateForm";
@@ -22,7 +22,7 @@ export default function AdminNarrativesNewPage() {
   }
 
   return (
-    <ProtectedPage requiredPermissions={["narratives:create"]}>
+    <AdminProtectedPage>
       <div className="space-y-6">
         <PageHeader
           title="Nueva narrativa"
@@ -70,6 +70,6 @@ export default function AdminNarrativesNewPage() {
           </section>
         </div>
       </div>
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }

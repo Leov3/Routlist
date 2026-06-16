@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AccessModule } from '../../common/decorators/access-module.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -21,6 +22,7 @@ import { NarrativeRunsService } from './narrative-runs.service';
 @ApiTags('narrative-runs')
 @ApiCookieAuth('cookie')
 @Controller('narrative-runs')
+@AccessModule('admin.narratives')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class NarrativeRunsController {
   constructor(private readonly narrativeRunsService: NarrativeRunsService) {}

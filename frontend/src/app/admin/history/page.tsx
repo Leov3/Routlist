@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
@@ -19,7 +19,7 @@ export default function HistoryPage() {
   }, []);
 
   return (
-    <ProtectedPage requiredPermissions={["history:read"]}>
+    <AdminProtectedPage>
       <PageHeader title="Historial" description="Ultimas reproducciones registradas." />
       {loading ? (
         <DataState>Cargando historial...</DataState>
@@ -55,6 +55,6 @@ export default function HistoryPage() {
       ) : (
         <DataState>No hay reproducciones registradas.</DataState>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }

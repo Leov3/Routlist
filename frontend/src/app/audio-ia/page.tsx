@@ -100,6 +100,7 @@ export default function AudioIAPage() {
   const [generating, setGenerating] = useState(false);
   const [creatingButton, setCreatingButton] = useState(false);
   const [integrationError, setIntegrationError] = useState<string | null>(null);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<AudioGenerationLibraryItem | null>(null);
   const [selectedJob, setSelectedJob] = useState<AudioGenerationJob | null>(null);
@@ -114,11 +115,15 @@ export default function AudioIAPage() {
   async function loadLookups() {
     setLoadingLookup(true);
     setIntegrationError(null);
+    setCategoryError(null);
     try {
       const [voicesResult, modelsResult, categoriesResult, currentUser, preferences] = await Promise.all([
         api<{ voices: VoiceOption[] }>("/integrations/elevenlabs/voices"),
         api<{ models: ModelOption[] }>("/integrations/elevenlabs/models"),
-        api<AudioCategory[]>("/audio-categories"),
+        api<AudioCategory[]>("/audio-categories").catch((error) => {
+          setCategoryError(error instanceof Error ? error.message : "No se pudieron cargar las categorías.");
+          return [] as AudioCategory[];
+        }),
         getCurrentUser(),
         api<AudioGenerationPreferences>("/me/audio-generation-preferences"),
       ]);
@@ -148,7 +153,9 @@ export default function AudioIAPage() {
     } catch (error) {
       setIntegrationError(
         error instanceof Error
-          ? error.message
+          ? error.message === "Forbidden resource"
+            ? "No tienes acceso a algunas dependencias de Audio IA."
+            : error.message
           : "No se pudo cargar la configuración de ElevenLabs o el usuario actual.",
       );
     } finally {
@@ -501,6 +508,13 @@ export default function AudioIAPage() {
             {integrationError}
           </div>
         ) : null}
+        {!integrationError && categoryError ? (
+          <div className="rounded-[24px] border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {categoryError === "Forbidden resource"
+              ? "No tienes acceso a categorías. Puedes generar audio, pero no convertirlo en botón sin ese permiso."
+              : categoryError}
+          </div>
+        ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,.8fr)]">
           <section className="space-y-6">
@@ -533,15 +547,15 @@ export default function AudioIAPage() {
                   />
                 </label>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <label className="grid gap-1.5">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.9fr)]">
+                  <label className="grid min-w-0 gap-1.5">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
                       Voz ElevenLabs
                     </span>
                     <select
                       value={voiceId}
                       onChange={(event) => setVoiceId(event.target.value)}
-                      className="h-11 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-primary"
+                      className="h-11 w-full min-w-0 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-primary"
                       disabled={!voices.length}
                     >
                       {!voices.length ? <option value="">Sin voces disponibles</option> : null}
@@ -553,14 +567,14 @@ export default function AudioIAPage() {
                     </select>
                   </label>
 
-                  <label className="grid gap-1.5">
+                  <label className="grid min-w-0 gap-1.5">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
                       Modelo
                     </span>
                     <select
                       value={modelId}
                       onChange={(event) => setModelId(event.target.value)}
-                      className="h-11 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-primary"
+                      className="h-11 w-full min-w-0 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-primary"
                       disabled={!models.length}
                     >
                       {!models.length ? <option value="">Sin modelos disponibles</option> : null}
@@ -572,14 +586,14 @@ export default function AudioIAPage() {
                     </select>
                   </label>
 
-                  <label className="grid gap-1.5">
+                  <label className="grid min-w-0 gap-1.5 md:col-span-2 xl:col-span-1">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
                       Formato
                     </span>
                     <select
                       value={outputFormat}
                       onChange={(event) => setOutputFormat(event.target.value)}
-                      className="h-11 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-primary"
+                      className="h-11 w-full min-w-0 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none transition-colors focus:border-primary"
                     >
                       <option value="mp3_44100_128">mp3_44100_128</option>
                       <option value="mp3_44100_192">mp3_44100_192</option>

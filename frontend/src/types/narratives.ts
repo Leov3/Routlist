@@ -127,6 +127,10 @@ export type NarrativeRunSummary = {
     id: string;
     title: string;
     status: NarrativeStatus;
+    organization?: {
+      id: string;
+      name: string;
+    };
   };
   narrativeVersion: {
     id: string;
@@ -146,6 +150,11 @@ export type NarrativeSummary = {
   title: string;
   description?: string | null;
   status: NarrativeStatus;
+  organizationId?: string;
+  organization?: {
+    id: string;
+    name: string;
+  };
   createdAt: string;
   updatedAt: string;
   publishedVersionId?: string | null;

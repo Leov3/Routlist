@@ -15,7 +15,7 @@ import {
   Server,
   Users,
 } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api, formatBytes } from "@/lib/api";
@@ -278,7 +278,7 @@ export default function AdminDashboardPage() {
   const diskRows = useMemo(() => buildDiskRows(storage), [storage]);
 
   return (
-    <ProtectedPage allowedRoles={["OWNER", "ADMIN", "SUPERVISOR"]}>
+    <AdminProtectedPage>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
           title="Estadisticas"
@@ -437,7 +437,7 @@ export default function AdminDashboardPage() {
           </section>
         </div>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }
 

@@ -43,6 +43,12 @@ export class NarrativeRunsService {
             id: true,
             title: true,
             status: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         narrativeVersion: {
@@ -232,6 +238,12 @@ export class NarrativeRunsService {
             title: true,
             description: true,
             status: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         narrativeVersion: {

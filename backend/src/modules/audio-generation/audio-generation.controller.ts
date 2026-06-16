@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AccessModule } from '../../common/decorators/access-module.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -22,6 +23,7 @@ import { AudioGenerationService } from './audio-generation.service';
 @ApiTags('audio-generation')
 @ApiCookieAuth('cookie')
 @Controller('audio-generation')
+@AccessModule('admin.audios')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AudioGenerationController {
   constructor(private readonly audioGenerationService: AudioGenerationService) {}
@@ -85,4 +87,3 @@ export class AudioGenerationController {
     return this.audioGenerationService.delete(user, id);
   }
 }
-

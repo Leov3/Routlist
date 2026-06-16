@@ -9,7 +9,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api, formatBytes } from "@/lib/api";
@@ -143,7 +143,7 @@ export default function StoragePage() {
   }
 
   return (
-    <ProtectedPage allowedRoles={["OWNER"]}>
+    <AdminProtectedPage>
       <PageHeader
         title="Almacenamiento de audios"
         description="Gestion masiva de audios, estado y consumo de disco."
@@ -293,7 +293,7 @@ export default function StoragePage() {
       ) : (
         <DataState>No hay audios para gestionar.</DataState>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, PlugZap, RefreshCw, ShieldAlert, Sparkles, ToggleLeft } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -429,7 +429,7 @@ export default function IntegrationsSettingsPage() {
   }
 
   return (
-    <ProtectedPage requiredPermissions={["integration:manage"]}>
+    <AdminProtectedPage>
       <PageHeader
         title="Integraciones"
         description="Configura ElevenLabs por organización para pruebas y futuras generaciones de audio."
@@ -842,7 +842,7 @@ export default function IntegrationsSettingsPage() {
           </aside>
         </div>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }
 

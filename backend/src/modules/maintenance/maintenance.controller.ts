@@ -19,6 +19,7 @@ import { tmpdir } from 'os';
 import { diskStorage } from 'multer';
 import { join } from 'path';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AccessModule } from '../../common/decorators/access-module.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
 import { CreateMaintenanceBackupDto } from './dto/create-maintenance-backup.dto';
@@ -31,6 +32,7 @@ const RESTORE_UPLOAD_DIR = join(tmpdir(), 'routlis-maintenance-restore');
 @ApiTags('maintenance')
 @ApiCookieAuth('cookie')
 @Controller('maintenance')
+@AccessModule('admin.maintenance')
 @UseGuards(JwtAuthGuard)
 export class MaintenanceController {
   constructor(private readonly maintenanceService: MaintenanceService) {}

@@ -23,6 +23,7 @@ import {
   Sparkles,
   Settings,
   Sun,
+  ShieldCheck,
   Workflow,
   User,
   Users,
@@ -38,26 +39,28 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
   permissions?: string[];
   roles?: string[];
+  group?: "operation" | "access" | "platform" | "content" | "system";
 };
 
 const navItems: NavItem[] = [
-  { href: "/narratives", label: "Narrativas", icon: Workflow, permissions: ["narratives:run"] },
-  { href: "/audio-ia", label: "Audio IA", icon: Sparkles, permissions: ["audio:generate"] },
-  { href: "/board", label: "Botonera", icon: PanelTop, permissions: ["board:use"] },
+  { href: "/board", label: "Botonera", icon: PanelTop, permissions: ["board:use"], group: "operation" },
+  { href: "/audio-ia", label: "Audio IA", icon: Sparkles, permissions: ["audio:generate"], group: "operation" },
+  { href: "/narratives", label: "Narrativas", icon: Workflow, permissions: ["narratives:run"], group: "operation" },
 ];
 
 const adminItems: NavItem[] = [
-  { href: "/admin",           label: "Estadísticas",    icon: Gauge,     roles: ["OWNER","ADMIN","SUPERVISOR"] },
-  { href: "/admin/organizations", label: "Organizaciones", icon: Database, roles: ["OWNER"] },
-  { href: "/admin/audios",    label: "Audios",           icon: Library,   permissions: ["audio:create"] },
-  { href: "/admin/storage",   label: "Almacenamiento",   icon: HardDrive, roles: ["OWNER"] },
-  { href: "/admin/maintenance", label: "Migraciones y backup", icon: Database, roles: ["OWNER"] },
-  { href: "/admin/categories",label: "Categorías",       icon: ListMusic, permissions: ["category:create"] },
-  { href: "/admin/narratives",label: "Narrativas",       icon: Workflow,  permissions: ["narratives:view"] },
-  { href: "/admin/buttons",   label: "Botones",          icon: PanelTop,  permissions: ["button:create"] },
-  { href: "/admin/integraciones", label: "Integraciones", icon: Zap, permissions: ["integration:manage"] },
-  { href: "/admin/users",     label: "Usuarios",         icon: Users,     permissions: ["user:create"] },
-  { href: "/admin/history",   label: "Historial",        icon: History,   permissions: ["history:read"] },
+  { href: "/admin/access",    label: "Accesos",         icon: ShieldCheck, roles: ["OWNER"], group: "access" },
+  { href: "/admin",           label: "Estadísticas",    icon: Gauge,     roles: ["OWNER","ADMIN","SUPERVISOR"], group: "platform" },
+  { href: "/admin/organizations", label: "Organizaciones", icon: Database, roles: ["OWNER"], group: "platform" },
+  { href: "/admin/users",     label: "Usuarios",         icon: Users,     permissions: ["user:create"], group: "platform" },
+  { href: "/admin/integraciones", label: "Integraciones", icon: Zap, permissions: ["integration:manage"], group: "system" },
+  { href: "/admin/audios",    label: "Audios",           icon: Library,   permissions: ["audio:create"], group: "content" },
+  { href: "/admin/categories",label: "Categorías",       icon: ListMusic, permissions: ["category:create"], group: "content" },
+  { href: "/admin/buttons",   label: "Botones",          icon: PanelTop,  permissions: ["button:create"], group: "content" },
+  { href: "/admin/narratives",label: "Narrativas",       icon: Workflow,  permissions: ["narratives:view"], group: "content" },
+  { href: "/admin/storage",   label: "Almacenamiento",   icon: HardDrive, roles: ["OWNER"], group: "system" },
+  { href: "/admin/maintenance", label: "Migraciones y backup", icon: Database, roles: ["OWNER"], group: "system" },
+  { href: "/admin/history",   label: "Historial",        icon: History,   permissions: ["history:read"], group: "system" },
 ];
 
 function canSeeNavItem(user: AuthUser, item: NavItem) {
@@ -69,6 +72,7 @@ function canSeeNavItem(user: AuthUser, item: NavItem) {
 }
 
 const SIDEBAR_COLLAPSED_KEY = "routlis.sidebar.collapsed";
+const UI_DENSITY_KEY = "routlis.ui.density";
 
 // ─── Topbar (inside sidebar layout) ──────────────────────────────────────────
 function TopbarControls({
@@ -173,10 +177,22 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   const [adminOpen, setAdminOpen] = useState(pathname.startsWith("/admin"));
   const [collapsed, setCollapsed] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
+  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const pageTitle = getPageTitle(pathname);
-
+  const groupedMainItems = navItems.reduce<Record<string, NavItem[]>>((acc, item) => {
+    const group = item.group ?? "operation";
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(item);
+    return acc;
+  }, {});
   const visibleAdminItems = adminItems.filter((item) => canSeeNavItem(user, item));
   const canSeeAdmin = visibleAdminItems.length > 0;
+  const groupedAdminItems = visibleAdminItems.reduce<Record<string, NavItem[]>>((acc, item) => {
+    const group = item.group ?? "platform";
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(item);
+    return acc;
+  }, {});
 
   const sidebarW = collapsed ? "w-[72px]" : "w-[260px]";
   const sidebarWidth = collapsed ? 72 : 260;
@@ -186,15 +202,23 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     if (saved === "true") {
       setCollapsed(true);
     }
+    const savedDensity = window.localStorage.getItem(UI_DENSITY_KEY);
+    if (savedDensity === "compact") {
+      setDensity("compact");
+    }
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
   }, [collapsed]);
 
+  useEffect(() => {
+    window.localStorage.setItem(UI_DENSITY_KEY, density);
+  }, [density]);
+
   return (
     <div
-      className="flex h-screen overflow-hidden bg-surface"
+      className={`flex h-screen overflow-hidden bg-surface ${density === "compact" ? "text-[0.98rem]" : ""}`}
       style={{ "--routlis-sidebar-width": `${sidebarWidth}px` } as CSSProperties}
     >
       {/* ── Sidebar ── */}
@@ -220,24 +244,41 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
         {/* Nav */}
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-3 py-4">
           {/* Main items */}
-          {navItems
-            .filter((item) => canSeeNavItem(user, item))
-            .map((item) => {
-              const Icon = item.icon;
-              const active = pathname === item.href;
-              return (
-                <Link key={item.href} href={item.href}
-                  title={collapsed ? item.label : undefined}
-                  className={`flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all duration-200 ${
-                    active
-                      ? "nav-active text-primary"
-                      : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-                  }`}>
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
+          {Object.entries(groupedMainItems).map(([group, items]) => {
+            const visibleItems = items.filter((item) => canSeeNavItem(user, item));
+            if (!visibleItems.length) return null;
+
+            return (
+              <div key={group} className="mb-1">
+                {!collapsed && (
+                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant/70">
+                    Operación
+                  </p>
+                )}
+                <div className="flex flex-col gap-1">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        title={collapsed ? item.label : undefined}
+                        className={`flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all duration-200 ${
+                          active
+                            ? "nav-active text-primary"
+                            : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
 
           {/* Admin group */}
           {canSeeAdmin && (
@@ -261,19 +302,39 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 
               {adminOpen && !collapsed && (
                 <div className="mt-1 ml-3 flex flex-col gap-0.5 border-l-2 border-outline-variant pl-3">
-                  {visibleAdminItems.map((item) => {
-                    const Icon = item.icon;
-                    const active = pathname === item.href;
+                  {(["operation", "access", "platform", "content", "system"] as const).map((group) => {
+                    const items = groupedAdminItems[group] ?? [];
+                    if (!items.length) return null;
+                    const title = {
+                      operation: "Operación",
+                      access: "Acceso",
+                      platform: "Plataforma",
+                      content: "Contenido",
+                      system: "Sistema",
+                    }[group];
                     return (
-                      <Link key={item.href} href={item.href}
-                        className={`flex h-9 items-center gap-3 rounded-lg px-2.5 text-sm transition-all duration-200 ${
-                          active
-                            ? "bg-primary/15 font-semibold text-primary"
-                            : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-                        }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${active ? "bg-primary" : "bg-outline"}`} />
-                        <span className="truncate">{item.label}</span>
-                      </Link>
+                      <div key={group} className="mb-2">
+                        <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant/70">
+                          {title}
+                        </p>
+                        <div className="flex flex-col gap-0.5">
+                          {items.map((item) => {
+                            const Icon = item.icon;
+                            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                            return (
+                              <Link key={item.href} href={item.href}
+                                className={`flex h-9 items-center gap-3 rounded-lg px-2.5 text-sm transition-all duration-200 ${
+                                  active
+                                    ? "bg-primary/15 font-semibold text-primary"
+                                    : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                                }`}>
+                                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${active ? "bg-primary" : "bg-outline"}`} />
+                                <span className="truncate">{item.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -298,7 +359,13 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 
         {/* User pill */}
         {!collapsed && (
-          <div className="mx-3 mb-3 flex items-center gap-2 rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
+          <button
+            type="button"
+            onClick={() => setAccountSettingsOpen(true)}
+            className="mx-3 mb-3 flex items-center gap-2 rounded-xl border border-outline-variant bg-surface-container px-3 py-2 text-left transition-colors hover:border-primary hover:bg-surface-container-high"
+            aria-label="Abrir configuración de cuenta"
+            title="Configuración de cuenta"
+          >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary text-xs font-bold">
               {user.fullName.charAt(0).toUpperCase()}
             </span>
@@ -307,7 +374,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">{user.role}</p>
             </div>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-on-surface-variant" />
-          </div>
+          </button>
         )}
 
         {/* Collapse toggle */}
@@ -342,8 +409,8 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
         </header>
 
 {/* Scrollable content */}
-         <main className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-           <div className="flex-1 p-6 lg:p-8">{children}</div>
+        <main className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
+           <div className={`flex-1 ${density === "compact" ? "p-4 lg:p-6" : "p-6 lg:p-8"}`}>{children}</div>
          </main>
       </div>
 
@@ -352,6 +419,8 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
         open={accountSettingsOpen}
         theme={theme as "system" | "light" | "dark" | undefined}
         setTheme={setTheme}
+        density={density}
+        setDensity={setDensity}
         sidebarCollapsed={collapsed}
         setSidebarCollapsed={setCollapsed}
         onClose={() => setAccountSettingsOpen(false)}
