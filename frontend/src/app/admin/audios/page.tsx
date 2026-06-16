@@ -9,6 +9,7 @@ import { SearchBar } from "@/components/ui/SearchBar";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api, formatBytes } from "@/lib/api";
+import { AudioCsvButtonCreationModal } from "@/components/audio-board/AudioCsvButtonCreationModal";
 import { AudioCsvImportModal } from "@/components/audio-board/AudioCsvImportModal";
 import { AudioManualCreationModal } from "@/components/audio-board/AudioManualCreationModal";
 import type { AudioAsset, AudioCategory } from "@/types/routlis";
@@ -78,6 +79,8 @@ export default function AudiosPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualAssets, setManualAssets] = useState<AudioAsset[]>([]);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [csvButtonOpen, setCsvButtonOpen] = useState(false);
+  const [csvButtonQueue, setCsvButtonQueue] = useState<CsvImportQueueItem[]>([]);
 
   async function load() {
     try { setAudios(await api<AudioAsset[]>("/audio-assets")); }
@@ -626,12 +629,28 @@ export default function AudiosPage() {
         busy={csvImporting}
         onConfirmImport={async () => {
           const result = await confirmCsvImport();
-          setManualAssets(result.assets ?? []);
-          setManualOpen((result.assets ?? []).length > 0);
+          const nextQueue = result.queue ?? [];
+          setCsvButtonQueue(nextQueue);
+          setCsvButtonOpen(nextQueue.some((item) => Boolean(item.assetId)));
           setCsvOpen(false);
           return result;
         }}
         onClose={() => setCsvOpen(false)}
+      />
+
+      <AudioCsvButtonCreationModal
+        open={csvButtonOpen}
+        queue={csvButtonQueue}
+        categories={categories}
+        onClose={() => {
+          setCsvButtonOpen(false);
+          setCsvButtonQueue([]);
+        }}
+        onFinished={() => {
+          setCsvButtonOpen(false);
+          setCsvButtonQueue([]);
+          void load();
+        }}
       />
 
       <AudioManualCreationModal
