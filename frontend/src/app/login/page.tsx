@@ -176,39 +176,6 @@ export default function LoginPage() {
             Organiza, reproduce y distribuye tu audio en vivo o por programación. Simple, rápido y confiable.
           </p>
 
-          <div className="login-audio-preview">
-            <div className="login-play-tile">
-              {branding?.logoUrl ? (
-                <img
-                  src={apiUrl(branding.logoUrl)}
-                  alt={branding.platformName}
-                  className="h-full w-full rounded-2xl object-contain p-2"
-                />
-              ) : (
-                <svg viewBox="0 0 48 48" fill="none">
-                  <path
-                    d="M8 25.5h5.4c1.1 0 2-.7 2.3-1.8l2-8.3c.5-2.1 3.5-2.1 4 0l4.8 19.1c.5 2.1 3.5 2.1 4 0l2.8-11.2c.3-1.1 1.2-1.8 2.3-1.8H40"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              )}
-            </div>
-            <div>
-              <div className="login-track-title">
-                <span>{branding?.platformName ?? "Routlis"}</span>
-                <small>Plataforma</small>
-              </div>
-              <div className="login-track-meta">{branding?.tagline ?? "Control total de tu contenido de audio."}</div>
-              {branding?.platformName ? (
-                <div className="login-wave text-sm text-on-surface-variant" aria-hidden="true">
-                  Marca global activa
-                </div>
-              ) : null}
-            </div>
-          </div>
-
           <div className="login-metrics">
             <div className="login-metric">
               <div className="login-metric-icon">▥</div>
