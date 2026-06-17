@@ -395,7 +395,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                           </div>
                         </div>
 
-                        {group === "system" && (
+                        {group === "system" && user.role === "OWNER" && (
                           <div className="space-y-1">
                             <button
                               type="button"
