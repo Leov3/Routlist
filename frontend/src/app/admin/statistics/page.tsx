@@ -27,6 +27,8 @@ import type {
   AudioButton,
   AudioCategory,
   AuthUser,
+  MaintenanceStatus,
+  PlatformBranding,
   PlaybackEvent,
 } from "@/types/routlis";
 
@@ -123,6 +125,14 @@ export default function AdminDashboardPage() {
     checkedAt: null,
   });
   const [storage, setStorage] = useState<StorageHealth | null>(null);
+  const [maintenance, setMaintenance] = useState<MaintenanceStatus | null>(null);
+  const [branding, setBranding] = useState<PlatformBranding | null>(null);
+  const [mailCounts, setMailCounts] = useState({
+    templates: 0,
+    events: 0,
+    queue: 0,
+    logs: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
@@ -169,7 +179,21 @@ export default function AdminDashboardPage() {
       currentUser.role === "OWNER"
         ? api<StorageHealth>("/health/storage")
         : Promise.resolve(null),
-    ]).then(([audios, categories, buttons, users, history, invitesResult, storageResult]) => {
+      currentUser.role === "OWNER"
+        ? api<Array<{ key: string }>>("/admin/mail/templates")
+        : Promise.resolve([]),
+      currentUser.role === "OWNER"
+        ? api<Array<{ key: string }>>("/admin/mail/events")
+        : Promise.resolve([]),
+      currentUser.role === "OWNER"
+        ? api<Array<{ id: string; status?: string }>>("/admin/mail/queue")
+        : Promise.resolve([]),
+      currentUser.role === "OWNER"
+        ? api<MaintenanceStatus>("/maintenance/status").catch(() => null)
+        : Promise.resolve(null),
+      api<PlatformBranding>("/platform-branding/public").catch(() => null),
+    ]).then((results) => {
+      const [audios, categories, buttons, users, history, invitesResult, storageResult, templatesResult, eventsResult, queueResult, maintenanceResult, brandingResult] = results;
       setData({
         audios: audios.status === "fulfilled" ? audios.value : [],
         categories: categories.status === "fulfilled" ? categories.value : [],
@@ -179,6 +203,14 @@ export default function AdminDashboardPage() {
         invites: invitesResult.status === "fulfilled" ? invitesResult.value : [],
       });
       setStorage(storageResult.status === "fulfilled" ? storageResult.value : null);
+      setMailCounts({
+        templates: templatesResult.status === "fulfilled" ? templatesResult.value.length : 0,
+        events: eventsResult.status === "fulfilled" ? eventsResult.value.length : 0,
+        queue: queueResult.status === "fulfilled" ? queueResult.value.length : 0,
+        logs: history.status === "fulfilled" ? history.value.length : 0,
+      });
+      setMaintenance(maintenanceResult.status === "fulfilled" ? maintenanceResult.value : null);
+      setBranding(brandingResult.status === "fulfilled" ? brandingResult.value : null);
     });
   }
 
@@ -209,6 +241,30 @@ export default function AdminDashboardPage() {
         permission: "audio:create",
       },
       {
+        label: "Plantillas",
+        value: mailCounts.templates,
+        href: "/admin/mail/templates",
+        icon: Mail,
+        permission: "audio:update",
+        roles: ["OWNER"],
+      },
+      {
+        label: "Eventos mail",
+        value: mailCounts.events,
+        href: "/admin/mail/events",
+        icon: Mail,
+        permission: "audio:update",
+        roles: ["OWNER"],
+      },
+      {
+        label: "Cola mail",
+        value: mailCounts.queue,
+        href: "/admin/mail/queue",
+        icon: Mail,
+        permission: "audio:update",
+        roles: ["OWNER"],
+      },
+      {
         label: "Almacenamiento",
         value: storage ? formatBytes(storage.usage.audioAssetsBytes) : "-",
         href: "/admin/storage",
@@ -218,15 +274,23 @@ export default function AdminDashboardPage() {
       },
       {
         label: "Migraciones y backup",
-        value: "Admin",
+        value: maintenance ? `${maintenance.backups.length} backups` : "Admin",
         href: "/admin/maintenance",
         icon: Database,
         permission: "audio:update",
         roles: ["OWNER"],
       },
       {
+        label: "Branding",
+        value: branding?.platformName ?? "Routlis",
+        href: "/admin/platform",
+        icon: Server,
+        permission: "audio:update",
+        roles: ["OWNER"],
+      },
+      {
         label: "Correo",
-        value: "SMTP",
+        value: "Operativo",
         href: "/admin/mail",
         icon: Mail,
         permission: "audio:update",
@@ -255,13 +319,13 @@ export default function AdminDashboardPage() {
       },
       {
         label: "Historial",
-        value: counts.history,
+        value: mailCounts.logs + counts.history,
         href: "/admin/history",
         icon: History,
         permission: "history:read",
       },
     ],
-    [counts, storage],
+    [branding?.platformName, counts.audios, counts.categories, counts.buttons, counts.history, mailCounts.events, mailCounts.logs, mailCounts.queue, mailCounts.templates, maintenance, storage],
   );
 
   const visibleMetrics = metrics.filter((metric) =>
@@ -320,8 +384,8 @@ export default function AdminDashboardPage() {
     <AdminProtectedPage>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
-          title="Estadisticas"
-          description="Estado de la aplicacion y metricas operativas en tiempo real."
+          title="Estadísticas"
+          description="Estado real de Routlis: operación, contenido, sistema y branding global."
         />
         <button
           type="button"
@@ -368,6 +432,46 @@ export default function AdminDashboardPage() {
               }
             />
           </section>
+
+          {user?.role === "OWNER" ? (
+            <section className="grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
+              <div className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold tracking-tight text-on-surface">
+                    Sistema y marca
+                  </h2>
+                  <p className="text-sm text-on-surface-variant">
+                    Branding global, mail y mantenimiento.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <InfoTile label="Marca" value={branding?.platformName ?? "Sin configurar"} />
+                  <InfoTile label="Logo" value={branding?.logoUrl ? "Activo" : "Pendiente"} />
+                  <InfoTile label="Favicon" value={branding?.faviconUrl ? "Activo" : "Pendiente"} />
+                  <InfoTile label="Backups" value={maintenance ? String(maintenance.backups.length) : "-"} />
+                  <InfoTile label="Plantillas mail" value={String(mailCounts.templates)} />
+                  <InfoTile label="Eventos mail" value={String(mailCounts.events)} />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold tracking-tight text-on-surface">
+                    Cola y actividad de mail
+                  </h2>
+                  <p className="text-sm text-on-surface-variant">
+                    Envíos, reintentos y actividad reciente.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <InfoTile label="Cola" value={String(mailCounts.queue)} />
+                  <InfoTile label="Logs" value={String(mailCounts.logs)} />
+                  <InfoTile label="Pendientes" value={pendingInvites.length ? String(pendingInvites.length) : "0"} />
+                  <InfoTile label="Healthcheck" value={health.backend === "ok" ? "OK" : "Down"} />
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {visibleMetrics.map((metric) => {
@@ -549,6 +653,15 @@ function DiskSummary({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-outline-variant bg-surface-container-high p-4">
       <p className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">{label}</p>
       <p className="mt-2 text-xl font-semibold tracking-tight text-on-surface">{value}</p>
+    </div>
+  );
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-outline-variant bg-surface-container-high p-4">
+      <p className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">{label}</p>
+      <p className="mt-2 text-base font-semibold tracking-tight text-on-surface">{value}</p>
     </div>
   );
 }
