@@ -15,7 +15,7 @@ import {
 } from "@/lib/access-presets";
 import type { Organization } from "@/types/routlis";
 
-const ROLE_OPTIONS = ["ADMIN", "SUPERVISOR", "OPERATOR"] as const;
+const ROLE_OPTIONS = ["OWNER", "ADMIN", "SUPERVISOR", "OPERATOR"] as const;
 
 const GROUPS = [
   { key: "operation", label: "Operación", match: (moduleKey: string) => ["board.use", "audio.generate", "narratives.run"].includes(moduleKey) },
