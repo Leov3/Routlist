@@ -7,6 +7,7 @@ import { PASSWORD_RESET_TTL_MINUTES, INVITE_TTL_HOURS } from './mail.constants';
 import { MailAuditService } from './mail-audit.service';
 import { MailSettingsService } from './mail-settings.service';
 import { MailTemplateService } from './mail-template.service';
+import { MAIL_VARIABLE_CATALOG } from './mail.variables';
 import { SmtpMailProvider } from './providers/smtp-mail.provider';
 import type { SendTemplatePreviewDto } from './dto/send-template-preview.dto';
 import type {
@@ -141,6 +142,39 @@ export class MailService {
 
   async deleteTemplate(key: string) {
     return this.db().mailTemplate.delete({ where: { key } });
+  }
+
+  getVariableCatalog() {
+    return MAIL_VARIABLE_CATALOG;
+  }
+
+  async repairTemplates(user: AuthenticatedUser) {
+    const repaired = await Promise.all(
+      MAIL_TEMPLATE_SEEDS.map((template) =>
+        this.db().mailTemplate.upsert({
+          where: { key: template.key },
+          update: {
+            name: template.name,
+            description: template.description,
+            subject: template.subject,
+            htmlBody: template.htmlBody,
+            textBody: template.textBody,
+            isActive: template.isActive,
+            updatedByUserId: user.id,
+          },
+          create: {
+            ...template,
+            updatedByUserId: user.id,
+          },
+        }),
+      ),
+    );
+
+    return {
+      ok: true,
+      repairedCount: repaired.length,
+      keys: repaired.map((template) => template.key),
+    };
   }
 
   async listEvents() {
@@ -355,6 +389,7 @@ export class MailService {
       context: {
         userName: user.fullName,
         actionUrl,
+        resetUrl: actionUrl,
         expiresInMinutes: PASSWORD_RESET_TTL_MINUTES,
       },
     });
@@ -450,7 +485,7 @@ export class MailService {
   async createInvite(
     currentUser: AuthenticatedUser,
     organizationId: string,
-    input: { email: string; role: string },
+    input: { email: string; role: string; inviteeName?: string },
   ) {
     const organization = await this.prisma.organization.findFirst({
       where: { id: organizationId, status: 'ACTIVE' },
@@ -469,6 +504,7 @@ export class MailService {
       data: {
         organizationId,
         email: input.email.toLowerCase(),
+        inviteeName: input.inviteeName?.trim() || null,
         role: input.role,
         tokenHash,
         status: 'PENDING',
@@ -486,7 +522,10 @@ export class MailService {
       context: {
         organizationName: organization.name,
         inviterName: currentUser.fullName,
+        inviteeName: input.inviteeName?.trim() || input.email,
         actionUrl,
+        inviteUrl: actionUrl,
+        inviteCode: token,
         expiresInHours: INVITE_TTL_HOURS,
       },
     });
@@ -654,7 +693,10 @@ export class MailService {
       context: {
         organizationName: invite.organization.name,
         inviterName: currentUser.fullName,
+        inviteeName: invite.inviteeName ?? updated.email,
         actionUrl,
+        inviteUrl: actionUrl,
+        inviteCode: token,
         expiresInHours: INVITE_TTL_HOURS,
       },
     });

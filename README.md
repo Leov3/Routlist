@@ -69,6 +69,22 @@ Estado funcional actual:
 - Cuando hay muchas tarjetas, el contenido usa scroll interno sin mover el player.
 - El encabezado de `/board` quedó simplificado y muestra solo `/Botonera` junto al selector de vista.
 - Existe `/admin/integraciones` para configurar ElevenLabs por organización.
+- Existe `/admin/mail` como módulo de correo transaccional con navegación interna por sidebar:
+  - `/admin/mail/smtp`
+  - `/admin/mail/test`
+  - `/admin/mail/templates`
+  - `/admin/mail/events`
+  - `/admin/mail/logs`
+- El módulo de correo incluye:
+  - configuración SMTP persistente
+  - envíos de prueba
+  - editor de plantillas HTML, CSS y texto plano
+  - eventos activables o desactivables
+  - historial de correos con logs SMTP
+  - cola preparada para estados y reintentos
+- Las plantillas de correo comparten un catálogo de variables entre frontend y backend.
+- La vista de plantillas expone el catálogo de variables desde backend y permite restaurar las plantillas base de forma manual con un botón.
+- Las invitaciones de organización ya guardan `inviteeName` para alinear el nombre del invitado con el correo y la UI de admin.
 - Existe `/admin/maintenance` para revisar migraciones Prisma, crear backups y restaurar snapshots de base de datos y storage.
 - La API key de ElevenLabs se guarda cifrada en backend y nunca se expone completa al frontend.
 - La configuración de ElevenLabs es persistente por organización en PostgreSQL.
@@ -104,6 +120,8 @@ Prueba funcional frontend realizada:
 - `/board` permite alternar entre modo simple y modo 2 columnas.
 - `/admin/buttons` muestra la interfaz compacta actual.
 - `OWNER` ve almacenamiento en el sidebar y en `/admin`; otros roles no.
+- `/admin/organizations` y `/admin/users` incluyen nombre del invitado al crear invitaciones.
+- `/admin/mail/templates` consume el catálogo de variables desde backend y permite insertar/copiar etiquetas con la misma fuente de verdad.
 
 Entorno local recomendado:
 
@@ -219,13 +237,15 @@ docker compose -f docker-compose.prod.yml -p routlis up -d --build
 docker compose -f docker-compose.prod.yml -p routlis run --rm --no-deps backend npm run prisma:deploy
 ```
 
-5. Solo en el bootstrap inicial o si quieres resembrar datos demo:
+5. Si necesitas crear o validar la columna nueva de invitaciones en una base existente, la migración pendiente es la de `inviteeName` en `OrganizationInvite`.
+
+6. Solo en el bootstrap inicial o si quieres resembrar datos demo:
 
 ```bash
 docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:seed
 ```
 
-6. Verifica salud y acceso publico:
+7. Verifica salud y acceso publico:
 
 ```bash
 curl -fsS https://api.tudominio.com/health

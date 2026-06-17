@@ -76,6 +76,18 @@ export class MailController {
     return this.mailService.deleteTemplate(key);
   }
 
+  @Post('templates/fix')
+  repairTemplates(@CurrentUser() user: AuthenticatedUser) {
+    this.ensureOwner(user);
+    return this.mailService.repairTemplates(user);
+  }
+
+  @Get('variables')
+  listVariables(@CurrentUser() user: AuthenticatedUser) {
+    this.ensureOwner(user);
+    return this.mailService.getVariableCatalog();
+  }
+
   @Get('events')
   listEvents(@CurrentUser() user: AuthenticatedUser) {
     this.ensureOwner(user);

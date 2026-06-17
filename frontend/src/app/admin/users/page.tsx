@@ -23,6 +23,7 @@ type StatusFilter = "all" | "active" | "disabled";
 type OrganizationInvite = {
   id: string;
   email: string;
+  inviteeName?: string | null;
   role: string;
   status: string;
   expiresAt: string;
@@ -55,6 +56,7 @@ export default function UsersPage() {
     role: "OPERATOR",
   });
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteeName, setInviteeName] = useState("");
   const [inviteRole, setInviteRole] = useState("OPERATOR");
   const [invites, setInvites] = useState<OrganizationInvite[]>([]);
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -198,10 +200,12 @@ export default function UsersPage() {
         method: "POST",
         body: JSON.stringify({
           email: inviteEmail,
+          inviteeName,
           role: inviteRole,
         }),
       });
       setInviteEmail("");
+      setInviteeName("");
       setInviteRole("OPERATOR");
       await load();
     } catch (error) {
@@ -290,7 +294,7 @@ export default function UsersPage() {
             </span>
           </div>
 
-          <form onSubmit={createInvite} className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_auto]">
+          <form onSubmit={createInvite} className="mb-4 grid gap-3 md:grid-cols-[1fr_1fr_180px_auto]">
             <input
               value={inviteEmail}
               onChange={(event) => setInviteEmail(event.target.value)}
@@ -298,6 +302,13 @@ export default function UsersPage() {
               placeholder="usuario@correo.com"
               className="h-10 rounded-xl border border-outline px-3 text-sm"
               required
+            />
+            <input
+              value={inviteeName}
+              onChange={(event) => setInviteeName(event.target.value)}
+              type="text"
+              placeholder="Nombre de la persona"
+              className="h-10 rounded-xl border border-outline px-3 text-sm"
             />
             <select
               value={inviteRole}
@@ -336,6 +347,7 @@ export default function UsersPage() {
                     <tr key={invite.id} className="border-t border-outline-variant">
                       <td className="px-4 py-3">
                         <p className="font-medium">{invite.email}</p>
+                        <p className="text-xs text-on-surface-variant">{invite.inviteeName ?? "Sin nombre de invitado"}</p>
                         <p className="text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
                       </td>
                       <td className="px-4 py-3 text-on-surface-variant">{invite.role}</td>

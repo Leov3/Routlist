@@ -31,7 +31,8 @@ export class MailTemplateService {
             html: this.wrap(`
               <h1 style="margin:0 0 12px;font-size:22px;">Restablece tu contraseña</h1>
               <p style="margin:0 0 12px;">Recibimos una solicitud para cambiar tu contraseña en ${appName}.</p>
-              <p style="margin:0 0 16px;"><a href="{{actionUrl}}" style="display:inline-block;background:#7c3aed;color:#ffffff;padding:12px 18px;border-radius:10px;text-decoration:none;">Restablecer contraseña</a></p>
+              <p style="margin:0 0 16px;"><a href="{{resetUrl}}" style="display:inline-block;background:#7c3aed;color:#ffffff;padding:12px 18px;border-radius:10px;text-decoration:none;">Restablecer contraseña</a></p>
+              <p style="margin:0 0 16px;color:#6b7280;font-size:12px;">Si el botón no funciona, copia y pega este enlace en tu navegador:<br /><a href="{{resetUrl}}" style="color:#7c3aed;word-break:break-all;">{{resetUrl}}</a></p>
               <p style="margin:0 0 8px;">Este enlace vence en {{expiresInMinutes}} minutos.</p>
               <p style="margin:0;color:#6b7280;">Si no pediste este cambio, puedes ignorar este correo.</p>
             `),
@@ -39,7 +40,7 @@ export class MailTemplateService {
               `${appName} - Restablecer contraseña`,
               '',
               'Recibimos una solicitud para cambiar tu contraseña.',
-              'Abre este enlace: {{actionUrl}}',
+              'Abre este enlace: {{resetUrl}}',
               'Este enlace vence en {{expiresInMinutes}} minutos.',
               '',
               `Si no pediste este cambio, ignora este correo o escribe a ${supportEmail}.`,
@@ -60,16 +61,20 @@ export class MailTemplateService {
             subject: `${appName}: invitación para {{organizationName}}`,
             html: this.wrap(`
               <h1 style="margin:0 0 12px;font-size:22px;">Te invitaron a ${appName}</h1>
+              <p style="margin:0 0 12px;">Hola, {{inviteeName}}.</p>
               <p style="margin:0 0 12px;">{{inviterName}} te invitó a la organización {{organizationName}}.</p>
-              <p style="margin:0 0 16px;"><a href="{{actionUrl}}" style="display:inline-block;background:#7c3aed;color:#ffffff;padding:12px 18px;border-radius:10px;text-decoration:none;">Aceptar invitación</a></p>
+              <p style="margin:0 0 16px;"><a href="{{inviteUrl}}" style="display:inline-block;background:#7c3aed;color:#ffffff;padding:12px 18px;border-radius:10px;text-decoration:none;">Aceptar invitación</a></p>
+              <p style="margin:0 0 16px;color:#6b7280;font-size:12px;">Si el botón no funciona, copia y pega este enlace en tu navegador:<br /><a href="{{inviteUrl}}" style="color:#7c3aed;word-break:break-all;">{{inviteUrl}}</a></p>
               <p style="margin:0 0 8px;">Esta invitación vence en {{expiresInHours}} horas.</p>
               <p style="margin:0;color:#6b7280;">Si no reconoces esta invitación, ignora este correo.</p>
             `),
             text: [
               `${appName} - Invitación`,
               '',
+              'Hola, {{inviteeName}}.',
               '{{inviterName}} te invitó a la organización {{organizationName}}.',
-              'Acepta aquí: {{actionUrl}}',
+              'Acepta aquí: {{inviteUrl}}',
+              'Si el botón no funciona, copia y pega este enlace: {{inviteUrl}}',
               'Esta invitación vence en {{expiresInHours}} horas.',
               '',
               `Si no reconoces esta invitación, ignora este correo o escribe a ${supportEmail}.`,

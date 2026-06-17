@@ -18,6 +18,7 @@ type OrganizationForm = {
 type OrganizationInvite = {
   id: string;
   email: string;
+  inviteeName?: string | null;
   role: string;
   status: string;
   expiresAt: string;
@@ -49,6 +50,7 @@ export default function OrganizationsPage() {
   } | null>(null);
   const [inviteOrganizationId, setInviteOrganizationId] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteeName, setInviteeName] = useState("");
   const [inviteRole, setInviteRole] = useState("ADMIN");
   const [invites, setInvites] = useState<OrganizationInvite[]>([]);
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -218,10 +220,12 @@ export default function OrganizationsPage() {
         method: "POST",
         body: JSON.stringify({
           email: inviteEmail,
+          inviteeName,
           role: inviteRole,
         }),
       });
       setInviteEmail("");
+      setInviteeName("");
       setInviteRole("ADMIN");
       const data = await api<OrganizationInvite[]>(`/organizations/${inviteOrganizationId}/invites`);
       setInvites(data);
@@ -323,6 +327,16 @@ export default function OrganizationsPage() {
                 required
               />
             </label>
+            <label className="grid flex-1 gap-2 text-sm">
+              <span>Nombre del invitado</span>
+              <input
+                value={inviteeName}
+                onChange={(event) => setInviteeName(event.target.value)}
+                type="text"
+                className="h-10 rounded-xl border border-outline px-3"
+                placeholder="Nombre de la persona"
+              />
+            </label>
             <label className="grid gap-2 text-sm">
               <span>Rol</span>
               <select
@@ -373,10 +387,11 @@ export default function OrganizationsPage() {
               <tbody>
                 {invites.map((invite) => (
                   <tr key={invite.id} className="border-t border-outline-variant">
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{invite.email}</p>
-                      <p className="text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
-                    </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{invite.email}</p>
+                        <p className="text-xs text-on-surface-variant">{invite.inviteeName ?? "Sin nombre de invitado"}</p>
+                        <p className="text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
+                      </td>
                     <td className="px-4 py-3 text-on-surface-variant">{invite.role}</td>
                     <td className="px-4 py-3 text-on-surface-variant">{invite.status}</td>
                     <td className="px-4 py-3 text-on-surface-variant">

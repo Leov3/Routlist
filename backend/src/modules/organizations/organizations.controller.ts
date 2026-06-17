@@ -9,13 +9,18 @@ import { MailService } from '../mail/mail.service';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { IsEmail, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 class CreateInviteDto {
   @ApiProperty()
   @IsEmail()
   email!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  inviteeName?: string;
 
   @ApiProperty()
   @IsString()
