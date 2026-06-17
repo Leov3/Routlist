@@ -11,6 +11,7 @@ BACKUP_DIR="${BACKUP_DIR:-/opt/routlis/backups}"
 COMMAND="${1:-deploy}"
 SKIP_BACKUP="${SKIP_BACKUP:-0}"
 KEEP_BACKUPS="${KEEP_BACKUPS:-3}"
+RUN_CLEANUP_AFTER_DEPLOY="${RUN_CLEANUP_AFTER_DEPLOY:-1}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing env file: $ENV_FILE" >&2
@@ -142,6 +143,10 @@ deploy() {
     rollback "$backup_root"
     exit 1
   }
+
+  if [[ "$RUN_CLEANUP_AFTER_DEPLOY" == "1" ]]; then
+    cleanup_vps
+  fi
 }
 
 seed() {
