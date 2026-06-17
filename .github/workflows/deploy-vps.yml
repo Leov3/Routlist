@@ -22,6 +22,7 @@ jobs:
     env:
       VPS_ENV_FILE: /opt/routlis/.env
       VPS_CONNECT_TIMEOUT: 10
+      VPS_SSH_PORT: 2222
 
     defaults:
       run:
@@ -35,7 +36,7 @@ jobs:
           host="${host#https://}"
           port='${{ secrets.VPS_SSH_PORT }}'
           if [[ -z "$port" ]]; then
-            port=22
+            port="${VPS_SSH_PORT:-2222}"
           fi
           if [[ "$host" == *:* ]]; then
             port="${host##*:}"
@@ -76,7 +77,7 @@ jobs:
           host="${host#http://}"
           host="${host#https://}"
           port='${{ secrets.VPS_SSH_PORT }}'
-          port="${port:-22}"
+          port="${port:-${VPS_SSH_PORT:-2222}}"
           if [[ "$host" == *:* ]]; then
             port="${host##*:}"
             host="${host%:*}"
@@ -111,7 +112,7 @@ jobs:
           host="${host#http://}"
           host="${host#https://}"
           port='${{ secrets.VPS_SSH_PORT }}'
-          port="${port:-22}"
+          port="${port:-${VPS_SSH_PORT:-2222}}"
           if [[ "$host" == *:* ]]; then
             port="${host##*:}"
             host="${host%:*}"
@@ -146,7 +147,7 @@ jobs:
           host="${host#http://}"
           host="${host#https://}"
           port='${{ secrets.VPS_SSH_PORT }}'
-          port="${port:-22}"
+          port="${port:-${VPS_SSH_PORT:-2222}}"
           if [[ "$host" == *:* ]]; then
             port="${host##*:}"
             host="${host%:*}"
@@ -173,7 +174,7 @@ jobs:
           host="${host#http://}"
           host="${host#https://}"
           port='${{ secrets.VPS_SSH_PORT }}'
-          port="${port:-22}"
+          port="${port:-${VPS_SSH_PORT:-2222}}"
           if [[ "$host" == *:* ]]; then
             port="${host##*:}"
             host="${host%:*}"
