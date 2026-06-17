@@ -689,98 +689,6 @@
     letter-spacing: -.02em;
   }
 
-  .login-audio-preview {
-    width: min(560px, 100%);
-    display: grid;
-    grid-template-columns: 104px 1fr;
-    align-items: center;
-    gap: 22px;
-    padding: 20px;
-    border-radius: 22px;
-    border: 1px solid var(--login-surface-border);
-    background: var(--login-surface-bg);
-    box-shadow: var(--login-surface-shadow);
-  }
-
-  .login-play-tile {
-    width: 84px;
-    height: 84px;
-    border: 0;
-    border-radius: 14px;
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, #4f8cff, #8b5cf6);
-    color: var(--login-text);
-    cursor: pointer;
-    transition: transform .15s ease, filter .15s ease;
-  }
-
-  .login-play-tile:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.08);
-  }
-
-  .login-play-tile:active {
-    transform: translateY(1px);
-  }
-
-  .login-play-tile svg {
-    width: 40px;
-    height: 40px;
-  }
-
-  .login-track-title {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    color: var(--login-text);
-    font-size: 18px;
-    font-weight: 850;
-    letter-spacing: -.03em;
-    margin-bottom: 4px;
-  }
-
-  .login-track-title small {
-    color: var(--login-text-soft);
-    font-size: 14px;
-    font-weight: 700;
-    white-space: nowrap;
-    margin-top: 4px;
-  }
-
-  .login-track-meta {
-    color: var(--login-text-soft);
-    font-size: 14px;
-    margin-bottom: 13px;
-  }
-
-  .login-wave {
-    height: 30px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .login-wave span {
-    width: 4px;
-    height: var(--h);
-    border-radius: 999px;
-    background: linear-gradient(to top, #8b5cf6, #4f8cff);
-    opacity: .78;
-    transform-origin: center;
-  }
-
-  .login-audio-preview.playing .login-wave span {
-    animation: loginWavePulse 850ms ease-in-out infinite;
-    animation-delay: calc(var(--i) * 50ms);
-  }
-
-  @keyframes loginWavePulse {
-    0%, 100% { transform: scaleY(.75); opacity: .55; }
-    50% { transform: scaleY(1.15); opacity: 1; }
-  }
-
   .login-metrics {
     display: grid;
     grid-template-columns: repeat(3, minmax(0,1fr));
@@ -1163,9 +1071,6 @@
     .login-metrics {
       grid-template-columns: 1fr;
     }
-    .login-audio-preview {
-      grid-template-columns: 1fr;
-    }
     .login-auth-card {
       padding: 24px;
     }
@@ -1175,9 +1080,6 @@
     .login-spotlight,
     .login-spotlight-ring {
       display: none;
-    }
-    .login-audio-preview.playing .login-wave span {
-      animation: none;
     }
   }
 }
