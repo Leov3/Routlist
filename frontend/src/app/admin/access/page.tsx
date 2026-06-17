@@ -207,7 +207,7 @@ export default function AdminAccessPage() {
       />
 
       {error ? (
-        <div className="danger-surface mb-4 rounded-xl px-4 py-3 text-sm">
+        <div className="mb-4 rounded-xl border border-error/30 bg-error-container/20 px-4 py-3 text-sm text-error">
           {error}
         </div>
       ) : null}
@@ -250,7 +250,7 @@ export default function AdminAccessPage() {
 
             <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
               {mode === "organization" ? (
-                <div className="flex max-h-[calc(100dvh-18rem)] flex-col rounded-2xl border border-outline-variant bg-surface p-4">
+                <div className="flex max-h-[calc(100dvh-18rem)] flex-col rounded-2xl border border-outline-variant bg-surface-container-high p-4">
                   <div className="mb-3 flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
@@ -280,7 +280,7 @@ export default function AdminAccessPage() {
                 </div>
               ) : null}
 
-              <div className="rounded-2xl border border-outline-variant bg-surface p-4">
+              <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <UserRound className="h-4 w-4 text-primary" />
                   <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
@@ -314,7 +314,7 @@ export default function AdminAccessPage() {
 
             <div className="mt-5 grid gap-4">
               {groups.map((group) => (
-                <div key={group.key} className="rounded-2xl border border-outline-variant bg-surface p-4">
+                <div key={group.key} className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
                   <div className="mb-3 flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
@@ -336,8 +336,8 @@ export default function AdminAccessPage() {
                           aria-pressed={enabled}
                           aria-label={`${module.label} ${enabled ? "activado" : "desactivado"}`}
                           onClick={() => toggleModule(module.key)}
-                          className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition-colors ${
-                            enabled ? "border-primary/30 bg-primary/10" : "border-outline-variant bg-surface"
+                          className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition-all hover:border-primary/20 ${
+                            enabled ? "border-primary/40 bg-primary/10" : "border-outline-variant bg-surface-container"
                           }`}
                         >
                           <div className="min-w-0 flex-1">
@@ -359,8 +359,8 @@ export default function AdminAccessPage() {
                               }`}
                             >
                               <span
-                                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                                  enabled ? "translate-x-5" : "translate-x-0"
+                                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full shadow-sm transition-transform duration-200 ${
+                                  enabled ? "translate-x-5 bg-on-primary" : "translate-x-0 bg-on-surface-variant"
                                 }`}
                               />
                             </span>
@@ -418,7 +418,7 @@ export default function AdminAccessPage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant">
+            <div className="mt-4 rounded-2xl border border-outline-variant bg-surface-container-high p-4 text-sm text-on-surface-variant">
               {mode === "organization" ? (
                 <p>
                   Organización{" "}
@@ -434,11 +434,11 @@ export default function AdminAccessPage() {
               )}
             </div>
 
-            <div className="mt-4 grid gap-2 rounded-2xl border border-outline-variant bg-surface p-4 text-sm">
+            <div className="mt-4 grid gap-2 rounded-2xl border border-outline-variant bg-surface-container-high p-4 text-sm">
               {ACCESS_MODULES.map((module) => (
                 <div key={module.key} className="flex items-center justify-between gap-4">
                   <span className="text-on-surface-variant">{module.label}</span>
-                  <span className={`font-semibold ${effectiveModules[module.key] ? "text-[color:var(--success-text-muted)]" : "text-on-surface-variant"}`}>
+                  <span className={`font-semibold ${effectiveModules[module.key] ? "text-emerald-400" : "text-on-surface-variant"}`}>
                     {effectiveModules[module.key] ? "ON" : "OFF"}
                   </span>
                 </div>
