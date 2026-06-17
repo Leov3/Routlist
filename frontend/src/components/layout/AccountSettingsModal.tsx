@@ -104,11 +104,11 @@ export function AccountSettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center overflow-y-auto bg-black/50 px-3 py-3 backdrop-blur-md sm:items-center sm:px-4 sm:py-4"
+      className="fixed inset-0 z-[120] flex items-end justify-center overflow-y-auto bg-black/50 px-2 py-2 backdrop-blur-md sm:items-center sm:px-4 sm:py-4"
       onClick={onClose}
     >
       <div
-        className="surface-panel flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[24px] sm:max-h-[calc(100vh-2rem)] sm:rounded-[28px]"
+        className="surface-panel flex max-h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[22px] sm:max-h-[calc(100vh-2rem)] sm:rounded-[28px]"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex shrink-0 items-center justify-between border-b border-sidebar-border px-4 py-4 sm:px-5">
@@ -196,7 +196,7 @@ export function AccountSettingsModal({
             </div>
           </div>
 
-          <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
+          <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
             <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
               <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Tema</p>
               <div className="mt-3 grid gap-3">

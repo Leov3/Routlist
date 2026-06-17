@@ -3085,9 +3085,9 @@ if (loading) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col lg:grid lg:gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-x-hidden lg:grid lg:gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
       {/* Palette */}
-      <aside className="space-y-3 rounded-2xl border border-outline-variant bg-surface-container p-3 shadow-elevation-1 max-h-[300px] lg:max-h-none overflow-y-auto">
+      <aside className="max-h-[42vh] space-y-3 overflow-y-auto rounded-2xl border border-outline-variant bg-surface-container p-3 shadow-elevation-1 sm:max-h-[300px] lg:max-h-none">
         <div>
           <h2 className="text-sm font-semibold tracking-tight text-on-surface uppercase tracking-[0.1em]">
             Nodos
@@ -3386,12 +3386,12 @@ if (loading) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => void saveGraph()}
               disabled={saving}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70 sm:w-auto"
             >
               <Save className="h-3.5 w-3.5" />
               {saving ? "..." : "Guardar"}
@@ -3400,7 +3400,7 @@ if (loading) {
               type="button"
               onClick={() => void validateGraph()}
               disabled={working}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70 sm:w-auto"
             >
               <WandSparkles className="h-3.5 w-3.5" />
               Validar
@@ -3408,7 +3408,7 @@ if (loading) {
             <button
               type="button"
               onClick={() => autoLayoutNodes()}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
               title="Auto organizar nodos"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -3417,7 +3417,7 @@ if (loading) {
             <button
               type="button"
               onClick={duplicateFromPublished}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
             >
               <CopyPlus className="h-3.5 w-3.5" />
               Copiar pub.
@@ -3426,7 +3426,7 @@ if (loading) {
               type="button"
               onClick={() => void publishGraph()}
               disabled={working}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-semibold text-on-primary transition-transform hover:scale-[1.02] disabled:opacity-70"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-semibold text-on-primary transition-transform hover:scale-[1.02] disabled:opacity-70 sm:w-auto"
             >
               <FileDown className="h-3.5 w-3.5" />
               Publicar
@@ -3509,7 +3509,7 @@ if (loading) {
 
         {isValidationPanelOpen ? (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 flex justify-end">
-            <div className="pointer-events-auto w-full max-w-5xl rounded-[28px] border border-outline-variant bg-surface/95 p-4 shadow-elevation-3 backdrop-blur-sm">
+            <div className="pointer-events-auto w-full max-w-5xl rounded-[28px] border border-outline-variant bg-surface/95 p-3 shadow-elevation-3 backdrop-blur-sm sm:p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
@@ -3539,7 +3539,7 @@ if (loading) {
                 </div>
               </div>
 
-              <div className="mt-4 max-h-[65vh] overflow-y-auto pr-1">
+              <div className="mt-4 max-h-[58vh] overflow-y-auto pr-1 sm:max-h-[65vh]">
                 <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
                   <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">

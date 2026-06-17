@@ -156,7 +156,7 @@ export default function StoragePage() {
         description="Gestion masiva de audios, estado y consumo de disco."
       />
 
-      <section className="mb-5 grid gap-3 md:grid-cols-4">
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StorageCard
           label="Audios"
           value={formatBytes(storage?.usage.audioAssetsBytes ?? 0)}
@@ -183,7 +183,7 @@ export default function StoragePage() {
         />
       </section>
 
-      <section className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 xl:grid-cols-[1fr_180px_180px_auto_auto_auto]">
+      <section className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 sm:grid-cols-2 xl:grid-cols-[1fr_180px_180px_auto_auto_auto]">
         <label className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
           <input
@@ -243,7 +243,18 @@ export default function StoragePage() {
       {loading ? (
         <DataState>Cargando almacenamiento...</DataState>
       ) : filteredAudios.length ? (
-        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filteredAudios.map((audio) => (
+              <StorageAudioCard
+                key={audio.id}
+                audio={audio}
+                selected={selectedIds.includes(audio.id)}
+                onToggle={() => toggleSelection(audio.id)}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-xl border border-outline-variant bg-surface-container md:block">
           <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
@@ -316,7 +327,8 @@ export default function StoragePage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>No hay audios para gestionar.</DataState>
       )}
@@ -361,15 +373,71 @@ function StorageCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+    <div className="rounded-xl border border-outline-variant bg-surface-container p-3 shadow-sm sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-on-surface-variant">{label}</p>
         <HardDrive className="h-4 w-4 text-primary" />
       </div>
-      <p className="text-2xl font-semibold text-on-surface">{value}</p>
+      <p className="text-xl font-semibold text-on-surface sm:text-2xl">{value}</p>
       <p className="mt-2 truncate text-xs text-on-surface-variant" title={detail}>
         {detail}
       </p>
+    </div>
+  );
+}
+
+function StorageAudioCard({
+  audio,
+  selected,
+  onToggle,
+}: {
+  audio: AudioAsset;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const temporary = isTemporaryAudio(audio);
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 transition ${
+        selected
+          ? "border-primary bg-primary/10 shadow-elevation-1"
+          : "border-outline-variant bg-surface-container"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <label className="flex items-start gap-3">
+          <input type="checkbox" checked={selected} onChange={onToggle} className="mt-1" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-on-surface">{audio.originalName}</p>
+            <p className="truncate text-xs text-on-surface-variant">{audio.mimeType}</p>
+          </div>
+        </label>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${audio.isActive ? "success-surface" : "bg-outline-variant/30 text-on-surface-variant"}`}>
+          {audio.isActive ? "Activo" : "Inactivo"}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+        <div className="flex items-center justify-between gap-3">
+          <span>Tamaño</span>
+          <span className="font-medium text-on-surface">{formatBytes(audio.sizeBytes)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>Lifecycle</span>
+          <span className="font-medium text-on-surface">{temporary ? "Temporal" : "Permanente"}</span>
+        </div>
+        {temporary ? (
+          <div className="flex items-center justify-between gap-3">
+            <span>Vence</span>
+            <span className="font-medium text-on-surface">{getRemainingTimeLabel(audio.expiresAt)}</span>
+          </div>
+        ) : null}
+        <div className="flex items-center justify-between gap-3">
+          <span>Creado</span>
+          <span className="font-medium text-on-surface">{new Date(audio.createdAt).toLocaleString()}</span>
+        </div>
+      </div>
     </div>
   );
 }

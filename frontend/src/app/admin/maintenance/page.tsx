@@ -286,7 +286,7 @@ export default function MaintenancePage() {
               <button
                 type="button"
                 onClick={() => void load(true)}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
               >
                 <RefreshCw
                   className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
@@ -332,7 +332,7 @@ export default function MaintenancePage() {
 
           <section className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)]">
             <div className="space-y-5">
-              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -395,7 +395,7 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -439,12 +439,12 @@ export default function MaintenancePage() {
                   </label>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
                   <button
                     type="button"
                     disabled={creating}
                     onClick={() => void createBackup()}
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:opacity-90 disabled:opacity-50"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:opacity-90 disabled:opacity-50 sm:w-auto"
                   >
                     <Archive className="h-4 w-4" />
                     Crear backup
@@ -454,7 +454,7 @@ export default function MaintenancePage() {
                     onClick={() =>
                       setManualLabel(`Respaldo ${new Date().toLocaleString()}`)
                     }
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
                   >
                     <TimerReset className="h-4 w-4" />
                     Reponer nombre
@@ -462,7 +462,7 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -546,7 +546,7 @@ export default function MaintenancePage() {
                   </label>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
                   <button
                     type="button"
                     disabled={
@@ -556,7 +556,7 @@ export default function MaintenancePage() {
                       !restoreUpload.storageArchive
                     }
                     onClick={() => void restoreFromFiles()}
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:opacity-90 disabled:opacity-50"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:opacity-90 disabled:opacity-50 sm:w-auto"
                   >
                     <Upload className="h-4 w-4" />
                     Restaurar ahora
@@ -570,7 +570,7 @@ export default function MaintenancePage() {
                         storageArchive: null,
                       })
                     }
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
                   >
                     <FileUp className="h-4 w-4" />
                     Limpiar archivos
@@ -578,7 +578,7 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
                 <h2 className="text-lg font-semibold tracking-tight text-on-surface">
                   Historial de backups
                 </h2>
@@ -621,10 +621,10 @@ export default function MaintenancePage() {
                             )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="grid gap-2 sm:flex sm:flex-wrap">
                             <a
                               href={apiUrl(backup.downloadUrl)}
-                              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-3 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-3 text-sm font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
                             >
                               <Download className="h-4 w-4" />
                               Paquete
@@ -633,7 +633,7 @@ export default function MaintenancePage() {
                               backup.databaseDownloadUrl && (
                                 <a
                                   href={apiUrl(backup.databaseDownloadUrl)}
-                                  className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-3 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-3 text-sm font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
                                 >
                                   <Database className="h-4 w-4" />
                                   DB
@@ -643,7 +643,7 @@ export default function MaintenancePage() {
                               backup.storageDownloadUrl && (
                                 <a
                                   href={apiUrl(backup.storageDownloadUrl)}
-                                  className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-3 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-3 text-sm font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
                                 >
                                   <Archive className="h-4 w-4" />
                                   Storage
@@ -656,7 +656,7 @@ export default function MaintenancePage() {
                                 backup.status !== "COMPLETED"
                               }
                               onClick={() => void restoreBackup(backup.id)}
-                              className="warning-surface-strong inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-sm font-semibold transition-colors disabled:opacity-50"
+                              className="warning-surface-strong inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl px-3 text-sm font-semibold transition-colors disabled:opacity-50 sm:w-auto"
                             >
                               <RotateCcw className="h-4 w-4" />
                               Restaurar
@@ -665,7 +665,7 @@ export default function MaintenancePage() {
                               type="button"
                               disabled={deletingId === backup.id}
                               onClick={() => void deleteBackup(backup.id)}
-                              className="danger-surface-strong inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-sm font-semibold transition-colors disabled:opacity-50"
+                              className="danger-surface-strong inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl px-3 text-sm font-semibold transition-colors disabled:opacity-50 sm:w-auto"
                             >
                               <Trash2 className="h-4 w-4" />
                               Eliminar
@@ -682,7 +682,7 @@ export default function MaintenancePage() {
             </div>
 
             <aside className="space-y-5">
-              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -793,12 +793,12 @@ export default function MaintenancePage() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex">
                   <button
                     type="button"
                     disabled={saving}
                     onClick={() => void saveSettings()}
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:opacity-90 disabled:opacity-50"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:opacity-90 disabled:opacity-50"
                   >
                     <ShieldCheck className="h-4 w-4" />
                     Guardar
@@ -806,7 +806,7 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+              <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
                 <h2 className="text-lg font-semibold tracking-tight text-on-surface">
                   Auditoría reciente
                 </h2>
@@ -852,7 +852,7 @@ function SummaryCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1">
+    <div className="rounded-[24px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1 sm:p-4">
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
           <Icon className="h-5 w-5" />
@@ -861,7 +861,7 @@ function SummaryCard({
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
             {label}
           </p>
-          <p className="mt-1 text-xl font-semibold tracking-tight text-on-surface">
+          <p className="mt-1 text-lg font-semibold tracking-tight text-on-surface sm:text-xl">
             {value}
           </p>
         </div>
@@ -876,7 +876,7 @@ function InfoPill({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-medium text-on-surface">
+      <p className="mt-1 truncate text-xs font-medium text-on-surface sm:text-sm">
         {value}
       </p>
     </div>
@@ -896,7 +896,7 @@ function ToggleRow({
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-left transition-colors hover:border-primary"
+      className="flex items-center justify-between gap-3 rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-left transition-colors hover:border-primary"
     >
       <span className="text-sm font-medium text-on-surface">{label}</span>
       <span

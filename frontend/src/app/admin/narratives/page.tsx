@@ -62,7 +62,7 @@ export default function AdminNarrativesPage() {
           action={
             <Link
               href="/admin/narratives/new"
-              className="btn-surface-base btn-primary-surface h-11 rounded-2xl px-4 text-sm"
+              className="btn-surface-base btn-primary-surface flex h-11 w-full items-center justify-center rounded-2xl px-4 text-sm sm:w-auto"
             >
               <Plus className="h-4 w-4" />
               Nueva narrativa
@@ -70,10 +70,10 @@ export default function AdminNarrativesPage() {
           }
         />
 
-        <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
           <NarrativeCreateForm onCreate={createNarrative} submitLabel="Crear y abrir builder" />
 
-          <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+          <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-tertiary text-on-tertiary">

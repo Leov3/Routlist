@@ -140,7 +140,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <ThemeToggleButton behavior="binary" className="fixed right-4 top-4 z-20" />
+      <ThemeToggleButton behavior="binary" className="fixed right-3 top-3 z-20 sm:right-4 sm:top-4" />
 
       <div className="login-grid" aria-hidden="true" />
       <div className="login-spotlight" ref={spotlightRef} aria-hidden="true" />

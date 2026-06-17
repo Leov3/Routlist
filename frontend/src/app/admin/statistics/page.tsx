@@ -551,8 +551,19 @@ export default function AdminDashboardPage() {
               </div>
 
               {pendingInvites.length ? (
-                <div className="overflow-x-auto rounded-xl border border-outline-variant">
-                  <table className="w-full min-w-[760px] text-left text-sm">
+                <>
+                  <div className="space-y-3 md:hidden">
+                    {pendingInvites.map((invite) => (
+                      <PendingInviteCard
+                        key={invite.id}
+                        invite={invite}
+                        onRevoke={() => void revokeInvite(invite.id, invite.organization.id)}
+                        revoking={revokingInviteId === invite.id}
+                      />
+                    ))}
+                  </div>
+                  <div className="hidden overflow-x-auto rounded-xl border border-outline-variant md:block">
+                    <table className="w-full min-w-[760px] text-left text-sm">
                     <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
                       <tr>
                         <th className="px-4 py-3">Email</th>
@@ -590,8 +601,9 @@ export default function AdminDashboardPage() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
-                </div>
+                    </table>
+                  </div>
+                </>
               ) : (
                 <DataState>No hay invitaciones pendientes.</DataState>
               )}
@@ -650,18 +662,18 @@ export default function AdminDashboardPage() {
 
 function DiskSummary({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-outline-variant bg-surface-container-high p-4">
+    <div className="rounded-xl border border-outline-variant bg-surface-container-high p-3 sm:p-4">
       <p className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">{label}</p>
-      <p className="mt-2 text-xl font-semibold tracking-tight text-on-surface">{value}</p>
+      <p className="mt-2 text-lg font-semibold tracking-tight text-on-surface sm:text-xl">{value}</p>
     </div>
   );
 }
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-outline-variant bg-surface-container-high p-4">
+    <div className="rounded-xl border border-outline-variant bg-surface-container-high p-3 sm:p-4">
       <p className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">{label}</p>
-      <p className="mt-2 text-base font-semibold tracking-tight text-on-surface">{value}</p>
+      <p className="mt-2 text-sm font-semibold tracking-tight text-on-surface sm:text-base">{value}</p>
     </div>
   );
 }
@@ -688,7 +700,7 @@ function DiskUsageBar({
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+      <div className="mb-2 flex items-center justify-between gap-3 text-xs sm:text-sm">
         <span className="font-medium text-on-surface">{label}</span>
         <span className="text-on-surface-variant">
           {formatBytes(bytes)} · {percent}%
@@ -715,20 +727,20 @@ function HealthCard({
   footer?: string;
 }) {
   return (
-    <div className="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-elevation-1 transition-colors hover:border-outline">
+    <div className="rounded-xl border border-outline-variant bg-surface-container p-3 shadow-elevation-1 transition-colors hover:border-outline sm:p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-on-surface-variant">{label}</p>
-          <p className="mt-2 text-lg font-semibold tracking-tight text-on-surface">{value}</p>
+          <p className="mt-2 text-base font-semibold tracking-tight text-on-surface sm:text-lg">{value}</p>
         </div>
         <span
-          className={`flex h-12 w-12 items-center justify-center rounded-full ${
+          className={`flex h-10 w-10 items-center justify-center rounded-full sm:h-12 sm:w-12 ${
             status === "ok"
               ? "bg-primary-container text-on-primary-container"
               : "bg-error-container text-on-error-container"
           }`}
         >
-          <Icon className="h-6 w-6" />
+          <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
         </span>
       </div>
       <p className="mt-4 text-xs text-on-surface-variant">
@@ -787,7 +799,7 @@ function LineChart({ data }: { data: Array<{ label: string; value: number }> }) 
 
   return (
     <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-64 min-w-[560px] w-full">
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-56 w-full md:h-64 md:min-w-[560px]">
         <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="var(--md-sys-color-outline-variant)" />
         <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="var(--md-sys-color-outline-variant)" />
         <path d={path} fill="none" stroke="var(--md-sys-color-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -884,4 +896,43 @@ function buildDiskRows(storage: StorageHealth | null) {
       tone: "zinc" as const,
     },
   ];
+}
+
+function PendingInviteCard({
+  invite,
+  onRevoke,
+  revoking,
+}: {
+  invite: DashboardData["invites"][number];
+  onRevoke: () => void;
+  revoking: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4 shadow-elevation-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-on-surface">{invite.email}</p>
+          <p className="truncate text-xs text-on-surface-variant">{invite.organization.name}</p>
+          <p className="truncate text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
+        </div>
+        <span className="rounded-full border border-outline-variant px-2.5 py-1 text-[10px] font-semibold text-on-surface-variant">
+          {invite.role}
+        </span>
+      </div>
+      <p className="mt-3 text-xs text-on-surface-variant">
+        Vence: {new Date(invite.expiresAt).toLocaleString()}
+      </p>
+      <div className="mt-4 flex">
+        <button
+          type="button"
+          onClick={onRevoke}
+          disabled={revoking}
+          className="danger-surface inline-flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          {revoking ? "Revocando..." : "Revocar"}
+        </button>
+      </div>
+    </div>
+  );
 }

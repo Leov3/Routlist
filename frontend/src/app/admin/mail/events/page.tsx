@@ -165,13 +165,13 @@ export default function MailEventsPage() {
   );
 
   return (
-    <MailModuleShell
+      <MailModuleShell
       onReload={() => void load(selectedKey)}
       action={
         <button
           type="button"
           onClick={startNew}
-          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           Nuevo evento
@@ -221,7 +221,7 @@ export default function MailEventsPage() {
             })}
           </div>
 
-          <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1 lg:max-h-[68vh]">
+          <div className="max-h-[38vh] space-y-2 overflow-y-auto pr-1 sm:max-h-[45vh] lg:max-h-[68vh]">
             {loading ? (
               <div className="rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-10 text-center text-sm text-on-surface-variant">
                 Cargando eventos...
@@ -301,11 +301,11 @@ export default function MailEventsPage() {
                 </button>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2 sm:flex sm:flex-wrap">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90 disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? "Guardando..." : "Guardar evento"}
@@ -313,7 +313,7 @@ export default function MailEventsPage() {
                 <button
                   type="button"
                   onClick={duplicateCurrent}
-                  className="inline-flex items-center gap-2 rounded-full border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface transition hover:border-primary hover:text-on-surface"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface transition hover:border-primary hover:text-on-surface sm:w-auto"
                 >
                   <Copy className="h-4 w-4" />
                   Duplicar
@@ -321,7 +321,7 @@ export default function MailEventsPage() {
                 <button
                   type="button"
                   onClick={() => setForm((current) => ({ ...current, isEnabled: !current.isEnabled }))}
-                  className="inline-flex items-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 sm:w-auto"
                 >
                   Cambiar estado
                 </button>
@@ -332,7 +332,7 @@ export default function MailEventsPage() {
                     setForm(emptyForm);
                     setMessage("Selecciona o crea un evento para editarlo.");
                   }}
-                  className="inline-flex items-center gap-2 rounded-full border border-error px-4 py-2.5 text-sm font-semibold text-error transition hover:bg-error/5"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-error px-4 py-2.5 text-sm font-semibold text-error transition hover:bg-error/5 sm:w-auto"
                 >
                   <Trash2 className="h-4 w-4" />
                   Limpiar
@@ -432,7 +432,7 @@ export default function MailEventsPage() {
 
                 <div className="rounded-[24px] border border-outline-variant bg-surface-container-high p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Plantillas disponibles</p>
-                  <div className="mt-3 max-h-[240px] space-y-2 overflow-auto pr-1">
+                  <div className="mt-3 max-h-[220px] space-y-2 overflow-auto pr-1 sm:max-h-[240px]">
                     {templates.map((template) => (
                       <button
                         key={template.key}

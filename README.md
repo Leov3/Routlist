@@ -369,6 +369,7 @@ ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh rollback
 
 ## Documentacion relacionada
 
+- [`docs/manual-usuario.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/docs/manual-usuario.md)
 - [`docs/integrations-elevenlabs.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/docs/integrations-elevenlabs.md)
 - `backend/README.md`
 - `frontend/README.md`

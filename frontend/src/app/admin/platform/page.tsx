@@ -77,12 +77,20 @@ export default function AdminPlatformPage() {
           title="Personalización de plataforma"
           description="Configura la identidad global de Routlis: logo, favicon y nombre visible."
           action={
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => void load(true)} className="btn-surface-base btn-secondary-surface inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+            <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <button
+                type="button"
+                onClick={() => void load(true)}
+                className="btn-surface-base btn-secondary-surface inline-flex h-10 w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm sm:w-auto"
+              >
                 <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                 Recargar
               </button>
-              <button type="button" onClick={() => void handleSave()} className="btn-surface-base btn-primary-surface inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                className="btn-surface-base btn-primary-surface inline-flex h-10 w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm sm:w-auto"
+              >
                 <Save className="h-4 w-4" />
                 Guardar cambios
               </button>
@@ -93,7 +101,7 @@ export default function AdminPlatformPage() {
         {error ? <p className="text-sm text-error">{error}</p> : null}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
-          <section className="rounded-[24px] border border-outline-variant bg-surface-container p-4 shadow-sm">
+          <section className="rounded-[24px] border border-outline-variant bg-surface-container p-4 shadow-sm sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-base font-semibold text-on-surface">Activos</h3>
@@ -102,7 +110,7 @@ export default function AdminPlatformPage() {
               <ShieldCheck className="h-5 w-5 text-primary" />
             </div>
 
-            <div className="mt-4 space-y-4">
+            <div className="mt-4 grid gap-4">
               <AssetPreview label="Logo" url={branding?.logoUrl ? apiUrl(branding.logoUrl) : null} />
               <AssetPreview label="Favicon" url={branding?.faviconUrl ? apiUrl(branding.faviconUrl) : null} compact />
             </div>
@@ -131,20 +139,22 @@ export default function AdminPlatformPage() {
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 rounded-[20px] border border-dashed border-outline-variant p-4">
                 <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Subir logo</span>
-                <input type="file" accept="image/*" onChange={(event) => setLogo(event.target.files?.[0] ?? null)} />
+                <input type="file" accept="image/*" className="w-full text-sm" onChange={(event) => setLogo(event.target.files?.[0] ?? null)} />
+                <p className="text-xs text-on-surface-variant">{logo ? logo.name : "PNG, JPG o SVG recomendado."}</p>
               </label>
               <label className="grid gap-2 rounded-[20px] border border-dashed border-outline-variant p-4">
                 <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Subir favicon</span>
-                <input type="file" accept=".ico,image/*" onChange={(event) => setFavicon(event.target.files?.[0] ?? null)} />
+                <input type="file" accept=".ico,image/*" className="w-full text-sm" onChange={(event) => setFavicon(event.target.files?.[0] ?? null)} />
+                <p className="text-xs text-on-surface-variant">{favicon ? favicon.name : "ICO preferido para navegador."}</p>
               </label>
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => void handleSave()} className="btn-surface-base btn-primary-surface inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+            <div className="mt-5 grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <button type="button" onClick={() => void handleSave()} className="btn-surface-base btn-primary-surface inline-flex h-10 w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm sm:w-auto">
                 <Save className="h-4 w-4" />
                 Guardar cambios
               </button>
-              <button type="button" onClick={() => { setForm(EMPTY_FORM); setLogo(null); setFavicon(null); }} className="btn-surface-base btn-secondary-surface inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+              <button type="button" onClick={() => { setForm(EMPTY_FORM); setLogo(null); setFavicon(null); }} className="btn-surface-base btn-secondary-surface inline-flex h-10 w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm sm:w-auto">
                 <Trash2 className="h-4 w-4" />
                 Limpiar
               </button>
@@ -162,8 +172,14 @@ function AssetPreview({ label, url, compact = false }: { label: string; url: str
   return (
     <div className="rounded-[20px] border border-outline-variant bg-surface-container-high p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">{label}</p>
-      <div className={`mt-3 overflow-hidden rounded-[18px] border border-outline-variant bg-surface ${compact ? "h-18 sm:h-20" : "h-32 sm:h-40"}`}>
-        {url ? <img src={url} alt={label} className="h-full w-full object-contain p-4" /> : <div className="flex h-full items-center justify-center text-sm text-on-surface-variant">Sin {label.toLowerCase()} configurado</div>}
+      <div className={`mt-3 overflow-hidden rounded-[18px] border border-outline-variant bg-surface ${compact ? "h-20 sm:h-24" : "h-36 sm:h-40"}`}>
+        {url ? (
+          <img src={url} alt={label} className="h-full w-full object-contain p-4" />
+        ) : (
+          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-on-surface-variant">
+            Sin {label.toLowerCase()} configurado
+          </div>
+        )}
       </div>
     </div>
   );

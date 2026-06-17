@@ -13,14 +13,14 @@ export default function MailLogsPage() {
   }, []);
 
   return loading ? <Shell>...</Shell> : (
-    <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+    <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
       <h2 className="text-xl font-semibold text-on-surface">Historial de correos</h2>
       <p className="mt-1 text-sm text-on-surface-variant">Consulta envíos exitosos, fallidos y respuestas SMTP.</p>
-      <div className="mt-4 max-h-[68vh] overflow-auto pr-1">
-        <div className="space-y-3">
+      <div className="mt-4 max-h-[55vh] overflow-auto pr-1 sm:max-h-[68vh]">
+        <div className="space-y-2.5">
           {logs.map((log) => (
             <div key={log.id} className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
-              <div className="flex justify-between gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-medium text-on-surface">{log.subject}</p>
                   <p className="text-xs text-on-surface-variant">{log.to}</p>
@@ -39,5 +39,5 @@ export default function MailLogsPage() {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1 text-sm text-on-surface-variant">{children}</div>;
+  return <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 text-sm text-on-surface-variant sm:p-5">{children}</div>;
 }

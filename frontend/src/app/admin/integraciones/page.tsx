@@ -441,7 +441,7 @@ export default function IntegrationsSettingsPage() {
         <div className="grid gap-5 xl:grid-cols-[1.3fr_0.9fr]">
           <form
             onSubmit={(event) => void handleSave(event)}
-            className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1"
+            className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5"
           >
             <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
@@ -449,7 +449,7 @@ export default function IntegrationsSettingsPage() {
                   <PlugZap className="h-3.5 w-3.5" />
                   ElevenLabs
                 </div>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-on-surface">
+                <h2 className="mt-3 text-xl font-semibold tracking-tight text-on-surface sm:text-2xl">
                   Integración de texto a voz
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
@@ -464,17 +464,17 @@ export default function IntegrationsSettingsPage() {
             </div>
 
             {error ? (
-            <div className="danger-surface mb-4 flex items-start gap-3 rounded-2xl p-4 text-sm">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+              <div className="danger-surface mb-4 flex items-start gap-3 rounded-2xl p-4 text-sm">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
             ) : null}
 
             {feedback ? (
-            <div className="success-surface mb-4 flex items-start gap-3 rounded-2xl p-4 text-sm">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{feedback}</span>
-            </div>
+              <div className="success-surface mb-4 flex items-start gap-3 rounded-2xl p-4 text-sm">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{feedback}</span>
+              </div>
             ) : null}
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -678,12 +678,12 @@ export default function IntegrationsSettingsPage() {
               )}
             </div>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-2">
+            <div className="mt-5 grid gap-3 sm:flex sm:items-center sm:justify-between">
+              <div className="grid gap-2 sm:flex sm:flex-wrap">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {saving ? "Guardando..." : "Guardar"}
                 </button>
@@ -691,7 +691,7 @@ export default function IntegrationsSettingsPage() {
                   type="button"
                   onClick={() => void handleTestConnection()}
                   disabled={testing}
-                  className="inline-flex h-11 items-center gap-2 rounded-full border border-outline-variant bg-surface-container px-5 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-outline-variant bg-surface-container px-5 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {testing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   Probar conexión
@@ -700,7 +700,7 @@ export default function IntegrationsSettingsPage() {
                   type="button"
                   onClick={() => void handleGeneratePreview()}
                   disabled={generating || loadingVoices}
-                  className="inline-flex h-11 items-center gap-2 rounded-full border border-outline-variant bg-surface-container px-5 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-outline-variant bg-surface-container px-5 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   Generar audio de prueba
@@ -711,7 +711,7 @@ export default function IntegrationsSettingsPage() {
                 type="button"
                 onClick={() => void handleDisconnect()}
                 disabled={disconnecting}
-                className="danger-surface-strong inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                className="danger-surface-strong inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {disconnecting ? "Desconectando..." : "Desconectar"}
               </button>
@@ -719,7 +719,7 @@ export default function IntegrationsSettingsPage() {
           </form>
 
           <aside className="grid gap-5 self-start">
-            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -742,7 +742,7 @@ export default function IntegrationsSettingsPage() {
               </div>
             </div>
 
-            <div className="flex max-h-[72vh] flex-col rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="flex max-h-[60vh] flex-col rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:max-h-[72vh] sm:p-5">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -806,14 +806,14 @@ export default function IntegrationsSettingsPage() {
                 ) : (
                   <div className="grid gap-2">
                     {filteredVoices.map((voice) => (
-                      <button
-                        key={voice.voiceId}
-                        type="button"
-                        onClick={() => updateField("defaultVoiceId", voice.voiceId)}
-                        className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
-                          form.defaultVoiceId === voice.voiceId
-                            ? "border-primary/40 bg-primary/10"
-                            : "border-outline-variant bg-surface-container-high hover:border-primary/30"
+                    <button
+                      key={voice.voiceId}
+                      type="button"
+                      onClick={() => updateField("defaultVoiceId", voice.voiceId)}
+                      className={`rounded-2xl border px-3 py-3 text-left transition-colors sm:px-4 ${
+                        form.defaultVoiceId === voice.voiceId
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-outline-variant bg-surface-container-high hover:border-primary/30"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -870,11 +870,11 @@ function Field({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3">
+    <div className="flex flex-col gap-2 rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <span className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
         {label}
       </span>
-      <span className="max-w-[220px] truncate text-sm font-medium text-on-surface">{value}</span>
+      <span className="max-w-full truncate text-sm font-medium text-on-surface sm:max-w-[220px]">{value}</span>
     </div>
   );
 }

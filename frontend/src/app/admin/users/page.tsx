@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { ArrowUpDown, CheckCircle, Pencil, Plus, Search, Trash2, XCircle } from "lucide-react";
 import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
@@ -331,63 +331,76 @@ export default function UsersPage() {
           {inviteError ? <p className="mb-3 text-sm text-red-600">{inviteError}</p> : null}
 
           {invites.length ? (
-            <div className="overflow-x-auto rounded-xl border border-outline-variant">
-              <table className="w-full min-w-[820px] text-left text-sm">
-                <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
-                  <tr>
-                    <th className="px-4 py-3">Email</th>
-                    <th className="px-4 py-3">Rol</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3">Vence</th>
-                    <th className="px-4 py-3 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invites.map((invite) => (
-                    <tr key={invite.id} className="border-t border-outline-variant">
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{invite.email}</p>
-                        <p className="text-xs text-on-surface-variant">{invite.inviteeName ?? "Sin nombre de invitado"}</p>
-                        <p className="text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
-                      </td>
-                      <td className="px-4 py-3 text-on-surface-variant">{invite.role}</td>
-                      <td className="px-4 py-3 text-on-surface-variant">{invite.status}</td>
-                      <td className="px-4 py-3 text-on-surface-variant">
-                        {new Date(invite.expiresAt).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void resendInvite(invite.id)}
-                            className="rounded-xl border border-outline px-3 py-2 text-xs font-semibold"
-                          >
-                            Reenviar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void approveInvite(invite.id)}
-                            disabled={invite.status !== "PENDING"}
-                            className="rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-50"
-                          >
-                            Aprobar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void rejectInvite(invite.id)}
-                            disabled={invite.status === "REJECTED"}
-                            className="danger-surface inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Rechazar
-                          </button>
-                        </div>
-                      </td>
+            <>
+              <div className="space-y-3 md:hidden">
+                {invites.map((invite) => (
+                  <InviteCard
+                    key={invite.id}
+                    invite={invite}
+                    onResend={() => void resendInvite(invite.id)}
+                    onApprove={() => void approveInvite(invite.id)}
+                    onReject={() => void rejectInvite(invite.id)}
+                  />
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto rounded-xl border border-outline-variant md:block">
+                <table className="w-full min-w-[820px] text-left text-sm">
+                  <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
+                    <tr>
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Rol</th>
+                      <th className="px-4 py-3">Estado</th>
+                      <th className="px-4 py-3">Vence</th>
+                      <th className="px-4 py-3 text-right">Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {invites.map((invite) => (
+                      <tr key={invite.id} className="border-t border-outline-variant">
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{invite.email}</p>
+                          <p className="text-xs text-on-surface-variant">{invite.inviteeName ?? "Sin nombre de invitado"}</p>
+                          <p className="text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
+                        </td>
+                        <td className="px-4 py-3 text-on-surface-variant">{invite.role}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">{invite.status}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">
+                          {new Date(invite.expiresAt).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void resendInvite(invite.id)}
+                              className="rounded-xl border border-outline px-3 py-2 text-xs font-semibold"
+                            >
+                              Reenviar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void approveInvite(invite.id)}
+                              disabled={invite.status !== "PENDING"}
+                              className="rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                            >
+                              Aprobar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void rejectInvite(invite.id)}
+                              disabled={invite.status === "REJECTED"}
+                              className="danger-surface inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Rechazar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
             <DataState>No hay invitaciones en esta organización.</DataState>
           )}
@@ -422,7 +435,26 @@ export default function UsersPage() {
       </div>
 
       {filteredUsers.length ? (
-        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filteredUsers.map((user) => (
+              <UserCard
+                key={user.id}
+                user={user}
+                currentUserId={currentUser?.id ?? null}
+                editing={editingId === user.id}
+                editForm={editForm}
+                roleOptions={roleOptions}
+                onStartEdit={() => startEdit(user)}
+                onCancelEdit={() => setEditingId(null)}
+                onSave={() => void saveEdit(user.id)}
+                onSetActive={() => void setActive(user.id, (user.membershipStatus ?? user.status) !== "ACTIVE")}
+                onDelete={() => void deleteUser(user.id, user.fullName)}
+                onChangeEditForm={setEditForm}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-xl border border-outline-variant bg-surface-container md:block">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
@@ -483,10 +515,190 @@ export default function UsersPage() {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>No hay usuarios.</DataState>
       )}
     </AdminProtectedPage>
+  );
+}
+
+function InviteCard({
+  invite,
+  onResend,
+  onApprove,
+  onReject,
+}: {
+  invite: OrganizationInvite;
+  onResend: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4 shadow-elevation-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-on-surface">{invite.email}</p>
+          <p className="truncate text-xs text-on-surface-variant">{invite.inviteeName ?? "Sin nombre de invitado"}</p>
+          <p className="truncate text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
+        </div>
+        <span className="rounded-full border border-outline-variant px-2.5 py-1 text-[10px] font-semibold text-on-surface-variant">
+          {invite.status}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+        <p>
+          <span className="font-semibold text-on-surface">Rol:</span> {invite.role}
+        </p>
+        <p>
+          <span className="font-semibold text-on-surface">Vence:</span> {new Date(invite.expiresAt).toLocaleString()}
+        </p>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button type="button" onClick={onResend} className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold sm:w-auto">
+          Reenviar
+        </button>
+        <button type="button" onClick={onApprove} disabled={invite.status !== "PENDING"} className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-50 sm:w-auto">
+          Aprobar
+        </button>
+        <button type="button" onClick={onReject} disabled={invite.status === "REJECTED"} className="danger-surface inline-flex w-full items-center justify-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50 sm:w-auto">
+          <Trash2 className="h-4 w-4" />
+          Rechazar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UserCard({
+  user,
+  currentUserId,
+  editing,
+  editForm,
+  roleOptions,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  onSetActive,
+  onDelete,
+  onChangeEditForm,
+}: {
+  user: UserRow;
+  currentUserId: string | null;
+  editing: boolean;
+  editForm: {
+    fullName: string;
+    email: string;
+    password: string;
+    role: string;
+  };
+  roleOptions: readonly string[];
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onSetActive: () => void;
+  onDelete: () => void;
+  onChangeEditForm: Dispatch<
+    SetStateAction<{
+      fullName: string;
+      email: string;
+      password: string;
+      role: string;
+    }>
+  >;
+}) {
+  const status = user.membershipStatus ?? user.status;
+  const isSelf = currentUserId === user.id;
+
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-4 shadow-elevation-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold text-on-surface">{user.fullName}</p>
+          <p className="truncate text-sm text-on-surface-variant">{user.email}</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${status === "ACTIVE" ? "success-surface" : "bg-outline-variant/30 text-on-surface-variant"}`}>
+          {status === "ACTIVE" ? "Activo" : "Inactivo"}
+        </span>
+      </div>
+
+      {editing ? (
+        <div className="mt-4 grid gap-3">
+          <input
+            value={editForm.fullName}
+            onChange={(event) => onChangeEditForm((current) => ({ ...current, fullName: event.target.value }))}
+            className="h-10 rounded-xl border border-outline px-3 text-sm"
+          />
+          <input
+            value={editForm.email}
+            onChange={(event) => onChangeEditForm((current) => ({ ...current, email: event.target.value }))}
+            type="email"
+            className="h-10 rounded-xl border border-outline px-3 text-sm"
+          />
+          <select
+            value={editForm.role}
+            onChange={(event) => onChangeEditForm((current) => ({ ...current, role: event.target.value }))}
+            className="h-10 rounded-xl border border-outline px-3 text-sm"
+          >
+            {roleOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+          <input
+            value={editForm.password}
+            onChange={(event) => onChangeEditForm((current) => ({ ...current, password: event.target.value }))}
+            placeholder="Nueva contraseña"
+            className="h-10 rounded-xl border border-outline px-3 text-sm"
+          />
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+          <p>
+            <span className="font-semibold text-on-surface">Rol:</span> {user.role}
+          </p>
+          <p>
+            <span className="font-semibold text-on-surface">Estado:</span> {status === "ACTIVE" ? "Activo" : "Inactivo"}
+          </p>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        {editing ? (
+          <>
+            <button type="button" onClick={onSave} className="inline-flex w-full items-center justify-center rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-on-primary sm:w-auto">
+              Guardar
+            </button>
+            <button type="button" onClick={onCancelEdit} className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold sm:w-auto">
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={onStartEdit} className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold sm:w-auto">
+              Editar
+            </button>
+            <button
+              type="button"
+              disabled={isSelf}
+              onClick={onSetActive}
+              className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-40 sm:w-auto"
+            >
+              {status === "ACTIVE" ? "Desactivar" : "Activar"}
+            </button>
+            <button
+              type="button"
+              disabled={isSelf}
+              onClick={onDelete}
+              className="danger-surface inline-flex w-full items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-40 sm:w-auto"
+            >
+              Eliminar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

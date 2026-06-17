@@ -67,7 +67,7 @@ export function NarrativeList({
         <button
           type="button"
           onClick={onRefresh}
-          className="btn-surface-base btn-secondary-surface h-10 rounded-2xl px-4 text-sm"
+          className="btn-surface-base btn-secondary-surface h-10 w-full rounded-2xl px-4 text-sm sm:w-auto"
         >
           <RefreshCw className="h-4 w-4" />
           Recargar
@@ -81,7 +81,71 @@ export function NarrativeList({
       ) : null}
 
       {visibleNarratives.length > 0 ? (
-        <div className="overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container shadow-elevation-1">
+        <>
+          <div className="space-y-3 md:hidden">
+            {visibleNarratives.map((narrative) => (
+              <div
+                key={narrative.id}
+                className="rounded-[24px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-on-surface">{narrative.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-on-surface-variant">
+                      {narrative.description || "Sin descripción"}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[10px] font-semibold text-on-surface">
+                    {narrativeStatusLabel(narrative.status)}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Organización</span>
+                    <span className="truncate font-medium text-on-surface">
+                      {narrative.organization?.name ?? "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Versiones</span>
+                    <span className="font-medium text-on-surface">{narrative._count?.versions ?? 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Actualizada</span>
+                    <span className="font-medium text-on-surface">{formatRelativeDate(narrative.updatedAt)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2">
+                  <Link
+                    href={`/admin/narratives/${narrative.id}/builder`}
+                    className="btn-surface-base btn-secondary-surface inline-flex h-10 w-full items-center justify-center rounded-2xl px-3 text-xs"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Builder
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void onDuplicate(narrative.id)}
+                    className="btn-surface-base btn-secondary-surface inline-flex h-10 w-full items-center justify-center rounded-2xl px-3 text-xs"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Duplicar
+                  </button>
+                  <Link
+                    href={`/narratives/${narrative.id}/run`}
+                    className="btn-surface-base btn-primary-surface inline-flex h-10 w-full items-center justify-center rounded-2xl px-3 text-xs"
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                    Ejecutar
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container shadow-elevation-1 md:block">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase tracking-widest text-on-surface-variant">
               <tr>
@@ -160,7 +224,8 @@ export function NarrativeList({
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>
           <div className="flex flex-col items-center gap-2 text-center">

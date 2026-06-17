@@ -351,7 +351,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 
       {/* ── Sidebar ── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[86vw] max-w-[320px] -translate-x-full flex-shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-standard lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 lg:w-auto ${sidebarW} ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[82vw] max-w-[300px] -translate-x-full flex-shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-standard lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 lg:w-auto ${sidebarW} ${
           mobileSidebarOpen ? "translate-x-0" : ""
         }`}
         style={{ background: "var(--routlis-sidebar-bg)", borderColor: "var(--routlis-sidebar-border)" }}
@@ -634,19 +634,19 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
       {/* ── Main area ── */}
       <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
         {/* Top header */}
-        <header className="grid min-h-16 shrink-0 grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-outline-variant bg-surface px-3 py-3 sm:px-4 lg:grid-cols-[1fr_auto_1fr] lg:px-6">
+        <header className="grid min-h-14 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-outline-variant bg-surface px-2.5 py-2.5 sm:min-h-16 sm:px-4 lg:grid-cols-[1fr_auto_1fr] lg:px-6">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={() => setMobileSidebarOpen(true)}
-              className="icon-button-surface inline-flex h-10 w-10 items-center justify-center rounded-full lg:hidden"
+              className="icon-button-surface inline-flex h-9 w-9 items-center justify-center rounded-full lg:hidden"
               aria-label="Abrir navegación"
             >
               <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0">
               {pathname !== "/board" ? (
-                <p className="truncate text-base font-semibold tracking-tight text-on-surface sm:text-lg">
+                <p className="truncate text-[0.95rem] font-semibold tracking-tight text-on-surface sm:text-lg">
                   {pageTitle}
                 </p>
               ) : null}
@@ -667,7 +667,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 
         {/* Scrollable content */}
         <main className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-          <div className={`flex-1 ${density === "compact" ? "p-3 sm:p-4 lg:p-6" : "p-4 sm:p-5 lg:p-8"}`}>{children}</div>
+          <div className={`flex-1 ${density === "compact" ? "p-3 sm:p-4 lg:p-6" : "p-3 sm:p-5 lg:p-8"}`}>{children}</div>
         </main>
       </div>
 

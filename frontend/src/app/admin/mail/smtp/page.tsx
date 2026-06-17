@@ -24,7 +24,8 @@ export default function MailSmtpPage() {
   const [form, setForm] = useState(defaultForm);
   const [testTo, setTestTo] = useState("owner@routlis.local");
   const [testSubject, setTestSubject] = useState("Prueba de correo Routlis");
-  const [message, setMessage] = useState<string | null>(null);
+  const [testMessage, setTestMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -50,7 +51,7 @@ export default function MailSmtpPage() {
         smtpUser: settingsResult.smtpUser ?? "",
         smtpPassword: "",
       });
-      setMessage(settingsResult.lastTestMessage ?? null);
+      setStatusMessage(settingsResult.lastTestMessage ?? null);
     } finally {
       setLoading(false);
     }
@@ -80,7 +81,7 @@ export default function MailSmtpPage() {
         }),
       });
       setForm((current) => ({ ...current, smtpPassword: "" }));
-      setMessage("Configuración guardada.");
+      setStatusMessage("Configuración guardada.");
       await load();
     } finally {
       setSaving(false);
@@ -96,13 +97,13 @@ export default function MailSmtpPage() {
         body: JSON.stringify({
           to: testTo,
           subject: testSubject,
-          message: message ?? "",
+          message: testMessage,
         }),
       });
-      setMessage("Correo de prueba enviado.");
+      setStatusMessage("Correo de prueba enviado.");
       await load();
     } catch (error) {
-      setMessage(error instanceof ApiError ? error.message : "No se pudo enviar el correo.");
+      setStatusMessage(error instanceof ApiError ? error.message : "No se pudo enviar el correo.");
     } finally {
       setTesting(false);
     }
@@ -110,7 +111,7 @@ export default function MailSmtpPage() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-      <section className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+      <section className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
             <ShieldCheck className="h-5 w-5" />
@@ -138,21 +139,26 @@ export default function MailSmtpPage() {
             <Field label="Secure"><select value={String(form.smtpSecure)} onChange={(e) => setForm((c) => ({ ...c, smtpSecure: e.target.value === "true" }))} className={inputClass}><option value="true">Sí</option><option value="false">No</option></select></Field>
             <Field label="Activo"><select value={String(form.enabled)} onChange={(e) => setForm((c) => ({ ...c, enabled: e.target.value === "true" }))} className={inputClass}><option value="true">Sí</option><option value="false">No</option></select></Field>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid gap-3 sm:flex sm:flex-wrap">
             <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90 disabled:opacity-60">
               <CheckCircle2 className="h-4 w-4" />
               {saving ? "Guardando..." : "Guardar configuración"}
             </button>
-            <span className="inline-flex items-center gap-2 rounded-full border border-outline-variant px-4 py-2.5 text-sm text-on-surface-variant">
-              <Mail className="h-4 w-4" />
-              Última prueba: {settings?.lastTestAt ? new Date(settings.lastTestAt).toLocaleString() : "sin pruebas"}
-            </span>
-          </div>
-        </form>
-      </section>
+              <span className="inline-flex min-h-11 items-center gap-2 rounded-full border border-outline-variant px-4 py-2.5 text-sm text-on-surface-variant">
+                <Mail className="h-4 w-4" />
+                Última prueba: {settings?.lastTestAt ? new Date(settings.lastTestAt).toLocaleString() : "sin pruebas"}
+              </span>
+            </div>
+            {statusMessage ? (
+              <div className="mt-4 rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3 text-sm text-on-surface-variant">
+                {statusMessage}
+              </div>
+            ) : null}
+          </form>
+        </section>
 
       <div className="space-y-6">
-        <section className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+        <section className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
               <Send className="h-5 w-5" />
@@ -165,15 +171,15 @@ export default function MailSmtpPage() {
           <form onSubmit={sendTest} className="space-y-4">
             <Field label="Enviar a"><input type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} className={inputClass} /></Field>
             <Field label="Asunto"><input value={testSubject} onChange={(e) => setTestSubject(e.target.value)} className={inputClass} /></Field>
-            <Field label="Mensaje opcional"><textarea value={message ?? ""} onChange={(e) => setMessage(e.target.value)} className={`${inputClass} min-h-[96px]`} /></Field>
-            <button type="submit" disabled={testing} className="inline-flex items-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 disabled:opacity-60">
+            <Field label="Mensaje opcional"><textarea value={testMessage} onChange={(e) => setTestMessage(e.target.value)} className={`${inputClass} min-h-[96px]`} /></Field>
+            <button type="submit" disabled={testing} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 disabled:opacity-60 sm:w-auto">
               <Send className="h-4 w-4" />
               {testing ? "Enviando..." : "Enviar prueba"}
             </button>
           </form>
         </section>
 
-        <section className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+        <section className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-on-surface">Logs recientes</h2>
@@ -183,7 +189,7 @@ export default function MailSmtpPage() {
           </div>
           {loading ? <div className="rounded-2xl border border-outline-variant bg-surface-container-high py-12 text-center text-sm text-on-surface-variant">Cargando registros...</div> :
             logs.length === 0 ? <div className="rounded-2xl border border-outline-variant bg-surface-container-high py-12 text-center text-sm text-on-surface-variant">Todavía no hay eventos de correo.</div> :
-            <div className="max-h-[420px] overflow-auto pr-1 space-y-3">
+            <div className="max-h-[38vh] space-y-3 overflow-auto pr-1 sm:max-h-[55vh] lg:max-h-[420px]">
               {logs.map((log) => (
                 <div key={log.id} className="rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3">
                   <div className="flex items-start justify-between gap-3">

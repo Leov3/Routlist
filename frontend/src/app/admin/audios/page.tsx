@@ -331,7 +331,7 @@ export default function AudiosPage() {
             Alterna entre subida manual e importación por CSV.
           </p>
         </div>
-        <div className="inline-flex rounded-2xl border border-outline-variant bg-surface-container-high p-1">
+        <div className="grid gap-2 rounded-2xl border border-outline-variant bg-surface-container-high p-1 sm:inline-flex sm:gap-0">
           <button
             type="button"
             onClick={() => setImportMode("manual")}
@@ -358,11 +358,11 @@ export default function AudiosPage() {
       </div>
 
       {importMode === "csv" ? (
-      <section className="mb-6 rounded-3xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+      <section className="mb-6 rounded-3xl border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
         <div className="mb-5 flex flex-col gap-3 border-b border-outline-variant/60 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-on-surface-variant">Importación por CSV</p>
-            <h2 className="mt-1 text-xl font-semibold text-on-surface">Carga audios en lote con texto, título y etiquetas</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-on-surface-variant sm:text-sm">Importación por CSV</p>
+            <h2 className="mt-1 text-lg font-semibold text-on-surface sm:text-xl">Carga audios en lote con texto, título y etiquetas</h2>
             <p className="mt-2 text-sm text-on-surface-variant">
               Selecciona el CSV. Los archivos de audio se emparejan por <code className="rounded bg-surface-container-high px-1 py-0.5">path</code> + <code className="rounded bg-surface-container-high px-1 py-0.5">file_name</code> o por nombre exacto.
             </p>
@@ -370,7 +370,7 @@ export default function AudiosPage() {
           <button
             type="button"
             onClick={downloadCsvTemplate}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary lg:w-auto"
           >
             Descargar plantilla CSV
           </button>
@@ -419,7 +419,7 @@ export default function AudiosPage() {
               <button
                 type="submit"
                 disabled={!csvFile || !csvAudioFiles.length || csvImporting}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {csvImporting ? "Revisando..." : "Revisar importación"}
               </button>
@@ -501,8 +501,8 @@ export default function AudiosPage() {
       ) : null}
 
       {importMode === "manual" ? (
-      <form onSubmit={upload} className="mb-6 rounded-2xl border border-outline-variant bg-surface-container p-5">
-        <div className="mb-4 flex items-center justify-between gap-4">
+      <form onSubmit={upload} className="mb-6 rounded-2xl border border-outline-variant bg-surface-container p-4 sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Upload className="h-5 w-5" />
@@ -520,8 +520,8 @@ export default function AudiosPage() {
                 : `${files.length} archivos seleccionados`}
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container-high px-4 text-sm text-on-surface transition-all hover:border-primary hover:text-primary">
+        <div className="grid gap-3 sm:flex sm:items-center">
+          <label className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container-high px-4 text-sm text-on-surface transition-all hover:border-primary hover:text-primary sm:w-auto">
             Seleccionar archivos
             <input
               type="file"
@@ -534,7 +534,7 @@ export default function AudiosPage() {
           <button
             type="submit"
             disabled={!files.length || uploading}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             <Upload className="h-4 w-4" />
             {uploading ? "Subiendo..." : files.length > 1 ? "Importar lote" : "Subir"}
@@ -554,7 +554,30 @@ export default function AudiosPage() {
       {loading ? (
         <DataState>Cargando audios...</DataState>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-outline-variant">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filtered.length === 0 ? (
+              <DataState>Sin resultados.</DataState>
+            ) : (
+              filtered.map((audio) => (
+                <AudioCard
+                  key={audio.id}
+                  audio={audio}
+                  editing={editingId === audio.id}
+                  editForm={editForm}
+                  onStartEdit={() => startEdit(audio)}
+                  onCancelEdit={() => setEditingId(null)}
+                  onSave={() => void saveEdit(audio.id)}
+                  onToggleActive={() => void setActive(audio.id, !audio.isActive)}
+                  onDelete={() => void remove(audio.id)}
+                  onEditName={(value) => setEditForm((current) => ({ ...current, originalName: value }))}
+                  onEditDuration={(value) => setEditForm((current) => ({ ...current, durationSeconds: value }))}
+                  onEditTranscript={(value) => setEditForm((current) => ({ ...current, transcript: value }))}
+                />
+              ))
+            )}
+          </div>
+          <div className="hidden overflow-hidden rounded-2xl border border-outline-variant md:block">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>
               <tr className="border-b border-outline-variant bg-surface-container-high">
@@ -655,7 +678,8 @@ export default function AudiosPage() {
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       <AudioCsvImportModal
@@ -988,6 +1012,122 @@ function getRelativeCsvPath(file: File) {
 
 function revokeCsvAudioSelections(selections: CsvAudioSelection[]) {
   selections.forEach((selection) => URL.revokeObjectURL(selection.previewUrl));
+}
+
+function AudioCard({
+  audio,
+  editing,
+  editForm,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  onToggleActive,
+  onDelete,
+  onEditName,
+  onEditDuration,
+  onEditTranscript,
+}: {
+  audio: AudioAsset;
+  editing: boolean;
+  editForm: { originalName: string; durationSeconds: string; transcript: string };
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  onEditName: (value: string) => void;
+  onEditDuration: (value: string) => void;
+  onEditTranscript: (value: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Music className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            {editing ? (
+              <input
+                value={editForm.originalName}
+                onChange={(event) => onEditName(event.target.value)}
+                className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm text-on-surface outline-none focus:border-primary"
+              />
+            ) : (
+              <p className="truncate text-sm font-semibold text-on-surface">{audio.originalName}</p>
+            )}
+            <p className="truncate text-xs text-on-surface-variant">{audio.mimeType}</p>
+          </div>
+        </div>
+        <StatusBadge active={audio.isActive} />
+      </div>
+
+      {editing ? (
+        <div className="mt-3 grid gap-3">
+          <input
+            value={editForm.durationSeconds}
+            onChange={(event) => onEditDuration(event.target.value)}
+            type="number"
+            min="0"
+            placeholder="Duración en segundos"
+            className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm text-on-surface outline-none focus:border-primary"
+          />
+          <textarea
+            value={editForm.transcript}
+            onChange={(event) => onEditTranscript(event.target.value)}
+            placeholder="Transcripción"
+            className="min-h-24 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 py-2 text-sm text-on-surface outline-none focus:border-primary"
+          />
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+          <div className="flex items-center justify-between gap-3">
+            <span>Tamaño</span>
+            <span className="font-medium text-on-surface">{formatBytes(audio.sizeBytes)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Duración</span>
+            <span className="font-medium text-on-surface">{audio.durationSeconds ? `${audio.durationSeconds}s` : "–"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Lifecycle</span>
+            <span className="font-medium text-on-surface">{isTemporaryAudio(audio) ? "Temporal" : "Permanente"}</span>
+          </div>
+          {isTemporaryAudio(audio) ? (
+            <div className="flex items-center justify-between gap-3">
+              <span>Vence</span>
+              <span className="font-medium text-on-surface">{getRemainingTimeLabel(audio.expiresAt)}</span>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-2">
+        {editing ? (
+          <>
+            <button type="button" onClick={onSave} className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary">
+              Guardar
+            </button>
+            <button type="button" onClick={onCancelEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={onStartEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+              Editar
+            </button>
+            <button type="button" onClick={onToggleActive} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+              {audio.isActive ? "Desactivar" : "Activar"}
+            </button>
+            <button type="button" onClick={onDelete} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-error/30 px-4 text-sm font-semibold text-error">
+              Eliminar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function buildDebugCsvButtonQueue(audios: AudioAsset[]): CsvImportQueueItem[] {

@@ -23,13 +23,13 @@ export function MailModuleShell({
         description={meta.description}
         action={
           onReload || action ? (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               {action}
               {onReload ? (
                 <button
                   type="button"
                   onClick={onReload}
-                  className="inline-flex items-center gap-2 rounded-full border border-outline-variant px-4 py-2 text-sm font-medium text-on-surface transition hover:border-primary"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-outline-variant px-4 py-2 text-sm font-medium text-on-surface transition hover:border-primary"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Recargar

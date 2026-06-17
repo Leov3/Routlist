@@ -224,7 +224,7 @@ export default function AdminAccessPage() {
                   Primero selecciona organización, luego rol. Los cambios se guardan como sobrescritura sobre la plantilla.
                 </p>
               </div>
-              <div className="inline-flex flex-wrap rounded-full border border-outline-variant bg-surface p-1">
+              <div className="grid gap-2 rounded-full border border-outline-variant bg-surface p-1 sm:inline-flex sm:gap-0">
                 <button
                   type="button"
                   onClick={() => setMode("role")}
@@ -250,7 +250,7 @@ export default function AdminAccessPage() {
 
             <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
               {mode === "organization" ? (
-                <div className="flex max-h-[32rem] flex-col rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+                <div className="flex max-h-[24rem] flex-col rounded-2xl border border-outline-variant bg-surface-container-high p-4 sm:max-h-[32rem]">
                   <div className="mb-3 flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
@@ -280,7 +280,7 @@ export default function AdminAccessPage() {
                 </div>
               ) : null}
 
-              <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+                <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <UserRound className="h-4 w-4 text-primary" />
                   <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
@@ -336,7 +336,7 @@ export default function AdminAccessPage() {
                           aria-pressed={enabled}
                           aria-label={`${module.label} ${enabled ? "activado" : "desactivado"}`}
                           onClick={() => toggleModule(module.key)}
-                          className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition-all hover:border-primary/20 ${
+                          className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all hover:border-primary/20 ${
                             enabled ? "border-primary/40 bg-primary/10" : "border-outline-variant bg-surface-container"
                           }`}
                         >

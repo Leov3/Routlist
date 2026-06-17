@@ -300,13 +300,13 @@ export default function OrganizationsPage() {
       ) : null}
 
       <div className="mb-5 rounded-xl border border-outline-variant bg-surface-container p-4">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
           <label className="grid gap-2 text-sm">
             <span>Organización</span>
             <select
               value={inviteOrganizationId}
               onChange={(event) => setInviteOrganizationId(event.target.value)}
-              className="h-10 min-w-[240px] rounded-xl border border-outline px-3"
+              className="h-10 w-full rounded-xl border border-outline px-3"
             >
               {organizations.map((organization) => (
                 <option key={organization.id} value={organization.id}>
@@ -315,8 +315,8 @@ export default function OrganizationsPage() {
               ))}
             </select>
           </label>
-          <form onSubmit={createInvite} className="flex flex-1 flex-wrap items-end gap-3">
-            <label className="grid flex-1 gap-2 text-sm">
+          <form onSubmit={createInvite} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_180px_auto]">
+            <label className="grid gap-2 text-sm">
               <span>Email</span>
               <input
                 value={inviteEmail}
@@ -327,7 +327,7 @@ export default function OrganizationsPage() {
                 required
               />
             </label>
-            <label className="grid flex-1 gap-2 text-sm">
+            <label className="grid gap-2 text-sm">
               <span>Nombre del invitado</span>
               <input
                 value={inviteeName}
@@ -347,12 +347,12 @@ export default function OrganizationsPage() {
                 <option value="ADMIN">ADMIN</option>
                 <option value="SUPERVISOR">SUPERVISOR</option>
                 <option value="OPERATOR">OPERATOR</option>
-              </select>
+                </select>
             </label>
             <button
               type="submit"
               disabled={inviteLoading}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary disabled:opacity-60"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary disabled:opacity-60"
             >
               <Plus className="h-4 w-4" />
               {inviteLoading ? "Invitando..." : "Invitar usuario"}
@@ -373,7 +373,19 @@ export default function OrganizationsPage() {
           </span>
         </div>
         {invites.length ? (
-          <div className="overflow-hidden rounded-xl border border-outline-variant">
+          <>
+            <div className="space-y-3 md:hidden">
+              {invites.map((invite) => (
+                <InviteCard
+                  key={invite.id}
+                  invite={invite}
+                  onResend={() => void resendInvite(invite.id)}
+                  onApprove={() => void approveInvite(invite.id)}
+                  onReject={() => void rejectInvite(invite.id)}
+                />
+              ))}
+            </div>
+            <div className="hidden overflow-hidden rounded-xl border border-outline-variant md:block">
             <table className="w-full text-left text-sm">
               <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
                 <tr>
@@ -428,13 +440,14 @@ export default function OrganizationsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         ) : (
           <DataState>No hay invitaciones para mostrar.</DataState>
         )}
       </div>
 
-      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_1fr_160px_180px_auto]">
+      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_160px_180px_auto]">
         <input
           value={form.name}
           onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
@@ -477,7 +490,7 @@ export default function OrganizationsPage() {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary disabled:opacity-60"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary disabled:opacity-60"
         >
           <Plus className="h-4 w-4" />
           {saving ? "Creando..." : "Crear organización"}
@@ -508,7 +521,27 @@ export default function OrganizationsPage() {
       {loading ? (
         <DataState>Cargando organizaciones...</DataState>
       ) : filteredOrganizations.length ? (
-        <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filteredOrganizations.map((organization) => (
+              <OrganizationCard
+                key={organization.id}
+                organization={organization}
+                currentOrganizationId={currentOrganization?.id ?? null}
+                onEdit={() => setEditingOrganization(organization)}
+                onAudit={() => void auditNarratives(organization)}
+                onSwitch={() => void switchOrganization(organization.id)}
+                onRemove={() => void removeOrganization(organization)}
+                onToggleStatus={() =>
+                  void update(organization.id, {
+                    status: organization.status === "ACTIVE" ? "DISABLED" : "ACTIVE",
+                  })
+                }
+                deleting={deletingId === organization.id}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-hidden rounded-xl border border-outline-variant bg-surface-container md:block">
           <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
@@ -610,7 +643,8 @@ export default function OrganizationsPage() {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>No hay organizaciones.</DataState>
       )}
@@ -773,6 +807,126 @@ export default function OrganizationsPage() {
         </div>
       ) : null}
     </AdminProtectedPage>
+  );
+}
+
+function InviteCard({
+  invite,
+  onResend,
+  onApprove,
+  onReject,
+}: {
+  invite: OrganizationInvite;
+  onResend: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-on-surface">{invite.email}</p>
+          <p className="mt-1 truncate text-xs text-on-surface-variant">{invite.inviteeName ?? "Sin nombre de invitado"}</p>
+          <p className="truncate text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
+        </div>
+        <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[10px] font-semibold text-on-surface">
+          {invite.status}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+        <div className="flex items-center justify-between gap-3">
+          <span>Rol</span>
+          <span className="font-medium text-on-surface">{invite.role}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>Vence</span>
+          <span className="font-medium text-on-surface">{new Date(invite.expiresAt).toLocaleString()}</span>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        <button type="button" onClick={onResend} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+          Reenviar
+        </button>
+        <button type="button" onClick={onApprove} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface disabled:opacity-50">
+          Aprobar
+        </button>
+        <button type="button" onClick={onReject} className="danger-surface inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold">
+          Rechazar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function OrganizationCard({
+  organization,
+  currentOrganizationId,
+  onEdit,
+  onAudit,
+  onSwitch,
+  onRemove,
+  onToggleStatus,
+  deleting,
+}: {
+  organization: Organization;
+  currentOrganizationId: string | null;
+  onEdit: () => void;
+  onAudit: () => void;
+  onSwitch: () => void;
+  onRemove: () => void;
+  onToggleStatus: () => void;
+  deleting: boolean;
+}) {
+  const isCurrent = currentOrganizationId === organization.id;
+
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-on-surface">{organization.name}</p>
+          <p className="mt-1 truncate text-xs text-on-surface-variant">{organization.slug ?? "—"}</p>
+          <p className="truncate text-xs text-on-surface-variant">{organization.id}</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${organization.status === "ACTIVE" ? "success-surface" : "bg-outline-variant/30 text-on-surface-variant"}`}>
+          {organization.status === "ACTIVE" ? "Activa" : "Deshabilitada"}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+        <div className="flex items-center justify-between gap-3">
+          <span>Límite</span>
+          <span className="font-medium text-on-surface">{organization.maxUsers ?? 5}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>Miembros</span>
+          <span className="font-medium text-on-surface">{organization._count?.members ?? 0}</span>
+        </div>
+      </div>
+
+      <div className="mt-3">
+        {renderUserQuota(organization._count?.members ?? 0, organization.maxUsers ?? 5)}
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        <button type="button" onClick={onEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+          Editar
+        </button>
+        <button type="button" onClick={onAudit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+          Auditar narrativas
+        </button>
+        <button type="button" onClick={onSwitch} disabled={isCurrent} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface disabled:opacity-50">
+          {isCurrent ? "Activa" : "Usar"}
+        </button>
+        <button type="button" onClick={onToggleStatus} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+          {organization.status === "ACTIVE" ? "Desactivar" : "Activar"}
+        </button>
+        <button type="button" onClick={onRemove} disabled={deleting || isCurrent} className="danger-surface inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold disabled:opacity-50">
+          {deleting ? "Borrando..." : "Eliminar"}
+        </button>
+      </div>
+    </div>
   );
 }
 

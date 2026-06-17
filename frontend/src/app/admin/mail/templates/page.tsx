@@ -339,7 +339,7 @@ export default function MailTemplatesPage() {
           <button
             type="button"
             onClick={onRepairTemplates}
-            className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:border-primary hover:text-on-surface"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-outline-variant bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:border-primary hover:text-on-surface sm:w-auto"
           >
             <RefreshCw className="h-4 w-4" />
             Reparar base
@@ -347,7 +347,7 @@ export default function MailTemplatesPage() {
           <button
             type="button"
             onClick={startNew}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90 sm:w-auto"
           >
             <Plus className="h-4 w-4" />
             Nueva plantilla
@@ -636,11 +636,11 @@ function TemplateEditorPanel({
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90 disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-elevation-1 transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
             >
               <Save className="h-4 w-4" />
               {saving ? "Guardando..." : "Guardar plantilla"}
@@ -648,7 +648,7 @@ function TemplateEditorPanel({
             <button
               type="button"
               onClick={onDuplicate}
-              className="inline-flex items-center gap-2 rounded-full border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface transition hover:border-primary hover:text-on-surface"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface transition hover:border-primary hover:text-on-surface sm:w-auto"
             >
               <Copy className="h-4 w-4" />
               Duplicar
@@ -656,7 +656,7 @@ function TemplateEditorPanel({
             <button
               type="button"
               onClick={onSendTest}
-              className="inline-flex items-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 sm:w-auto"
             >
               <Send className="h-4 w-4" />
               Enviar prueba
@@ -665,7 +665,7 @@ function TemplateEditorPanel({
               type="button"
               onClick={onDelete}
               disabled={deleting || !selectedTemplate}
-              className="inline-flex items-center gap-2 rounded-full border border-error px-4 py-2.5 text-sm font-semibold text-error transition disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-error px-4 py-2.5 text-sm font-semibold text-error transition disabled:opacity-60 sm:w-auto"
             >
               <Trash2 className="h-4 w-4" />
               {deleting ? "Eliminando..." : "Eliminar"}
@@ -738,7 +738,7 @@ function TemplateEditorPanel({
       </form>
 
       <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-        <div className="mb-4 flex flex-wrap gap-2">
+        <div className="mb-4 flex flex-nowrap gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0 mail-scrollbar">
           {[
             { key: "html", label: "HTML" },
             { key: "text", label: "Texto" },
@@ -752,7 +752,7 @@ function TemplateEditorPanel({
                 key={tab.key}
                 type="button"
                 onClick={() => setEditorTab(tab.key as EditorTab)}
-                className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition ${
                   active
                     ? "border-primary bg-primary text-on-primary"
                     : "border-outline-variant bg-surface-container-high text-on-surface-variant hover:border-primary hover:text-on-surface"
@@ -813,7 +813,55 @@ function TemplateEditorPanel({
             </p>
             <div className="overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container-high">
               <div className="max-h-[48vh] overflow-auto mail-scrollbar lg:max-h-[58vh]">
-                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                <div className="space-y-3 p-3 md:hidden">
+                  {variableCatalog.flatMap((group) =>
+                    group.variables.map((variable) => {
+                      const important = Boolean(variable.important);
+                      return (
+                        <button
+                          key={variable.key}
+                          type="button"
+                          onClick={async () => {
+                            onInsertVariable(variable.key);
+                            await copyVariable(variable.key);
+                          }}
+                          className={`w-full rounded-2xl border p-3 text-left transition ${
+                            important
+                              ? "border-primary/40 bg-primary/10"
+                              : "border-outline-variant bg-surface-container hover:border-primary/40 hover:bg-primary/5"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p
+                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                  important
+                                    ? "bg-primary text-on-primary"
+                                    : "bg-outline-variant/30 text-on-surface-variant"
+                                }`}
+                              >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                {variable.key}
+                              </p>
+                              <p className="mt-2 text-sm text-on-surface">{variable.description}</p>
+                              <p className="mt-1 text-xs text-on-surface-variant">{variable.scope}</p>
+                            </div>
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                                important
+                                  ? "bg-primary-container text-primary"
+                                  : "border border-outline-variant text-on-surface-variant"
+                              }`}
+                            >
+                              {important ? "Importante" : "Disponible"}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    }),
+                  )}
+                </div>
+                <table className="hidden w-full min-w-[760px] border-collapse text-left text-sm md:table">
                   <thead className="sticky top-0 z-10 bg-surface-container-high">
                     <tr className="border-b border-outline-variant text-xs uppercase tracking-[0.18em] text-on-surface-variant">
                       <th className="px-4 py-3 font-semibold">Variable</th>
@@ -958,18 +1006,18 @@ function TemplateTestPanel({
 }) {
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
-        <Field label="Enviar a">
-          <input value={testTo} onChange={(e) => setTestTo(e.target.value)} className={inputClass} />
-        </Field>
-        <Field label="Asunto opcional">
-          <input value={testSubject} onChange={(e) => setTestSubject(e.target.value)} className={inputClass} />
-        </Field>
+        <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+          <Field label="Enviar a">
+            <input value={testTo} onChange={(e) => setTestTo(e.target.value)} className={inputClass} />
+          </Field>
+          <Field label="Asunto opcional">
+            <input value={testSubject} onChange={(e) => setTestSubject(e.target.value)} className={inputClass} />
+          </Field>
         <div className="flex items-end">
           <button
             type="button"
             onClick={onSendTest}
-            className="inline-flex h-11 items-center gap-2 rounded-full border border-primary px-4 text-sm font-semibold text-primary transition hover:bg-primary/10"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-primary px-4 text-sm font-semibold text-primary transition hover:bg-primary/10"
           >
             <Mail className="h-4 w-4" />
             Enviar prueba
