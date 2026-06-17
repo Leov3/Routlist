@@ -64,7 +64,7 @@ export function BoardSidePanel({
         }
       : {
           dot: "bg-emerald-400",
-          badge: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
+          badge: "success-surface",
           panel: "shadow-[0_0_0_1px_rgba(52,211,153,.08),0_28px_60px_rgba(0,0,0,.12)]",
       };
 
@@ -97,7 +97,7 @@ export function BoardSidePanel({
               className={`inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors hover:bg-surface-container ${
                 tone === "violet"
                   ? "border-primary/25 bg-primary/10 text-on-surface"
-                  : "border-emerald-400/20 bg-emerald-400/10 text-on-surface"
+                  : "success-surface text-on-surface"
               }`}
             >
               <ArrowLeftRight className="h-4 w-4" />

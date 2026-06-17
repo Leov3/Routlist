@@ -93,18 +93,18 @@ type NodePaletteItem = {
 };
 
 const NODE_PALETTE: NodePaletteItem[] = [
-  { type: "START", label: "Inicio", description: "Punto de arranque único.", accent: "from-emerald-500 to-teal-500" },
-  { type: "AUDIO", label: "Audio", description: "Reproduce un audio existente.", accent: "from-violet-500 to-fuchsia-500" },
-  { type: "AUDIO_BUTTON", label: "Botón de Audio", description: "Reproduce audio asociado a un botón.", accent: "from-indigo-500 to-blue-500" },
-  { type: "DYNAMIC_AUDIO", label: "Audio dinámico IA", description: "Texto con variables para TTS.", accent: "from-fuchsia-500 to-purple-500" },
-  { type: "SCRIPT_TEXT", label: "Texto / Guion", description: "Texto para leer al aire.", accent: "from-sky-500 to-cyan-500" },
-  { type: "PAUSE", label: "Pausa", description: "Esperar o pausar manualmente.", accent: "from-slate-500 to-slate-700" },
-  { type: "DECISION", label: "Decisión", description: "Ramificación con opciones.", accent: "from-pink-500 to-rose-500" },
-  { type: "END", label: "Fin", description: "Cierre del flujo.", accent: "from-red-500 to-rose-500" },
+  { type: "START", label: "Inicio", description: "Punto de arranque único.", accent: "from-emerald-500 to-emerald-600" },
+  { type: "AUDIO", label: "Audio", description: "Reproduce un audio existente.", accent: "from-primary to-secondary" },
+  { type: "AUDIO_BUTTON", label: "Botón de Audio", description: "Reproduce audio asociado a un botón.", accent: "from-secondary to-primary" },
+  { type: "DYNAMIC_AUDIO", label: "Audio dinámico IA", description: "Texto con variables para TTS.", accent: "from-secondary to-tertiary" },
+  { type: "SCRIPT_TEXT", label: "Texto / Guion", description: "Texto para leer al aire.", accent: "from-primary to-secondary" },
+  { type: "PAUSE", label: "Pausa", description: "Esperar o pausar manualmente.", accent: "from-slate-500 to-slate-600" },
+  { type: "DECISION", label: "Decisión", description: "Ramificación con opciones.", accent: "from-secondary to-tertiary" },
+  { type: "END", label: "Fin", description: "Cierre del flujo.", accent: "from-emerald-500 to-emerald-600" },
 ];
 
 const ANNOTATION_PALETTE: NodePaletteItem[] = [
-  { type: "INSTRUCTION", label: "Nota operativa", description: "Anotación: no cuenta como paso ni bloquea el flujo.", accent: "from-amber-400 to-yellow-600" },
+  { type: "INSTRUCTION", label: "Nota operativa", description: "Anotación: no cuenta como paso ni bloquea el flujo.", accent: "from-amber-500 to-amber-600" },
 ];
 
 const ELEVENLABS_OUTPUT_FORMAT_OPTIONS = [
@@ -376,24 +376,24 @@ function nodeSummary(node: Node<FlowNodeData>) {
 function badgeClassName(tone: BuilderBadge["tone"]) {
   switch (tone) {
     case "valid":
-      return "border-emerald-300 bg-emerald-500/12 text-emerald-700 dark:border-emerald-900/40 dark:text-emerald-300";
+      return "success-surface";
     case "warning":
-      return "border-amber-300 bg-amber-500/12 text-amber-700 dark:border-amber-900/40 dark:text-amber-300";
+      return "warning-surface-strong";
     case "error":
-      return "border-red-300 bg-red-500/12 text-red-700 dark:border-red-900/40 dark:text-red-300";
+      return "danger-surface";
     default:
-      return "border-slate-300 bg-slate-500/12 text-slate-700 dark:border-slate-700/40 dark:text-slate-300";
+      return "border-outline-variant bg-surface-container text-on-surface-variant";
   }
 }
 
 function statusDotClassName(status: FlowNodeData["builderStatus"]) {
   switch (status) {
     case "valid":
-      return "bg-emerald-500";
+      return "bg-[color:var(--success-icon)]";
     case "warning":
-      return "bg-amber-500";
+      return "bg-[color:var(--warning-icon)]";
     case "error":
-      return "bg-red-500";
+      return "bg-[color:var(--danger-icon)]";
     default:
       return "bg-slate-400";
   }
@@ -596,23 +596,23 @@ function toModelItems(value: unknown) {
 function nodeClassName(nodeType: NarrativeNodeType) {
   switch (nodeType) {
     case "START":
-      return "border-emerald-300 bg-emerald-500/15 text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-500/15 dark:text-emerald-100";
+      return "border-[color:var(--success-border)] bg-[color:var(--success-bg)] text-[color:var(--success-text)]";
     case "AUDIO":
-      return "border-violet-300 bg-violet-500/15 text-violet-950 dark:border-violet-900/60 dark:bg-violet-500/15 dark:text-violet-100";
+      return "border-primary/25 bg-primary-container text-on-primary-container";
     case "AUDIO_BUTTON":
-      return "border-indigo-300 bg-indigo-500/15 text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-500/15 dark:text-indigo-100";
+      return "border-secondary/25 bg-secondary-container text-on-secondary-container";
     case "DYNAMIC_AUDIO":
-      return "border-fuchsia-300 bg-fuchsia-500/15 text-fuchsia-950 dark:border-fuchsia-900/60 dark:bg-fuchsia-500/15 dark:text-fuchsia-100";
+      return "border-tertiary/25 bg-tertiary-container text-on-tertiary-container";
     case "SCRIPT_TEXT":
-      return "border-sky-300 bg-sky-500/15 text-sky-950 dark:border-sky-900/60 dark:bg-sky-500/15 dark:text-sky-100";
+      return "border-outline-variant bg-surface-container-high text-on-surface";
     case "INSTRUCTION":
-      return "border-amber-300 bg-amber-500/15 text-amber-950 dark:border-amber-900/60 dark:bg-amber-500/15 dark:text-amber-100";
+      return "warning-surface-strong";
     case "PAUSE":
-      return "border-slate-300 bg-slate-500/15 text-slate-950 dark:border-slate-700/60 dark:bg-slate-500/15 dark:text-slate-100";
+      return "border-outline-variant bg-surface-container text-on-surface-variant";
     case "DECISION":
-      return "border-pink-300 bg-pink-500/15 text-pink-950 dark:border-pink-900/60 dark:bg-pink-500/15 dark:text-pink-100";
+      return "border-secondary/25 bg-secondary-container text-on-secondary-container";
     case "END":
-      return "border-red-300 bg-red-500/15 text-red-950 dark:border-red-900/60 dark:bg-red-500/15 dark:text-red-100";
+      return "success-surface";
     default:
       return "border-outline-variant bg-surface text-on-surface";
   }
@@ -633,37 +633,37 @@ function NarrativeFlowNode({ data, selected, type }: NodeProps) {
   if (nodeType === "INSTRUCTION") {
     return (
       <div
-        className={`relative min-w-[260px] max-w-[320px] rotate-[-0.6deg] rounded-bl-[34px] rounded-br-xl rounded-tl-xl rounded-tr-[34px] border-2 border-amber-300/35 bg-gradient-to-br from-amber-300/25 via-[#2a1d0d] to-[#15100a] px-4 py-4 text-amber-50 shadow-elevation-2 ${
-          selected ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-surface" : ""
+        className={`relative min-w-[260px] max-w-[320px] rotate-[-0.6deg] rounded-bl-[34px] rounded-br-xl rounded-tl-xl rounded-tr-[34px] border-2 warning-surface-strong px-4 py-4 shadow-elevation-2 ${
+          selected ? "ring-2 ring-[color:var(--warning-icon)] ring-offset-2 ring-offset-surface" : ""
         }`}
       >
         <Handle
           type="target"
           position={Position.Top}
-          className="!h-3 !w-3 !border-2 !border-surface !bg-amber-300"
+          className="!h-3 !w-3 !border-2 !border-surface !bg-[color:var(--warning-icon)]"
         />
         <Handle
           type="source"
           position={Position.Bottom}
-          className="!h-3 !w-3 !border-2 !border-surface !bg-amber-300"
+          className="!h-3 !w-3 !border-2 !border-surface !bg-[color:var(--warning-icon)]"
         />
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-amber-300/20 text-xs font-black uppercase tracking-[0.2em] text-amber-200">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-[color:var(--warning-bg-strong)] text-xs font-black uppercase tracking-[0.2em] text-[color:var(--warning-text)]">
             NT
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">Instrucción</p>
-              <span className="rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-100">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[color:var(--warning-text)]">Instrucción</p>
+              <span className="rounded-full border border-[color:var(--warning-border)] bg-[color:var(--warning-bg-strong)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--warning-text)]">
                 Nota
               </span>
               <span className={`h-2 w-2 rounded-full ${statusDotClassName(flowData.builderStatus)}`} />
             </div>
-            <p className="mt-2 line-clamp-4 text-sm font-semibold leading-relaxed text-amber-50">{summary}</p>
-            <p className="mt-3 text-[11px] font-semibold text-amber-100/70">No cuenta como paso ni bloquea publicación.</p>
+            <p className="mt-2 line-clamp-4 text-sm font-semibold leading-relaxed text-[color:var(--warning-text)]">{summary}</p>
+            <p className="mt-3 text-[11px] font-semibold text-[color:var(--warning-text-muted)]">No cuenta como paso ni bloquea publicación.</p>
           </div>
         </div>
-        <span className="absolute bottom-3 right-3 h-7 w-7 rounded-br-lg border-b-2 border-r-2 border-amber-200/35" />
+        <span className="absolute bottom-3 right-3 h-7 w-7 rounded-br-lg border-b-2 border-r-2 border-[color:var(--warning-border)]" />
       </div>
     );
   }
@@ -683,7 +683,7 @@ function NarrativeFlowNode({ data, selected, type }: NodeProps) {
       )}
 
       <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-black/10 text-xs font-black uppercase tracking-[0.2em]">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-surface-container-highest text-xs font-black uppercase tracking-[0.2em] text-on-surface">
           {nodeType.slice(0, 2)}
         </div>
         <div className="min-w-0">
@@ -738,7 +738,7 @@ function BooleanPill({
       onClick={() => onChange(!value)}
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
         value
-          ? "border-emerald-300 bg-emerald-500/15 text-emerald-700 dark:border-emerald-900/50 dark:text-emerald-300"
+          ? "success-surface"
           : "border-outline-variant bg-surface text-on-surface-variant"
       }`}
     >
@@ -758,7 +758,7 @@ function ModalSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-outline-variant bg-surface px-4 py-4">
+    <section className="rounded-3xl border border-outline-variant bg-surface-container px-4 py-4">
       <div className="mb-3">
         <p className="text-sm font-semibold text-on-surface">{title}</p>
         {description ? (
@@ -1489,7 +1489,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     }
 
     return issues;
-  }, [audioMap, buttonMap, edges, executionEdges, executionGraphMetrics.incoming, executionGraphMetrics.outgoing, graphMetrics.incoming, graphMetrics.outgoing, nodes]);
+  }, [audioMap, buttonMap, executionEdges, executionGraphMetrics.incoming, executionGraphMetrics.outgoing, graphMetrics.incoming, graphMetrics.outgoing, nodes]);
 
   const backendValidationIssues = useMemo(() => {
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
@@ -1821,7 +1821,7 @@ try {
           } as FlowNodeData,
         };
       }),
-    [audioMap, buttonMap, edges, executionEdges, executionGraphMetrics.incoming, executionGraphMetrics.outgoing, graphMetrics.incoming, graphMetrics.outgoing, nodes],
+    [audioMap, buttonMap, executionEdges, executionGraphMetrics.incoming, executionGraphMetrics.outgoing, graphMetrics.incoming, graphMetrics.outgoing, nodes],
   );
 
   const displayEdges = useMemo(() => {
@@ -2525,7 +2525,7 @@ try {
                       editingDynamicAudioVariables.map((variable) => (
                         <span
                           key={variable}
-                          className="inline-flex rounded-full border border-fuchsia-300/40 bg-fuchsia-500/10 px-3 py-1 text-xs font-semibold text-fuchsia-700 dark:text-fuchsia-200"
+                          className="inline-flex rounded-full border border-tertiary/25 bg-tertiary-container px-3 py-1 text-xs font-semibold text-on-tertiary-container"
                         >
                           {variable}
                         </span>
@@ -2635,8 +2635,8 @@ try {
                             key={format}
                             className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
                               isSelected
-                                ? "border-fuchsia-300/50 bg-fuchsia-500/15 text-fuchsia-200"
-                                : "border-outline-variant bg-surface-container text-on-surface-variant"
+                              ? "border-secondary/25 bg-secondary-container text-on-secondary-container"
+                              : "border-outline-variant bg-surface-container text-on-surface-variant"
                             }`}
                           >
                             {format}
@@ -2776,7 +2776,7 @@ try {
 
           {editingNode.data?.nodeType === "INSTRUCTION" && (
             <>
-              <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-200">
+              <div className="warning-surface-strong rounded-2xl px-4 py-3 text-sm">
                 Las instrucciones funcionan como notas operativas. No cuentan como pasos del flujo, pueden estar desconectadas y no bloquean la ejecución.
               </div>
 
@@ -2936,7 +2936,7 @@ try {
                                       options.filter((item) => item.id !== option.id),
                                     )
                                   }
-                                  className="rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+                                  className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors"
                                 >
                                   Eliminar
                                 </button>
@@ -3023,7 +3023,7 @@ try {
             description="Resumen de issues detectados para este nodo dentro del builder."
           >
             {editingNodeIssues.length === 0 ? (
-              <p className="text-sm text-emerald-700 dark:text-emerald-300">
+              <p className="text-sm text-[color:var(--success-text-muted)] dark:text-emerald-300">
                 Este nodo no tiene observaciones activas.
               </p>
             ) : (
@@ -3059,7 +3059,7 @@ try {
               removeNode(editingNode.id);
               setEditingNodeId(null);
             }}
-            className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-50/50 px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+            className="danger-surface inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-colors"
           >
             Eliminar nodo
           </button>
@@ -3116,13 +3116,13 @@ if (loading) {
           </div>
 
           <div className="space-y-1.5">
-            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-400">Anotaciones</p>
+            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--warning-text-muted)]">Anotaciones</p>
             {ANNOTATION_PALETTE.map((item) => (
               <button
                 key={item.type}
                 type="button"
                 onClick={() => addNode(item.type)}
-                className="group flex w-full items-center gap-2.5 rounded-xl border border-amber-300/25 bg-amber-500/10 px-2.5 py-2 text-left transition-colors hover:border-amber-300/60"
+                className="group flex w-full items-center gap-2.5 rounded-xl border border-amber-300/35 bg-[color:var(--warning-bg)] px-2.5 py-2 text-left transition-colors hover:border-amber-300/60"
               >
                 <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.accent} text-white shadow-sm`}>
                   <Plus className="h-3.5 w-3.5" />
@@ -3273,7 +3273,7 @@ if (loading) {
                     <button
                       type="button"
                       onClick={() => removeNodes(selectedNodeIds)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+                      className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors"
                     >
                       Eliminar selección
                     </button>
@@ -3326,7 +3326,7 @@ if (loading) {
                     <button
                       type="button"
                       onClick={() => removeEdges(selectedEdgeIds)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+                      className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors"
                     >
                       {selectedEdges.length === 1 ? "Eliminar conexión" : "Eliminar conexiones"}
                     </button>
@@ -3547,12 +3547,12 @@ if (loading) {
                     </p>
                     <div className="mt-2 space-y-2 text-sm">
                       {effectiveValidation.valid ? (
-                        <p className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-300">
+                        <p className="inline-flex items-center gap-2 text-[color:var(--success-text-muted)] dark:text-emerald-300">
                           <CheckCircle2 className="h-4 w-4" />
                           La narrativa está lista para publicar.
                         </p>
                       ) : (
-                        <p className="inline-flex items-center gap-2 text-amber-600 dark:text-amber-300">
+                        <p className="inline-flex items-center gap-2 text-[color:var(--warning-text-muted)] dark:text-amber-300">
                           <AlertCircle className="h-4 w-4" />
                           Hay observaciones que conviene resolver antes de publicar.
                         </p>

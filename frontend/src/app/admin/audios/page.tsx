@@ -441,9 +441,9 @@ export default function AudiosPage() {
                 <SummaryPill label="Importar" value={csvPreview?.error ? "Revisar" : "Listo"} tone={csvPreview?.error ? "warning" : "muted"} />
               </div>
 
-              {csvPreview?.error ? <p className="mt-4 text-sm text-error">{csvPreview.error}</p> : null}
+              {csvPreview?.error ? <p className="danger-surface mt-4 rounded-2xl px-4 py-3 text-sm">{csvPreview.error}</p> : null}
               {csvPreview?.duplicates?.length ? (
-                <p className="mt-4 text-sm text-amber-400">Duplicados detectados: {csvPreview.duplicates.join(", ")}</p>
+                <p className="warning-surface-strong mt-4 rounded-2xl px-4 py-3 text-sm">Duplicados detectados: {csvPreview.duplicates.join(", ")}</p>
               ) : null}
             </div>
 
@@ -485,7 +485,7 @@ export default function AudiosPage() {
                           <p className="max-w-[420px] truncate text-on-surface-variant" title={row.text}>{row.text}</p>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={row.status === "MATCHED" ? "text-emerald-400" : "text-amber-400"}>
+                          <span className={row.status === "MATCHED" ? "text-[color:var(--success-text-muted)]" : "text-[color:var(--warning-text-muted)]"}>
                             {row.status === "MATCHED" ? `OK (${row.matchedFileName})` : "Pendiente"}
                           </span>
                         </td>
@@ -1040,8 +1040,8 @@ function SummaryPill({
   tone: "success" | "warning" | "muted";
 }) {
   const toneClasses = {
-    success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    warning: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+    success: "success-surface",
+    warning: "warning-surface-strong",
     muted: "border-outline-variant bg-surface-container text-on-surface-variant",
   } as const;
 

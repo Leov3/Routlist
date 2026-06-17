@@ -64,7 +64,7 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
           </button>
         </div>
 
-        {errorMessage ? <div className="border-b border-red-500/20 bg-red-500/10 px-5 py-3 text-sm text-red-300">{errorMessage}</div> : null}
+        {errorMessage ? <div className="border-b danger-surface px-5 py-3 text-sm">{errorMessage}</div> : null}
 
         <div className="grid min-h-0 flex-1 gap-4 overflow-hidden p-5 lg:grid-cols-[1.05fr_.95fr]">
           <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
@@ -74,7 +74,7 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
               <Stat label="Faltantes" value={String(preview?.missingCount ?? 0)} />
             </div>
             {preview?.duplicates?.length ? (
-              <p className="mt-3 text-sm text-amber-300">Duplicados: {preview.duplicates.join(", ")}</p>
+              <p className="warning-surface mt-3 rounded-2xl px-3 py-2 text-sm">Duplicados: {preview.duplicates.join(", ")}</p>
             ) : null}
             <div className="mt-4 max-h-[calc(100dvh-18rem)] overflow-auto rounded-2xl border border-outline-variant">
               <table className="w-full text-left text-sm">
@@ -91,7 +91,9 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
                       <td className="px-4 py-3 text-on-surface">{row.fileName}</td>
                       <td className="px-4 py-3 text-on-surface-variant">{row.text}</td>
                       <td className="px-4 py-3">
-                        <span className={row.status === "MATCHED" ? "text-emerald-400" : "text-amber-400"}>{row.status}</span>
+                        <span className={row.status === "MATCHED" ? "success-surface" : "warning-surface"}>
+                          {row.status}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -103,7 +105,7 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
           <div className="flex min-h-0 flex-col gap-4 rounded-[24px] border border-outline-variant bg-surface-container p-4">
             <div className="rounded-2xl border border-outline-variant bg-surface p-4">
               <div className="flex items-start gap-3">
-                {result ? <CheckCircle2 className="mt-0.5 h-6 w-6 text-emerald-300" /> : <AlertTriangle className="mt-0.5 h-6 w-6 text-amber-300" />}
+                {result ? <CheckCircle2 className="mt-0.5 h-6 w-6 text-[color:var(--success-icon)]" /> : <AlertTriangle className="mt-0.5 h-6 w-6 text-[color:var(--warning-icon)]" />}
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-on-surface">{result ? "Importación completada" : "Revisión previa"}</p>
                   <p className="mt-1 text-sm leading-6 text-on-surface-variant">

@@ -262,7 +262,7 @@ export default function ButtonsPage() {
     <AdminProtectedPage>
       <PageHeader title="Botones" description="Accesos operativos asociados a audios." />
       {errorMessage ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="danger-surface mb-4 rounded-xl px-4 py-3 text-sm">
           {errorMessage}
         </div>
       ) : null}
@@ -348,7 +348,7 @@ export default function ButtonsPage() {
                           <button type="button" onClick={() => startEdit(button)} className="rounded-xl border border-outline p-2" title="Editar"><Pencil className="h-4 w-4" /></button>
                           <button type="button" onClick={() => void duplicate(button.id)} className="rounded-xl border border-outline p-2" title="Duplicar"><Copy className="h-4 w-4" /></button>
                           <button type="button" onClick={() => void setActive(button.id, !button.isActive)} className="rounded-xl border border-outline p-2" title={button.isActive ? "Desactivar" : "Activar"}>{button.isActive ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}</button>
-                          <button type="button" onClick={() => void remove(button.id)} className="rounded-xl border border-red-200 p-2 text-red-700" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => void remove(button.id)} className="danger-surface inline-flex items-center justify-center rounded-xl p-2" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
                         </>
                       )}
                     </div>

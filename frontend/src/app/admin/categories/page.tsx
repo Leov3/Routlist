@@ -175,7 +175,7 @@ export default function CategoriesPage() {
                         <>
                           <button onClick={() => startEdit(category)} className="rounded-xl border border-outline p-2" title="Editar"><Pencil className="h-4 w-4" /></button>
                           <button onClick={() => void setActive(category.id, !category.isActive)} className="rounded-xl border border-outline p-2" title={category.isActive ? "Desactivar" : "Activar"}>{category.isActive ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}</button>
-                          <button onClick={() => void remove(category.id)} className="rounded-xl border border-red-200 p-2 text-red-700" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                          <button onClick={() => void remove(category.id)} className="danger-surface inline-flex items-center justify-center rounded-xl p-2" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
                         </>
                       )}
                     </div>

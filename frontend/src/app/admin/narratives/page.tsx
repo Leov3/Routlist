@@ -60,7 +60,7 @@ export default function AdminNarrativesPage() {
           action={
             <Link
               href="/admin/narratives/new"
-              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01]"
+              className="btn-surface-base btn-primary-surface h-11 rounded-2xl px-4 text-sm"
             >
               <Plus className="h-4 w-4" />
               Nueva narrativa

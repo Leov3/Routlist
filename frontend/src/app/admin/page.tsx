@@ -261,7 +261,7 @@ export default function AdminDashboardPage() {
         permission: "history:read",
       },
     ],
-    [counts],
+    [counts, storage],
   );
 
   const visibleMetrics = metrics.filter((metric) =>
@@ -477,7 +477,7 @@ export default function AdminDashboardPage() {
                               type="button"
                               onClick={() => void revokeInvite(invite.id, invite.organization.id)}
                               disabled={revokingInviteId === invite.id}
-                              className="inline-flex items-center gap-2 rounded-xl border border-red-400/30 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                              className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50"
                             >
                               <Trash2 className="h-4 w-4" />
                               {revokingInviteId === invite.id ? "Revocando..." : "Revocar"}

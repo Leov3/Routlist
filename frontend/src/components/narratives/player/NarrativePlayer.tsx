@@ -20,17 +20,13 @@ import {
   Copy,
   Crosshair,
   CheckCircle2,
-  Clock3,
   Lock,
   Play,
   Pause,
-  RotateCcw,
   Square,
-  SkipForward,
   StopCircle,
   TriangleAlert,
   Route,
-  Timer,
   WandSparkles,
 } from "lucide-react";
 import { api, apiUrl } from "@/lib/api";
@@ -80,13 +76,6 @@ type LayoutDistancePreset = {
   label: string;
   xScale: number;
   yScale: number;
-};
-
-type LayoutBox = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 };
 
 type LayoutPosition = {
@@ -229,22 +218,22 @@ function nodeSummary(node: NodeMeta | undefined) {
 
 function statusTone(status: PlayerNodeState) {
   if (status === "completed") {
-    return "border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:border-emerald-900/50 dark:text-emerald-300";
+    return "success-surface";
   }
   if (status === "current") {
-    return "border-primary/30 bg-primary/10 text-primary";
+    return "border-primary/25 bg-primary-container text-on-primary-container";
   }
   if (status === "available") {
-    return "border-sky-300 bg-sky-500/10 text-sky-700 dark:border-sky-900/50 dark:text-sky-300";
+    return "border-outline-variant bg-surface-container-high text-on-surface";
   }
   if (status === "skipped") {
-    return "border-amber-300 bg-amber-500/10 text-amber-700 dark:border-amber-900/50 dark:text-amber-300";
+    return "warning-surface-strong";
   }
   if (status === "error") {
-    return "border-red-300 bg-red-500/10 text-red-700 dark:border-red-900/50 dark:text-red-300";
+    return "danger-surface";
   }
   if (status === "decision-selected") {
-    return "border-fuchsia-300 bg-fuchsia-500/10 text-fuchsia-700 dark:border-fuchsia-900/50 dark:text-fuchsia-300";
+    return "border-secondary/25 bg-secondary-container text-on-secondary-container";
   }
   return "border-outline-variant bg-surface-container text-on-surface-variant";
 }
@@ -298,10 +287,6 @@ function formatDateTime(value?: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   });
-}
-
-function boolLabel(value: unknown, truthy: string, falsy: string) {
-  return value ? truthy : falsy;
 }
 
 function readDecisionLabels(value: unknown) {
@@ -366,11 +351,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [playbackState, setPlaybackState] = useState<AudioPlaybackState>("idle");
-  const [selectedDecisionTarget, setSelectedDecisionTarget] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [audioButtonDetailsById, setAudioButtonDetailsById] = useState<Record<string, AudioButtonDetail>>({});
   const [currentButtonDetails, setCurrentButtonDetails] = useState<AudioButtonDetail | null>(null);
-  const [buttonDetailsError, setButtonDetailsError] = useState<string | null>(null);
   const [buttonBoardModalButton, setButtonBoardModalButton] = useState<BoardAudioButton | null>(null);
   const [dynamicAudioDrafts, setDynamicAudioDrafts] = useState<Record<string, Record<string, string>>>({});
   const [dynamicAudioClips, setDynamicAudioClips] = useState<Record<string, DynamicAudioClip | null>>({});
@@ -379,12 +362,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
   const [showBottomDock, setShowBottomDock] = useState(false);
-  const [showActivityDock, setShowActivityDock] = useState(false);
+  const [showActivityDock] = useState(false);
   const [distancePresetId, setDistancePresetId] = useState<string>("max");
   const [playerViewMode, setPlayerViewMode] = useState<BoardViewMode>("simple");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 0.8 });
   const savePreferencesTimerRef = useRef<number | null>(null);
+  const selectedDecisionTargetRef = useRef<string | null>(null);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -667,7 +651,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       const cachedDetails = audioButtonDetailsById[audioButtonId];
       if (cachedDetails) {
         setCurrentButtonDetails(cachedDetails);
-        setButtonDetailsError(null);
         return;
       }
 
@@ -683,12 +666,8 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         imageUrl: null,
         imagePublicUrl: null,
       });
-      setButtonDetailsError(
-        "No se encontró el botón en la biblioteca cargada. El recurso puede haberse eliminado o no pertenecer a esta organización.",
-      );
     } else {
       setCurrentButtonDetails(null);
-      setButtonDetailsError(null);
     }
   }, [actionNode, audioButtonDetailsById]);
 
@@ -814,19 +793,9 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }));
   }, [audioButtonDetailsById, executionEdges, layoutPositions, nodeStates, nodes]);
 
-  const currentStatus = currentNode ? nodeStates.get(currentNode.id) ?? "locked" : "locked";
-  const actionNodeState = actionNode ? nodeStates.get(actionNode.id) ?? "locked" : "locked";
   const actionNodeIsCurrent = actionNode?.id === uiCurrentNodeId;
   const actionNodeIsInteractive = actionNodeIsCurrent && run?.status === "RUNNING";
   const outgoing = currentNode ? findOutgoingEdges(currentNode.id, executionEdges) : [];
-  const actionDecisionLabels = readDecisionLabels(actionNode?.data?.options);
-  const actionNodeDecisionChoices = actionNode?.type === "DECISION"
-    ? findOutgoingEdges(actionNode.id, executionEdges).map((edge, index) => ({
-        label: edge.label?.trim() || actionDecisionLabels[index] || "Opción",
-        targetNodeId: edge.target,
-      }))
-    : [];
-
   const orderedNodes = useMemo(() => {
     if (!nodes.length) return [];
 
@@ -951,7 +920,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }, []);
 
   useEffect(() => {
-    setSelectedDecisionTarget(null);
+    selectedDecisionTargetRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.removeAttribute("src");
@@ -1181,7 +1150,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
   async function handleDecision(targetNodeId: string, label: string) {
     if (!run) return;
-    setSelectedDecisionTarget(targetNodeId);
+    selectedDecisionTargetRef.current = targetNodeId;
     await syncCurrentNode(targetNodeId, "DECISION_SELECTED", {
       choiceLabel: label,
       targetNodeId,
@@ -1340,10 +1309,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       ? String(currentButtonDetails?.audioAssetId ?? "") 
       : "";
   const hasAudio = Boolean(audioAssetId);
-  const audioDescription = String(actionNode?.data?.description ?? "");
-  const operatorNotes = String(actionNode?.data?.operatorNotes ?? actionNode?.data?.notes ?? "");
-  const isRequiredNode = actionNode?.data?.required !== false;
-  const canReplay = actionNode?.data?.allowReplay !== false;
   const actionableNodes = useMemo(
     () => nodes.filter((node) => node.type !== "START" && node.type !== "INSTRUCTION").length,
     [nodes],
@@ -1354,15 +1319,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       (currentNode && currentNode.type !== "START" && currentNode.type !== "INSTRUCTION" ? 1 : 0),
     [completedIds, currentNode, nodes, skippedIds],
   );
-  const elapsedLabel = useMemo(() => {
-    if (!run?.startedAt) return null;
-    const diffSeconds = Math.max(0, Math.floor((Date.now() - new Date(run.startedAt).getTime()) / 1000));
-    const hh = String(Math.floor(diffSeconds / 3600)).padStart(2, "0");
-    const mm = String(Math.floor((diffSeconds % 3600) / 60)).padStart(2, "0");
-    const ss = String(diffSeconds % 60).padStart(2, "0");
-    return `${hh}:${mm}:${ss}`;
-  }, [run?.startedAt]);
-
   if (loading) {
     return (
       <div className="rounded-[28px] border border-outline-variant bg-surface-container p-6 text-sm text-on-surface-variant shadow-elevation-1">
@@ -1375,7 +1331,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     return (
       <div className="rounded-[28px] border border-outline-variant bg-surface-container p-6 shadow-elevation-1">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600">
+          <div className="warning-surface-strong flex h-10 w-10 items-center justify-center rounded-2xl">
             <TriangleAlert className="h-4 w-4" />
           </div>
           <div>
@@ -1391,20 +1347,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
   const eventLog = [...(run.events ?? [])].slice().reverse().slice(0, 10);
   const isDualView = playerViewMode === "dual";
-
-  async function copyScriptText() {
-    const text = String(actionNode?.data?.body ?? "");
-    if (!text) {
-      setMessage("Este nodo no tiene texto para copiar.");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      setMessage("Texto copiado al portapapeles.");
-    } catch {
-      setMessage("No se pudo copiar el texto.");
-    }
-  }
 
   async function copyNodeText(nodeId: string) {
     const node = nodeMap.get(nodeId);
@@ -1590,292 +1532,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     );
   }
 
-  function renderActionContent() {
-    if (!actionNode) return null;
-
-    if (actionNode.type === "AUDIO") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Audio</p>
-          <p className="text-sm font-medium text-on-surface">{nodeSummary(actionNode)}</p>
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
-              {boolLabel(isRequiredNode, "Requerido", "Opcional")}
-            </span>
-            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(canReplay ? "available" : "locked")}`}>
-              {boolLabel(canReplay, "Permite repetir", "Sin repetición")}
-            </span>
-            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(hasAudio ? "completed" : "error")}`}>
-              {boolLabel(hasAudio, "Audio listo", "Audio faltante")}
-            </span>
-          </div>
-          {audioDescription ? <p className="text-sm text-on-surface-variant">{audioDescription}</p> : null}
-          {operatorNotes ? (
-            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas de operador</p>
-              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-            </div>
-          ) : null}
-          {!hasAudio ? (
-            <div className="rounded-2xl border border-red-300/40 bg-red-500/10 px-3 py-3 text-sm text-red-700 dark:text-red-300">
-              Este nodo no tiene un audio válido asignado.
-            </div>
-          ) : null}
-          {renderAudioControls("Reproducir audio")}
-        </div>
-      );
-    }
-
-    if (actionNode.type === "AUDIO_BUTTON") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Botón de audio</p>
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
-              {boolLabel(isRequiredNode, "Requerido", "Opcional")}
-            </span>
-            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(hasAudio ? "completed" : "error")}`}>
-              {boolLabel(hasAudio, "Audio asociado", "Audio faltante")}
-            </span>
-          </div>
-          {currentButtonDetails ? (
-            <div className="rounded-xl border border-outline-variant bg-surface p-3" style={{ borderLeftColor: currentButtonDetails.color ?? undefined, borderLeftWidth: 4 }}>
-              <p className="font-semibold text-on-surface">{currentButtonDetails.label}</p>
-              <p className="text-xs text-on-surface-variant">
-                Categoría: {currentButtonDetails.category?.name || "Sin categoría"} | Acceso directo: {currentButtonDetails.shortcutKey || "Ninguno"}
-              </p>
-              <p className="mt-1 text-xs text-on-surface-variant">
-                Audio: {currentButtonDetails.audioAsset?.originalName || currentButtonDetails.audioAssetId || "No disponible"}
-              </p>
-              {currentButtonDetails.description ? <p className="mt-2 text-sm text-on-surface-variant">{currentButtonDetails.description}</p> : null}
-            </div>
-          ) : buttonDetailsError ? (
-            <div className="rounded-2xl border border-red-300/40 bg-red-500/10 px-3 py-3 text-sm text-red-700 dark:text-red-300">
-              {buttonDetailsError}
-            </div>
-          ) : (
-            <p className="text-sm text-on-surface-variant">Cargando detalles del botón...</p>
-          )}
-          {operatorNotes ? (
-            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas de operador</p>
-              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-            </div>
-          ) : null}
-          {renderAudioControls("Reproducir botón")}
-        </div>
-      );
-    }
-
-    if (actionNode.type === "SCRIPT_TEXT") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto para leer</p>
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(isRequiredNode ? "current" : "available")}`}>
-              {boolLabel(isRequiredNode, "Lectura requerida", "Lectura opcional")}
-            </span>
-          </div>
-          <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-            {String(actionNode.data?.body ?? "Sin contenido")}
-          </p>
-          {operatorNotes ? (
-            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
-              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void copyScriptText()}
-            className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-          >
-            <Copy className="h-4 w-4" />
-            Copiar texto
-          </button>
-          {!actionNodeIsCurrent ? (
-            <p className="text-xs text-on-surface-variant">El texto puede consultarse aunque no sea el paso actual.</p>
-          ) : null}
-        </div>
-      );
-    }
-
-    if (actionNode.type === "INSTRUCTION") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Instrucción operativa</p>
-          <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-4">
-            <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-              {String(actionNode.data?.instruction ?? "Sin instrucción")}
-            </p>
-          </div>
-          {operatorNotes ? (
-            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
-              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-            </div>
-          ) : null}
-          {!actionNodeIsCurrent ? (
-            <p className="text-xs text-on-surface-variant">La instrucción puede consultarse aunque no sea el paso actual.</p>
-          ) : null}
-        </div>
-      );
-    }
-
-    if (actionNode.type === "PAUSE") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Pausa</p>
-          <p className="text-base leading-7 text-on-surface">
-            {actionNode.data?.manual === false || actionNode.data?.pauseType === "timer"
-              ? `Pausa temporizada de ${String(actionNode.data?.durationSeconds ?? "0")} segundos.`
-              : "Pausa manual. Espera la señal para continuar."}
-          </p>
-          {pauseRemainingSeconds !== null ? (
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm text-on-surface">
-              <Clock3 className="h-4 w-4" />
-              {pauseRemainingSeconds > 0
-                ? `Continuar disponible en ${pauseRemainingSeconds}s`
-                : "Puedes continuar"}
-            </div>
-          ) : null}
-          {!actionNodeIsCurrent ? (
-            <p className="text-xs text-on-surface-variant">La pausa puede consultarse aunque no sea el paso actual.</p>
-          ) : null}
-          {(actionNode.data?.manual === false || actionNode.data?.pauseType === "timer") &&
-          pauseRemainingSeconds === null ? (
-            <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-700 dark:text-amber-300">
-              La duración no es válida. Se mantiene fallback manual para continuar de forma segura.
-            </div>
-          ) : null}
-          {operatorNotes ? (
-            <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3 text-sm text-on-surface-variant">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Notas</p>
-              <p className="mt-2 whitespace-pre-wrap">{operatorNotes}</p>
-            </div>
-          ) : null}
-        </div>
-      );
-    }
-
-    if (actionNode.type === "DECISION") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Decisión</p>
-          <p className="text-base leading-7 text-on-surface">
-            {String(actionNode.data?.question ?? "¿Qué sigue?")}
-          </p>
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(actionNodeDecisionChoices.length >= 2 ? "available" : "error")}`}>
-              {actionNodeDecisionChoices.length} ruta(s)
-            </span>
-            <span className={`inline-flex rounded-full border px-2.5 py-1 ${statusTone(actionNodeIsInteractive ? "current" : "locked")}`}>
-              {actionNodeIsInteractive ? "Selecciona una opción" : "Solo consulta"}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {actionNodeDecisionChoices.length > 0 ? (
-              actionNodeDecisionChoices.map((choice) => (
-                <button
-                  key={`${choice.targetNodeId}-${choice.label}`}
-                  type="button"
-                  onClick={() => actionNodeIsInteractive ? void handleDecision(choice.targetNodeId, choice.label) : undefined}
-                  disabled={working || !actionNodeIsInteractive}
-                  className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                    selectedDecisionTarget === choice.targetNodeId
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-outline-variant bg-surface text-on-surface hover:border-primary"
-                  } disabled:cursor-not-allowed disabled:opacity-60`}
-                >
-                  <ArrowRight className="h-4 w-4" />
-                  {choice.label}
-                </button>
-              ))
-            ) : (
-              <p className="text-sm text-on-surface-variant">
-                No hay salidas configuradas para esta decisión.
-              </p>
-            )}
-          </div>
-          {selectedDecisionTargets.get(actionNode.id) ? (
-            <div className="rounded-2xl border border-primary/20 bg-primary/10 px-3 py-3 text-sm text-primary">
-              Ruta elegida registrada.
-            </div>
-          ) : null}
-        </div>
-      );
-    }
-
-    if (actionNode.type === "END") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Cierre</p>
-          <p className="text-base leading-7 text-on-surface">
-            La narrativa llegó al nodo final.
-          </p>
-          <div className="rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-700 dark:text-emerald-300">
-            Este nodo habilita el cierre exitoso.
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <p className="text-sm text-on-surface-variant">
-        Sin contenido para mostrar.
-      </p>
-    );
-  }
-
-  function renderActionButtons() {
-    return (
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => void completeCurrentNode(false)}
-          disabled={working || run?.status !== "RUNNING" || !actionNodeIsInteractive || actionNode?.type === "DECISION"}
-          className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <SkipForward className="h-4 w-4" />
-          Siguiente
-        </button>
-        <button
-          type="button"
-          onClick={() => void completeCurrentNode(true)}
-          disabled={
-            working ||
-            run?.status !== "RUNNING" ||
-            !actionNodeIsInteractive ||
-            actionNode?.data?.required !== false ||
-            actionNode?.type === "DECISION"
-          }
-          className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <RotateCcw className="h-4 w-4" />
-          Omitir
-        </button>
-        <button
-          type="button"
-          onClick={() => void finishRun()}
-          disabled={working || run?.status !== "RUNNING" || currentNode?.type !== "END"}
-          className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300"
-        >
-          <CheckCircle2 className="h-4 w-4" />
-          Finalizar
-        </button>
-        <button
-          type="button"
-          onClick={() => void cancelRun()}
-          disabled={working || run?.status !== "RUNNING"}
-          className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300"
-        >
-          <StopCircle className="h-4 w-4" />
-          Cancelar
-        </button>
-      </div>
-    );
-  }
-
   return (
     <NarrativePlayerContext.Provider
       value={{
@@ -1982,7 +1638,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 type="button"
                 onClick={() => void cancelRun()}
                 disabled={working || run.status !== "RUNNING"}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-red-300/30 bg-red-500/10 px-3 text-xs font-semibold text-red-300 transition-colors hover:border-red-400 disabled:opacity-50"
+                className="danger-surface inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition-colors disabled:opacity-50"
               >
                 <StopCircle className="h-3.5 w-3.5" />
                 Cancelar
@@ -1991,7 +1647,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 type="button"
                 onClick={() => void finishRun()}
                 disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:border-emerald-400 disabled:opacity-50"
+                className="success-surface inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition-colors disabled:opacity-50"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Finalizar
@@ -2037,21 +1693,21 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
         {/* Banner de fin de flujo / estado de corrida */}
         {currentNode?.type === "END" && run?.status === "RUNNING" && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-[24px] border border-emerald-500/30 bg-emerald-500/10 p-5 shadow-elevation-2 animate-fade-in">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-[24px] success-surface p-5 shadow-elevation-2 animate-fade-in">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400">
+              <div className="success-surface-strong flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
-                <h4 className="text-base font-semibold text-emerald-200">Flujo Completado</h4>
-                <p className="text-sm text-emerald-300/80">Has alcanzado el nodo final. La ejecución puede ser finalizada de forma segura.</p>
+                <h4 className="text-base font-semibold text-on-surface">Flujo Completado</h4>
+                <p className="text-sm text-on-surface-variant">Has alcanzado el nodo final. La ejecución puede ser finalizada de forma segura.</p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => void finishRun()}
               disabled={working}
-              className="w-full sm:w-auto inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-[1.02] hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50"
+              className="w-full sm:w-auto inline-flex h-11 items-center justify-center gap-2 rounded-2xl success-surface-strong px-5 text-sm font-semibold transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
             >
               <CheckCircle2 className="h-4 w-4" />
               Finalizar Ejecución
@@ -2060,40 +1716,40 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         )}
 
         {run?.status === "COMPLETED" && (
-          <div className="flex items-center gap-3 rounded-[24px] border border-emerald-500/30 bg-emerald-500/10 p-5 shadow-elevation-2 animate-fade-in">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400">
+          <div className="flex items-center gap-3 rounded-[24px] success-surface p-5 shadow-elevation-2 animate-fade-in">
+            <div className="success-surface-strong flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
-              <h4 className="text-base font-semibold text-emerald-200 font-bold">Ejecución Completada</h4>
-              <p className="text-sm text-emerald-300/80">Esta corrida ha terminado y ha sido registrada como completada con éxito.</p>
+              <h4 className="text-base font-bold text-on-surface">Ejecución Completada</h4>
+              <p className="text-sm text-on-surface-variant">Esta corrida ha terminado y ha sido registrada como completada con éxito.</p>
             </div>
           </div>
         )}
 
         {run?.status === "CANCELLED" && (
-          <div className="flex items-center gap-3 rounded-[24px] border border-red-500/30 bg-red-500/10 p-5 shadow-elevation-2 animate-fade-in">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/20 text-red-400">
+          <div className="danger-surface flex items-center gap-3 rounded-[24px] p-5 shadow-elevation-2 animate-fade-in">
+            <div className="danger-surface-strong flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
               <StopCircle className="h-6 w-6" />
             </div>
             <div>
-              <h4 className="text-base font-semibold text-red-200 font-bold">Ejecución Cancelada</h4>
-              <p className="text-sm text-red-300/80">Esta corrida fue cancelada por el operador.</p>
+              <h4 className="text-base font-semibold font-bold">Ejecución Cancelada</h4>
+              <p className="text-sm">Esta corrida fue cancelada por el operador.</p>
             </div>
           </div>
         )}
 
         <div className="flex flex-col gap-3">
           <section className="flex flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1">
-            <div className="relative h-[calc(100vh-400px)] min-h-[360px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-[#120f1c] xl:h-[calc(100vh-410px)]">
+            <div className="relative h-[calc(100vh-400px)] min-h-[360px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container xl:h-[calc(100vh-410px)]">
               <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-primary/20 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
+                <span className="rounded-full border border-primary/20 bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
                   {nodeLabel(currentNode)}
                 </span>
-                <span className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-slate-300 backdrop-blur">
+                <span className="rounded-full border border-outline-variant bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant backdrop-blur">
                   {Math.min(progressedNodes, actionableNodes)} / {actionableNodes || 0}
                 </span>
-                <span className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[11px] font-semibold text-slate-300 backdrop-blur">
+                <span className="rounded-full border border-outline-variant bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant backdrop-blur">
                   Solo lectura
                 </span>
               </div>
@@ -2131,7 +1787,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                         })
                         .catch(() => {
                           setButtonBoardModalButton(null);
-                          setButtonDetailsError("No se pudo cargar el detalle del botón o el recurso ya no está disponible.");
                         });
                     }
                   } else {
@@ -2257,7 +1912,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                     </button>
                                   )}
                                   {canAct && (
-                                    <button type="button" onClick={() => { void completeCurrentNode(true); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20">
+                                    <button type="button" onClick={() => { void completeCurrentNode(true); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="success-surface inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold">
                                       <CheckCircle2 className="h-3.5 w-3.5" /> Marcar completado
                                     </button>
                                   )}
@@ -2296,7 +1951,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Variables del run</p>
                                       <p className="mt-1 text-[11px] text-on-surface-variant">Completa cada valor antes de generar el audio.</p>
                                     </div>
-                                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${missingVariables.length ? "border-amber-300/30 bg-amber-500/10 text-amber-200" : "border-emerald-300/30 bg-emerald-500/10 text-emerald-200"}`}>
+                                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${missingVariables.length ? "warning-surface-strong" : "success-surface"}`}>
                                       {missingVariables.length ? `${missingVariables.length} pendiente(s)` : "Listo"}
                                     </span>
                                   </div>
@@ -2344,24 +1999,24 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                     >
                                       <Copy className="h-3.5 w-3.5" /> Copiar plantilla
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => { void generateDynamicAudio(ctxNode.id); }}
-                                      disabled={!canGenerate}
-                                      className="inline-flex items-center gap-2 rounded-xl bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-white hover:bg-fuchsia-600 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      <WandSparkles className="h-3.5 w-3.5" />
-                                      {dynamicAudioGeneratingNodeId === ctxNode.id ? "Generando..." : "Generar audio"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => { void playDynamicAudio(ctxNode.id); }}
-                                      disabled={!generatedClip}
-                                      className="inline-flex items-center gap-2 rounded-xl border border-fuchsia-300/30 bg-fuchsia-500/10 px-3 py-2 text-sm font-semibold text-fuchsia-100 hover:bg-fuchsia-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                      <Play className="h-3.5 w-3.5 fill-current" />
-                                      Reproducir audio
-                                    </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { void generateDynamicAudio(ctxNode.id); }}
+                                    disabled={!canGenerate}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <WandSparkles className="h-3.5 w-3.5" />
+                                    {dynamicAudioGeneratingNodeId === ctxNode.id ? "Generando..." : "Generar audio"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { void playDynamicAudio(ctxNode.id); }}
+                                    disabled={!generatedClip}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-secondary/25 bg-secondary-container px-3 py-2 text-sm font-semibold text-on-secondary-container hover:border-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Play className="h-3.5 w-3.5 fill-current" />
+                                    Reproducir audio
+                                  </button>
                                     {generatedClip ? (
                                       <button
                                         type="button"
@@ -2375,8 +2030,8 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                   </div>
 
                                   {generatedClip ? (
-                                    <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-3 text-sm text-emerald-50">
-                                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">Audio generado</p>
+                                    <div className="rounded-2xl success-surface p-3 text-sm">
+                                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface">Audio generado</p>
                                       <p className="mt-2 truncate font-semibold text-on-surface">{generatedClip.fileName}</p>
                                       <p className="mt-1 text-xs text-on-surface-variant">
                                         {generatedClip.sizeBytes.toLocaleString("es-CO")} bytes · {formatDateTime(generatedClip.generatedAt)}
@@ -2385,7 +2040,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                         <a
                                           href={generatedClip.objectUrl}
                                           download={generatedClip.fileName}
-                                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/25"
+                                          className="success-surface-strong inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition hover:bg-[color:var(--success-bg-strong)]"
                                         >
                                           <Copy className="h-3.5 w-3.5" />
                                           Descargar audio
@@ -2408,8 +2063,8 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             const isCurrentNode = ctxNode.id === run?.currentNodeId;
                             return (
                               <div className="space-y-3">
-                                <div className="max-h-56 overflow-y-auto rounded-2xl border border-sky-300/20 bg-sky-500/10 p-4 text-sm text-slate-100">
-                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-300">Guion completo</p>
+                                <div className="max-h-56 overflow-y-auto rounded-2xl border border-outline-variant bg-surface-container-high p-4 text-sm text-on-surface">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Guion completo</p>
                                   <p className="mt-3 whitespace-pre-wrap leading-7">"{text || "Sin contenido"}"</p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
@@ -2432,12 +2087,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             const instruction = String((ctxNode.data as any)?.instruction ?? "");
                             return (
                               <div className="space-y-3">
-                                <div className="rounded-2xl border-l-4 border-l-amber-400 bg-amber-400/12 p-4 text-sm text-amber-50">
-                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Instrucción operativa</p>
+                                <div className="warning-surface-strong rounded-2xl border-l-4 border-l-[color:var(--warning-icon)] p-4 text-sm">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--warning-text-muted)]">Instrucción operativa</p>
                                   <p className="mt-3 whitespace-pre-wrap leading-7">{instruction || "Sin instrucción"}</p>
                                 </div>
                                 {isCurrentNode && (
-                                  <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white">
+                                  <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="warning-surface-strong inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold">
                                     <CheckCircle2 className="h-3.5 w-3.5" /> Entendido · Continuar
                                   </button>
                                 )}
@@ -2476,8 +2131,8 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             })();
                             return (
                               <div className="space-y-3">
-                                <div className="rounded-2xl border border-purple-300/20 bg-purple-500/10 p-4">
-                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Pregunta</p>
+                                <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--warning-text-muted)]">Pregunta</p>
                                   <p className="mt-2 text-sm font-semibold text-on-surface">{(ctxNode.data as any)?.question ?? nodeLabel(ctxNode)}</p>
                                 </div>
                                 {isCurrentNode ? (
@@ -2487,7 +2142,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                         key={c.targetNodeId}
                                         type="button"
                                         onClick={() => { void handleDecision(c.targetNodeId, c.label); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }}
-                                        className="w-full rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2.5 text-left text-sm font-semibold text-purple-300 hover:bg-purple-500/20"
+                                        className="w-full rounded-xl border border-outline-variant bg-surface px-3 py-2.5 text-left text-sm font-semibold text-on-surface transition-colors hover:border-primary"
                                       >
                                         {c.label}
                                       </button>
@@ -2503,12 +2158,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                             const isCurrentNode = ctxNode.id === run?.currentNodeId;
                             return (
                               <div className="space-y-3">
-                                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Cierre</p>
+                                <div className="rounded-2xl success-surface p-4 text-sm">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface">Cierre</p>
                                   <p className="mt-2">{nodeLabel(ctxNode)} · Fin del flujo.</p>
                                 </div>
                                 {isCurrentNode && (
-                                  <button type="button" onClick={() => { void finishRun(); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                                  <button type="button" onClick={() => { void finishRun(); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="success-surface-strong inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold">
                                     <CheckCircle2 className="h-3.5 w-3.5" /> Finalizar ejecución
                                   </button>
                                 )}
@@ -2536,19 +2191,19 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 font-semibold text-primary">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary-container px-3 py-1 font-semibold text-on-primary-container">
                     <span className="h-2 w-2 rounded-full bg-primary" />
                     Actual
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 font-semibold text-emerald-300">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  <span className="success-surface inline-flex items-center gap-2 rounded-full px-3 py-1 font-semibold">
+                    <span className="h-2 w-2 rounded-full bg-[color:var(--success-icon)]" />
                     Completado
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 font-semibold text-slate-300">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-3 py-1 font-semibold text-on-surface-variant">
                     <span className="h-2 w-2 rounded-full bg-slate-400" />
                     Pendiente
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 font-semibold text-fuchsia-300">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-secondary/25 bg-secondary-container px-3 py-1 font-semibold text-on-secondary-container">
                     <Route className="h-3.5 w-3.5" />
                     Ruta tomada
                   </span>

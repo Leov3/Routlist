@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   AlertTriangle,
@@ -83,7 +83,7 @@ export default function MaintenancePage() {
     storageArchive: null,
   });
 
-  async function load(showSpinner = false) {
+  const load = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     setError(null);
 
@@ -111,14 +111,14 @@ export default function MaintenancePage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [manualLabel]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const migration = status?.migration;
-  const backups = status?.backups ?? [];
+  const backups = useMemo(() => status?.backups ?? [], [status?.backups]);
   const audit = status?.audit ?? [];
 
   const backupTotals = useMemo(
@@ -297,12 +297,12 @@ export default function MaintenancePage() {
           />
 
           {feedback && (
-            <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            <div className="success-surface mb-4 rounded-2xl px-4 py-3 text-sm">
               {feedback}
             </div>
           )}
           {error && (
-            <div className="mb-4 rounded-2xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            <div className="danger-surface mb-4 rounded-2xl px-4 py-3 text-sm">
               {error}
             </div>
           )}
@@ -381,7 +381,7 @@ export default function MaintenancePage() {
                       migration.pending.map((item) => (
                         <span
                           key={item}
-                          className="rounded-full border border-amber-300/20 bg-amber-500/10 px-3 py-1 text-xs text-amber-200"
+                          className="warning-surface-strong rounded-full px-3 py-1 text-xs"
                         >
                           {item}
                         </span>
@@ -615,7 +615,7 @@ export default function MaintenancePage() {
                               {backup.createdAt}
                             </p>
                             {backup.errorMessage && (
-                              <p className="mt-2 text-sm text-red-300">
+                              <p className="danger-surface mt-2 rounded-2xl px-3 py-2 text-sm">
                                 {backup.errorMessage}
                               </p>
                             )}
@@ -656,7 +656,7 @@ export default function MaintenancePage() {
                                 backup.status !== "COMPLETED"
                               }
                               onClick={() => void restoreBackup(backup.id)}
-                              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-300/20 bg-amber-500/10 px-3 text-sm font-semibold text-amber-200 transition-colors hover:border-amber-300 disabled:opacity-50"
+                              className="warning-surface-strong inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-sm font-semibold transition-colors disabled:opacity-50"
                             >
                               <RotateCcw className="h-4 w-4" />
                               Restaurar
@@ -665,7 +665,7 @@ export default function MaintenancePage() {
                               type="button"
                               disabled={deletingId === backup.id}
                               onClick={() => void deleteBackup(backup.id)}
-                              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-red-300/20 bg-red-500/10 px-3 text-sm font-semibold text-red-200 transition-colors hover:border-red-300 disabled:opacity-50"
+                              className="danger-surface-strong inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-sm font-semibold transition-colors disabled:opacity-50"
                             >
                               <Trash2 className="h-4 w-4" />
                               Eliminar
@@ -696,7 +696,7 @@ export default function MaintenancePage() {
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       status?.settings.isEnabled
-                        ? "border border-emerald-300/20 bg-emerald-500/10 text-emerald-200"
+                        ? "success-surface"
                         : "border border-outline-variant bg-surface text-on-surface-variant"
                     }`}
                   >

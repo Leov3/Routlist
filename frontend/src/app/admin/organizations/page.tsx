@@ -254,17 +254,6 @@ export default function OrganizationsPage() {
     }
   }
 
-  async function revokeInvite(inviteId: string) {
-    if (!inviteOrganizationId) return;
-    try {
-      await api(`/organizations/${inviteOrganizationId}/invites/${inviteId}/revoke`, { method: "POST" });
-      const data = await api<OrganizationInvite[]>(`/organizations/${inviteOrganizationId}/invites`);
-      setInvites(data);
-    } catch (error) {
-      setInviteError(error instanceof Error ? error.message : "No se pudo revocar la invitación.");
-    }
-  }
-
   async function rejectInvite(inviteId: string) {
     if (!inviteOrganizationId) return;
     try {
@@ -301,7 +290,7 @@ export default function OrganizationsPage() {
       />
 
       {errorMessage ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="danger-surface mb-4 rounded-xl px-4 py-3 text-sm">
           {errorMessage}
         </div>
       ) : null}
@@ -414,7 +403,7 @@ export default function OrganizationsPage() {
                           type="button"
                           onClick={() => void rejectInvite(invite.id)}
                           disabled={invite.status === "REVOKED"}
-                          className="rounded-xl border border-red-400/30 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                          className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50"
                         >
                           Rechazar
                         </button>
@@ -543,7 +532,7 @@ export default function OrganizationsPage() {
                         }
                         className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
                           organization.status === "ACTIVE"
-                            ? "border border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                            ? "success-surface"
                             : "border border-outline-variant bg-surface-container text-on-surface-variant"
                         }`}
                       >
@@ -594,7 +583,7 @@ export default function OrganizationsPage() {
                           type="button"
                           onClick={() => void removeOrganization(organization)}
                           disabled={deletingId === organization.id || isCurrent}
-                          className="inline-flex items-center gap-2 rounded-xl border border-red-400/30 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                          className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50"
                         >
                           <Trash2 className="h-4 w-4" />
                           {deletingId === organization.id ? "Borrando..." : "Eliminar"}
@@ -730,12 +719,12 @@ export default function OrganizationsPage() {
             {!integrityReport ? (
               <DataState>Revisando narrativas...</DataState>
             ) : integrityReport.ok ? (
-              <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+              <div className="success-surface rounded-2xl px-4 py-3 text-sm">
                 No se encontraron problemas. {integrityReport.narrativesCount} narrativas revisadas.
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                <div className="danger-surface rounded-2xl px-4 py-3 text-sm">
                   {integrityReport.issuesCount} problema(s) detectado(s) en {integrityReport.narrativesCount} narrativas.
                 </div>
                 <div className="max-h-[420px] overflow-auto rounded-2xl border border-outline-variant">
@@ -781,18 +770,18 @@ function renderUserQuota(members: number, maxUsers: number) {
   return (
     <div className="min-w-[180px]">
       <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-        <span className={`font-semibold ${isCritical ? "text-red-400" : isWarning ? "text-amber-400" : "text-on-surface-variant"}`}>
+        <span className={`font-semibold ${isCritical ? "text-[color:var(--danger-text-muted)]" : isWarning ? "text-[color:var(--warning-text-muted)]" : "text-on-surface-variant"}`}>
           {members} / {safeMax}
         </span>
         <span className="text-on-surface-variant">{percent}%</span>
       </div>
       <div className="h-2 rounded-full bg-surface-container-high">
         <div
-          className={`h-2 rounded-full ${isCritical ? "bg-red-500" : isWarning ? "bg-amber-500" : "bg-primary"}`}
+          className={`h-2 rounded-full ${isCritical ? "bg-[color:var(--danger-icon)]" : isWarning ? "bg-[color:var(--warning-icon)]" : "bg-primary"}`}
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className={`mt-1 text-[11px] ${isCritical ? "text-red-400" : isWarning ? "text-amber-400" : "text-on-surface-variant"}`}>
+      <p className={`mt-1 text-[11px] ${isCritical ? "text-[color:var(--danger-text-muted)]" : isWarning ? "text-[color:var(--warning-text-muted)]" : "text-on-surface-variant"}`}>
         {isCritical ? "Cupo completo" : isWarning ? "Cerca del límite" : "Capacidad disponible"}
       </p>
     </div>

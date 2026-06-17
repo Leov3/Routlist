@@ -37,6 +37,7 @@ model Organization {
   accessPolicies        AccessPolicy[]
   mailDeliveryLogs      MailDeliveryLog[]
   organizationInvites   OrganizationInvite[]
+  mailQueueItems        MailQueueItem[]
 }
 
 model User {
@@ -69,6 +70,10 @@ model User {
   organizationInvitesAccepted OrganizationInvite[] @relation("OrganizationInvitesAcceptedBy")
   mailDeliveryLogs            MailDeliveryLog[]
   systemMailSettingsUpdated   SystemMailSettings[] @relation("SystemMailSettingsUpdatedBy")
+  mailTemplatesUpdated        MailTemplate[]       @relation("MailTemplatesUpdatedBy")
+  mailEventsUpdated           MailEvent[]           @relation("MailEventsUpdatedBy")
+  mailQueueCreated            MailQueueItem[]       @relation("MailQueueCreatedBy")
+  mailQueueItems              MailQueueItem[]
 }
 
 model UserSession {
@@ -624,6 +629,66 @@ model SystemMailSettings {
   updatedAt             DateTime @updatedAt
 
   updatedBy User? @relation("SystemMailSettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+model MailTemplate {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  name            String
+  description     String?
+  subject         String
+  htmlBody        String
+  textBody        String?
+  isActive        Boolean  @default(true)
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedBy User? @relation("MailTemplatesUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([key])
+}
+
+model MailEvent {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  name            String
+  description     String?
+  isEnabled       Boolean  @default(true)
+  templateKey     String?
+  channels        Json?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedBy User? @relation("MailEventsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([key])
+}
+
+model MailQueueItem {
+  id               String   @id @default(uuid())
+  organizationId   String?
+  userId           String?
+  eventKey         String?
+  templateKey      String?
+  to               String
+  subject          String
+  status           String   @default("PENDING")
+  attempts         Int      @default(0)
+  lastError        String?
+  scheduledAt      DateTime?
+  processedAt      DateTime?
+  createdByUserId   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("MailQueueCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([organizationId, createdAt])
 }
 
 model SystemAuditEvent {

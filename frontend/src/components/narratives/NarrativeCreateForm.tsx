@@ -84,7 +84,7 @@ export function NarrativeCreateForm({
       </div>
 
       {error && (
-        <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+        <p className="danger-surface mt-4 rounded-2xl px-4 py-3 text-sm">
           {error}
         </p>
       )}

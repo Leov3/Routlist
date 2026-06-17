@@ -162,12 +162,12 @@ export function AudioButtonDetailsModal({
 
           <div className="min-h-0 overflow-y-auto p-5">
             <div className="space-y-4 pb-1">
-              <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
+              <div className="rounded-[20px] border border-outline-variant bg-surface-container p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto del botón</p>
                 <p className="mt-2 max-h-28 overflow-y-auto text-sm leading-6 text-on-surface">{buttonText}</p>
               </div>
 
-              <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
+              <div className="rounded-[20px] border border-outline-variant bg-surface-container p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto del audio</p>

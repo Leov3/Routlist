@@ -132,20 +132,20 @@ function statusMeta(status: AssetStatus) {
     case "created":
       return {
         label: "Creado",
-        pill: "border-emerald-300/30 bg-emerald-500/10 text-emerald-200",
-        dot: "bg-emerald-300",
+        pill: "success-surface",
+        dot: "bg-[color:var(--success-icon)]",
       };
     case "skipped":
       return {
         label: "Saltado",
-        pill: "border-amber-300/30 bg-amber-500/10 text-amber-200",
-        dot: "bg-amber-300",
+        pill: "warning-surface",
+        dot: "bg-[color:var(--warning-icon)]",
       };
     case "error":
       return {
         label: "Error",
-        pill: "border-red-300/30 bg-red-500/10 text-red-200",
-        dot: "bg-red-300",
+        pill: "danger-surface",
+        dot: "bg-[color:var(--danger-icon)]",
       };
     default:
       return {
@@ -465,16 +465,12 @@ export function AudioButtonCreationWizardModal({
           </div>
         </div>
 
-        {errorMessage ? (
-          <div className="border-b border-red-500/20 bg-red-500/10 px-5 py-3 text-sm text-red-300">
-            {errorMessage}
-          </div>
-        ) : null}
+        {errorMessage ? <div className="border-b danger-surface px-5 py-3 text-sm">{errorMessage}</div> : null}
 
         {finished ? (
           <div className="flex flex-1 items-center justify-center p-8">
-            <div className="max-w-md rounded-[26px] border border-emerald-300/20 bg-emerald-500/10 p-6 text-center">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-300" />
+            <div className="success-surface max-w-md rounded-[26px] p-6 text-center">
+              <CheckCircle2 className="mx-auto h-10 w-10 text-[color:var(--success-icon)]" />
               <h4 className="mt-4 text-xl font-semibold text-on-surface">Botonera creada</h4>
               <p className="mt-2 text-sm leading-6 text-on-surface-variant">
                 Se procesaron {queueItems.length} audio(s). Puedes cerrar el asistente o volver al panel de botones.
@@ -550,7 +546,7 @@ export function AudioButtonCreationWizardModal({
                             {asset.mimeType || "N/D"} · {formatOptionalBytes(asset.sizeBytes)}
                           </p>
                           {asset.importErrorMessage ? (
-                            <p className="mt-1 line-clamp-2 text-xs text-amber-200">{asset.importErrorMessage}</p>
+                            <p className="warning-surface mt-1 line-clamp-2 rounded-xl px-2 py-1 text-xs">{asset.importErrorMessage}</p>
                           ) : null}
                         </div>
                         <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${meta.pill}`}>
@@ -776,7 +772,7 @@ export function AudioButtonCreationWizardModal({
                           type="button"
                           onClick={() => void saveCurrentAndAdvance("skip")}
                           disabled={busy || (currentAssetIsPlaceholder && !importIsConfirmed)}
-                          className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-200 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="warning-surface inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors hover:bg-[color:var(--warning-bg-strong)] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <SkipForward className="h-4 w-4" />
                           Saltar
@@ -818,7 +814,7 @@ export function AudioButtonCreationWizardModal({
                           </p>
                         </div>
                         {currentAssetIsPlaceholder ? (
-                          <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-200">
+                          <div className="warning-surface rounded-2xl px-3 py-3 text-sm">
                             Esta fila es solo una previsualización del CSV. Confirma la importación para persistir el audio.
                           </div>
                         ) : null}

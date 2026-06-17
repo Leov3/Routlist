@@ -4,6 +4,7 @@ import { FormEvent, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
+import { ThemeToggleButton } from "@/components/layout/ThemeToggleButton";
 
 type LoginStatsResponse = {
   activeAudios: number;
@@ -27,6 +28,9 @@ export default function LoginPage() {
   const [recoverEmail, setRecoverEmail] = useState("");
   const [stats, setStats] = useState<LoginStatsResponse | null>(null);
   const [statsError, setStatsError] = useState(false);
+  const [previewTitle, setPreviewTitle] = useState("Ident Promocional 2024");
+  const [previewMeta, setPreviewMeta] = useState("00:28 · MP3 · 320 kbps");
+  const [previewDuration, setPreviewDuration] = useState("00:28");
 
   const toastTimer = useRef<undefined | ReturnType<typeof setTimeout>>(undefined);
   const spotlightRef = useRef<HTMLDivElement>(null);
@@ -52,10 +56,17 @@ export default function LoginPage() {
   useEffect(() => {
     const body = document.body;
     const originalBg = body.style.background;
-    body.style.background = "#0c0e14";
+    body.style.background = "var(--md-sys-color-surface)";
     return () => {
       body.style.background = originalBg;
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setPreviewTitle(window.localStorage.getItem("routlis.login.preview.title") ?? "Ident Promocional 2024");
+    setPreviewMeta(window.localStorage.getItem("routlis.login.preview.meta") ?? "00:28 · MP3 · 320 kbps");
+    setPreviewDuration(window.localStorage.getItem("routlis.login.preview.duration") ?? "00:28");
   }, []);
 
   useEffect(() => {
@@ -124,14 +135,10 @@ export default function LoginPage() {
     }
   }
 
-  function handleDemo() {
-    setEmail("admin@routlis.local");
-    setPassword("Admin123*");
-    showToast("Acceso demo rellenado.");
-  }
-
   return (
     <>
+      <ThemeToggleButton behavior="binary" className="fixed right-4 top-4 z-20" />
+
       <div className="login-grid" aria-hidden="true" />
       <div className="login-spotlight" ref={spotlightRef} aria-hidden="true" />
       <div className="login-spotlight-ring" ref={spotlightRingRef} aria-hidden="true" />
@@ -188,10 +195,10 @@ export default function LoginPage() {
             </button>
             <div>
               <div className="login-track-title">
-                <span>Ident Promocional 2024</span>
-                <small>00:28</small>
+                <span>{previewTitle}</span>
+                <small>{previewDuration}</small>
               </div>
-              <div className="login-track-meta">00:28 · MP3 · 320 kbps</div>
+              <div className="login-track-meta">{previewMeta}</div>
               <div className="login-wave" aria-hidden="true">
                 {Array.from({ length: 20 }).map((_, i) => {
                   const heights = [14, 22, 16, 28, 21, 26, 18, 30, 20, 24, 15, 27, 18, 25, 17, 29, 20, 26, 15, 22];
@@ -226,7 +233,7 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-          <p className="mt-4 text-xs leading-5 text-[#aeb4c2]">
+          <p className="mt-4 text-xs leading-5 text-on-surface-variant">
             {statsError
               ? "No se pudieron cargar los datos públicos en tiempo real."
               : `Categorías activas: ${stats?.activeCategories?.toLocaleString() ?? "0"} · Reproducciones totales: ${stats?.totalPlaybacks?.toLocaleString() ?? "0"}`
@@ -243,7 +250,7 @@ export default function LoginPage() {
               <div>
                 <label className="login-label" htmlFor="email">Email</label>
                 <div className="login-field">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] text-[#b7bdca] flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] flex-shrink-0">
                     <path
                       d="M4 7.8A2.8 2.8 0 0 1 6.8 5h10.4A2.8 2.8 0 0 1 20 7.8v8.4a2.8 2.8 0 0 1-2.8 2.8H6.8A2.8 2.8 0 0 1 4 16.2V7.8Z"
                       stroke="currentColor"
@@ -267,7 +274,7 @@ export default function LoginPage() {
               <div>
                 <label className="login-label" htmlFor="password">Contraseña</label>
                 <div className="login-field">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] text-[#b7bdca] flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] flex-shrink-0">
                     <path
                       d="M7 10V8a5 5 0 0 1 10 0v2M6.8 10h10.4A1.8 1.8 0 0 1 19 11.8v6.4a1.8 1.8 0 0 1-1.8 1.8H6.8A1.8 1.8 0 0 1 5 18.2v-6.4A1.8 1.8 0 0 1 6.8 10Z"
                       stroke="currentColor"
@@ -332,11 +339,6 @@ export default function LoginPage() {
             <button type="submit" className="login-primary-btn" id="submitBtn" disabled={loading}>
               → {loading ? "Validando acceso..." : "Entrar al panel"}
             </button>
-            <button type="button" className="login-secondary-btn" id="demoBtn" onClick={handleDemo}>
-              ✦ Rellenar acceso demo
-            </button>
-
-            <div className="login-auth-note">Mockup limpio · sin marco de navegador, con spotlight ligero y clickeable.</div>
           </form>
         </div>
       </section>
@@ -357,7 +359,7 @@ export default function LoginPage() {
           <h2 id="modalTitle">Recuperar contraseña</h2>
           <p>En producción se enviaría un enlace temporal al email registrado del owner u operador.</p>
           <div className="login-field">
-            <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] text-[#b7bdca] flex-shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" className="h-[19px] w-[19px] flex-shrink-0 text-on-surface-variant">
               <path
                 d="M4 7.8A2.8 2.8 0 0 1 6.8 5h10.4A2.8 2.8 0 0 1 20 7.8v8.4a2.8 2.8 0 0 1-2.8 2.8H6.8A2.8 2.8 0 0 1 4 16.2V7.8Z"
                 stroke="currentColor"
@@ -386,9 +388,9 @@ export default function LoginPage() {
               Enviar enlace
             </button>
           </div>
-          <p className="mt-4 text-center text-xs text-[#aeb4c2]">
+          <p className="mt-4 text-center text-xs text-on-surface-variant">
             También puedes abrir el flujo completo en{" "}
-            <Link href="/forgot-password" className="text-[#8e5dff] underline underline-offset-4">
+            <Link href="/forgot-password" className="text-primary underline underline-offset-4">
               /forgot-password
             </Link>
             .

@@ -67,7 +67,7 @@ export function NarrativeList({
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-4 text-sm font-medium text-on-surface transition-colors hover:border-primary"
+          className="btn-surface-base btn-secondary-surface h-10 rounded-2xl px-4 text-sm"
         >
           <RefreshCw className="h-4 w-4" />
           Recargar
@@ -75,7 +75,7 @@ export function NarrativeList({
       </div>
 
       {hiddenCount > 0 ? (
-        <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+        <div className="warning-surface rounded-2xl px-4 py-3 text-sm">
           Se ocultaron {hiddenCount} narrativa(s) que no pertenecen a la organización activa.
         </div>
       ) : null}
@@ -134,7 +134,7 @@ export function NarrativeList({
                     <div className="flex justify-end gap-2">
                       <Link
                         href={`/admin/narratives/${narrative.id}/builder`}
-                        className="inline-flex h-9 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        className="btn-surface-base btn-secondary-surface h-9 rounded-2xl px-3 text-xs"
                       >
                         <Edit3 className="h-3.5 w-3.5" />
                         Builder
@@ -142,14 +142,14 @@ export function NarrativeList({
                       <button
                         type="button"
                         onClick={() => void onDuplicate(narrative.id)}
-                        className="inline-flex h-9 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        className="btn-surface-base btn-secondary-surface h-9 rounded-2xl px-3 text-xs"
                       >
                         <Copy className="h-3.5 w-3.5" />
                         Duplicar
                       </button>
                       <Link
                         href={`/narratives/${narrative.id}/run`}
-                        className="inline-flex h-9 items-center gap-2 rounded-2xl bg-primary px-3 text-xs font-semibold text-on-primary transition-transform hover:scale-[1.01]"
+                        className="btn-surface-base btn-primary-surface h-9 rounded-2xl px-3 text-xs"
                       >
                         <ArrowUpRight className="h-3.5 w-3.5" />
                         Ejecutar

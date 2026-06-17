@@ -92,7 +92,7 @@ export function AudioManualCreationModal({ open, assets, categories, onClose, on
     setAvailableCategories(categories);
     setBusy(false);
     setErrorMessage(null);
-  }, [open, assets]);
+  }, [open, assets, categories]);
 
   useEffect(() => {
     setAvailableCategories(categories);
@@ -244,7 +244,7 @@ export function AudioManualCreationModal({ open, assets, categories, onClose, on
           </button>
         </div>
 
-        {errorMessage ? <div className="border-b border-red-500/20 bg-red-500/10 px-5 py-3 text-sm text-red-300">{errorMessage}</div> : null}
+        {errorMessage ? <div className="border-b danger-surface px-5 py-3 text-sm">{errorMessage}</div> : null}
 
         <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[minmax(280px,.92fr)_minmax(0,1.08fr)]">
           <aside className="flex min-h-0 flex-col border-b border-outline-variant p-4 lg:border-b-0 lg:border-r lg:p-5">
@@ -296,7 +296,7 @@ export function AudioManualCreationModal({ open, assets, categories, onClose, on
                     <p className="mt-1 text-xs text-on-surface-variant">{asset.mimeType || "N/D"} · {formatOptionalBytes(asset.sizeBytes)}</p>
                     <div className="mt-3 flex items-center justify-between text-[11px] text-on-surface-variant">
                       <span>{asset.durationSeconds ? `${asset.durationSeconds}s` : "Duración no disponible"}</span>
-                      <span className={status === "created" ? "text-emerald-300" : status === "error" ? "text-red-300" : "text-on-surface-variant"}>{status}</span>
+                      <span className={status === "created" ? "success-surface" : status === "error" ? "danger-surface" : "text-on-surface-variant"}>{status}</span>
                     </div>
                   </button>
                 );
@@ -350,7 +350,7 @@ export function AudioManualCreationModal({ open, assets, categories, onClose, on
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => void saveCurrentAndAdvance("skip")} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200 sm:px-4 sm:text-sm">
+                      <button type="button" onClick={() => void saveCurrentAndAdvance("skip")} disabled={busy} className="warning-surface inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium sm:px-4 sm:text-sm">
                         <SkipForward className="h-4 w-4" />
                         Saltar
                       </button>
