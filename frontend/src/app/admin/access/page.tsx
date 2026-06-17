@@ -20,7 +20,7 @@ const ROLE_OPTIONS = ["OWNER", "ADMIN", "SUPERVISOR", "OPERATOR"] as const;
 const GROUPS = [
   { key: "operation", label: "Operación", match: (moduleKey: string) => ["board.use", "audio.generate", "narratives.run"].includes(moduleKey) },
   { key: "access", label: "Acceso", match: (moduleKey: string) => moduleKey.startsWith("admin.") },
-  { key: "platform", label: "Plataforma", match: (moduleKey: string) => moduleKey === "admin" || moduleKey === "admin.integrations" },
+  { key: "platform", label: "Plataforma", match: (moduleKey: string) => moduleKey === "admin" || moduleKey === "admin.integrations" || moduleKey === "admin.platform" },
   { key: "content", label: "Contenido", match: (moduleKey: string) => ["admin.audios", "admin.categories", "admin.buttons", "admin.narratives"].includes(moduleKey) },
   { key: "system", label: "Sistema", match: (moduleKey: string) => ["admin.storage", "admin.maintenance", "admin.history"].includes(moduleKey) },
 ] as const;

@@ -74,6 +74,7 @@ model User {
   mailEventsUpdated           MailEvent[]           @relation("MailEventsUpdatedBy")
   mailQueueCreated            MailQueueItem[]       @relation("MailQueueCreatedBy")
   mailQueueItems              MailQueueItem[]
+  platformBrandingUpdated     PlatformBrandingSetting[] @relation("PlatformBrandingUpdatedBy")
 }
 
 model UserSession {
@@ -690,6 +691,25 @@ model MailQueueItem {
 
   @@index([status, scheduledAt])
   @@index([organizationId, createdAt])
+}
+
+model PlatformBrandingSetting {
+  id                String   @id
+  platformName      String   @default("Routlis")
+  tagline           String?  
+  logoFileName      String?
+  logoMimeType      String?
+  logoStorageKey    String?
+  faviconFileName   String?
+  faviconMimeType   String?
+  faviconStorageKey String?
+  primaryColor      String?
+  secondaryColor    String?
+  updatedById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  updatedBy User? @relation("PlatformBrandingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
 model SystemAuditEvent {

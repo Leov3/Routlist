@@ -7,7 +7,6 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  Sparkles,
   Sun,
   UserCircle2,
   Waves,
@@ -15,28 +14,14 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { AudioGenerationPreferences, AuthUser, BoardPreferences } from "@/types/routlis";
+import type { AuthUser, BoardPreferences } from "@/types/routlis";
 
 type ThemeMode = "system" | "light" | "dark";
 type DensityMode = "comfortable" | "compact";
-type QuickSection = "board" | "audio" | "narratives";
-type AudioLookup = {
-  voices: Array<{ voiceId: string; name: string; category?: string | null }>;
-  models: Array<{ modelId: string; name: string }>;
-};
-type AudioLookupResponse = {
-  voices?: AudioLookup["voices"];
-  models?: AudioLookup["models"];
-};
+type QuickSection = "board" | "narratives";
 type NarrativePrefs = {
   playerDistance?: string;
   playerViewMode?: "simple" | "dual";
-};
-
-type LoginPreviewPrefs = {
-  title: string;
-  meta: string;
-  duration: string;
 };
 
 type AccountSettingsModalProps = {
@@ -66,19 +51,11 @@ export function AccountSettingsModal({
 }: AccountSettingsModalProps) {
   const [section, setSection] = useState<QuickSection>("board");
   const [boardPreferences, setBoardPreferences] = useState<BoardPreferences | null>(null);
-  const [audioPreferences, setAudioPreferences] = useState<AudioGenerationPreferences | null>(null);
-  const [audioLookups, setAudioLookups] = useState<AudioLookup>({ voices: [], models: [] });
   const [narrativeDistance, setNarrativeDistance] = useState("normal");
   const [narrativeViewMode, setNarrativeViewMode] = useState<"simple" | "dual">("simple");
-  const [loginPreviewPrefs, setLoginPreviewPrefs] = useState<LoginPreviewPrefs>({
-    title: "Ident Promocional 2024",
-    meta: "00:28 · MP3 · 320 kbps",
-    duration: "00:28",
-  });
   const [savingSection, setSavingSection] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [boardError, setBoardError] = useState<string | null>(null);
-  const [audioError, setAudioError] = useState<string | null>(null);
   const [narrativeError, setNarrativeError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,27 +75,18 @@ export function AccountSettingsModal({
     async function loadPreferences() {
       setGeneralError(null);
       setBoardError(null);
-      setAudioError(null);
       setNarrativeError(null);
-      const [boardPrefsResult, audioPrefsResult, narrativePrefsResult] = await Promise.allSettled([
+      const [boardPrefsResult, narrativePrefsResult] = await Promise.allSettled([
         api<BoardPreferences>("/me/board-preferences").catch(() => null),
-        api<AudioGenerationPreferences>("/me/audio-generation-preferences").catch(() => null),
         api<NarrativePrefs>("/me/narrative-preferences").catch(() => null),
       ]);
 
       if (cancelled) return;
       const boardPrefs = boardPrefsResult.status === "fulfilled" ? boardPrefsResult.value : null;
-      const audioPrefs = audioPrefsResult.status === "fulfilled" ? audioPrefsResult.value : null;
       const narrativePrefs = narrativePrefsResult.status === "fulfilled" ? narrativePrefsResult.value : null;
       setBoardPreferences(boardPrefs);
-      setAudioPreferences(audioPrefs);
       setNarrativeDistance(narrativePrefs?.playerDistance ?? "normal");
       setNarrativeViewMode(narrativePrefs?.playerViewMode === "dual" ? "dual" : "simple");
-      setLoginPreviewPrefs({
-        title: window.localStorage.getItem("routlis.login.preview.title") ?? "Ident Promocional 2024",
-        meta: window.localStorage.getItem("routlis.login.preview.meta") ?? "00:28 · MP3 · 320 kbps",
-        duration: window.localStorage.getItem("routlis.login.preview.duration") ?? "00:28",
-      });
     }
 
     void loadPreferences().catch((error) => {
@@ -131,31 +99,6 @@ export function AccountSettingsModal({
       cancelled = true;
     };
   }, [open]);
-
-  useEffect(() => {
-    if (!open || section !== "audio") return;
-    if (audioLookups.voices.length || audioLookups.models.length) return;
-
-    let cancelled = false;
-    void Promise.all([
-      api<AudioLookupResponse>("/integrations/elevenlabs/voices").catch(() => ({ voices: [] })),
-      api<AudioLookupResponse>("/integrations/elevenlabs/models").catch(() => ({ models: [] })),
-    ]).then(([voicesResult, modelsResult]) => {
-      if (!cancelled) {
-        setAudioLookups({
-          voices: voicesResult.voices ?? [],
-          models: modelsResult.models ?? [],
-        });
-        if (!(voicesResult.voices?.length || modelsResult.models?.length)) {
-          setAudioError("No se pudieron cargar voces o modelos de ElevenLabs.");
-        }
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [audioLookups.models.length, audioLookups.voices.length, open, section]);
 
   if (!open) return null;
 
@@ -299,7 +242,6 @@ export function AccountSettingsModal({
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <SectionTab active={section === "board"} onClick={() => setSection("board")} icon={Waves} label="Botonera" />
-                <SectionTab active={section === "audio"} onClick={() => setSection("audio")} icon={Sparkles} label="Audio IA" />
                 <SectionTab active={section === "narratives"} onClick={() => setSection("narratives")} icon={Workflow} label="Narrativas" />
               </div>
 
@@ -316,28 +258,6 @@ export function AccountSettingsModal({
                         window.localStorage.setItem(BOARD_DENSITY_KEY, next.density);
                       } catch (error) {
                         setBoardError(error instanceof Error ? error.message : "No se pudo guardar Botonera.");
-                      } finally {
-                        setSavingSection(false);
-                      }
-                    }}
-                  />
-                ) : null}
-
-                {section === "audio" ? (
-                  <AudioQuickSettings
-                    preferences={audioPreferences}
-                    lookups={audioLookups}
-                    onSave={async (next) => {
-                      setSavingSection(true);
-                      setAudioError(null);
-                      try {
-                        await api("/me/audio-generation-preferences", {
-                          method: "PATCH",
-                          body: JSON.stringify(next),
-                        });
-                        setAudioPreferences(next);
-                      } catch (error) {
-                        setAudioError(error instanceof Error ? error.message : "No se pudo guardar Audio IA.");
                       } finally {
                         setSavingSection(false);
                       }
@@ -373,7 +293,6 @@ export function AccountSettingsModal({
 
                 {generalError ? <p className="mt-3 text-sm text-error">{generalError}</p> : null}
                 {section === "board" && boardError ? <p className="mt-3 text-sm text-error">{boardError}</p> : null}
-                {section === "audio" && audioError ? <p className="mt-3 text-sm text-error">{audioError}</p> : null}
                 {section === "narratives" && narrativeError ? <p className="mt-3 text-sm text-error">{narrativeError}</p> : null}
                 {savingSection ? <p className="mt-3 text-sm text-on-surface-variant">Guardando cambios...</p> : null}
               </div>
@@ -389,54 +308,6 @@ export function AccountSettingsModal({
               >
                 Restablecer ajustes
               </button>
-            </div>
-
-            <div className="mt-4 rounded-[20px] border border-outline-variant bg-surface-container p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Audio de login</p>
-              <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-                Personaliza el audio mostrado en la vista previa del login sin tocar el contenido real del sistema.
-              </p>
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-1.5">
-                  <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Título</span>
-                  <input
-                    value={loginPreviewPrefs.title}
-                    onChange={(event) => setLoginPreviewPrefs((current) => ({ ...current, title: event.target.value }))}
-                    className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
-                  />
-                </label>
-                <label className="grid gap-1.5">
-                  <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Meta</span>
-                  <input
-                    value={loginPreviewPrefs.meta}
-                    onChange={(event) => setLoginPreviewPrefs((current) => ({ ...current, meta: event.target.value }))}
-                    className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
-                  />
-                </label>
-                <label className="grid gap-1.5">
-                  <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Duración</span>
-                  <input
-                    value={loginPreviewPrefs.duration}
-                    onChange={(event) => setLoginPreviewPrefs((current) => ({ ...current, duration: event.target.value }))}
-                    className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
-                  />
-                </label>
-              </div>
-              <div className="mt-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.localStorage.setItem("routlis.login.preview.title", loginPreviewPrefs.title);
-                    window.localStorage.setItem("routlis.login.preview.meta", loginPreviewPrefs.meta);
-                    window.localStorage.setItem("routlis.login.preview.duration", loginPreviewPrefs.duration);
-                    setSavingSection(true);
-                    window.setTimeout(() => setSavingSection(false), 400);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
-                >
-                  Guardar audio de login
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -555,92 +426,6 @@ function BoardQuickSettings({
           className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
         >
           Guardar Botonera
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AudioQuickSettings({
-  preferences,
-  lookups,
-  onSave,
-}: {
-  preferences: AudioGenerationPreferences | null;
-  lookups: AudioLookup;
-  onSave: (next: AudioGenerationPreferences) => Promise<void>;
-}) {
-  const [text, setText] = useState(preferences?.composerText ?? "");
-  const [voiceId, setVoiceId] = useState(preferences?.composerVoiceId ?? "");
-  const [modelId, setModelId] = useState(preferences?.composerModelId ?? "");
-
-  useEffect(() => {
-    setText(preferences?.composerText ?? "");
-    setVoiceId(preferences?.composerVoiceId ?? "");
-    setModelId(preferences?.composerModelId ?? "");
-  }, [preferences]);
-
-  return (
-    <div className="grid gap-4">
-      <label className="grid gap-1.5">
-        <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Texto por defecto</span>
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          className="input-surface min-h-28 rounded-2xl px-4 py-3 text-sm outline-none focus:border-primary"
-        />
-      </label>
-      <div className="grid gap-3 md:grid-cols-2">
-        <label className="grid gap-1.5">
-          <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Voz</span>
-          <select
-            value={voiceId}
-            onChange={(event) => setVoiceId(event.target.value)}
-            className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
-          >
-            <option value="">Sin voz</option>
-            {lookups.voices.map((voice) => (
-              <option key={voice.voiceId} value={voice.voiceId}>
-                {voice.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1.5">
-          <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Modelo</span>
-          <select
-            value={modelId}
-            onChange={(event) => setModelId(event.target.value)}
-            className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
-          >
-            <option value="">Sin modelo</option>
-            {lookups.models.map((model) => (
-              <option key={model.modelId} value={model.modelId}>
-                {model.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={() =>
-            void onSave({
-              composerText: text,
-              composerVoiceId: voiceId,
-              composerModelId: modelId,
-              composerOutputFormat: preferences?.composerOutputFormat ?? "mp3_44100_128",
-              composerStability: preferences?.composerStability ?? 0.5,
-              composerSimilarityBoost: preferences?.composerSimilarityBoost ?? 0.75,
-              composerStyle: preferences?.composerStyle ?? 0,
-              composerSpeed: preferences?.composerSpeed ?? 1,
-              composerSpeakerBoost: preferences?.composerSpeakerBoost ?? true,
-            })
-          }
-          className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
-        >
-          Guardar Audio IA
         </button>
       </div>
     </div>

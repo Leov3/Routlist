@@ -23,6 +23,7 @@ import { AudioGenerationModule } from './modules/audio-generation/audio-generati
 import { NarrativesModule } from './modules/narratives/narratives.module';
 import { NarrativeRunsModule } from './modules/narrative-runs/narrative-runs.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { PlatformBrandingModule } from './modules/platform-branding/platform-branding.module';
 import { AccessSettingsModule } from './modules/access-settings/access-settings.module';
 import { MailModule } from './modules/mail/mail.module';
 
@@ -51,6 +52,7 @@ import { MailModule } from './modules/mail/mail.module';
     NarrativesModule,
     NarrativeRunsModule,
     MaintenanceModule,
+    PlatformBrandingModule,
     AccessSettingsModule,
     MailModule,
   ],

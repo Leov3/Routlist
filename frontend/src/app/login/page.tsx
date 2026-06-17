@@ -3,8 +3,9 @@
 import { FormEvent, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api, apiUrl, ApiError } from "@/lib/api";
 import { ThemeToggleButton } from "@/components/layout/ThemeToggleButton";
+import type { PlatformBranding } from "@/types/routlis";
 
 type LoginStatsResponse = {
   activeAudios: number;
@@ -22,15 +23,12 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(true);
-  const [previewPlaying, setPreviewPlaying] = useState(false);
   const [toast, setToast] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [recoverEmail, setRecoverEmail] = useState("");
   const [stats, setStats] = useState<LoginStatsResponse | null>(null);
   const [statsError, setStatsError] = useState(false);
-  const [previewTitle, setPreviewTitle] = useState("Ident Promocional 2024");
-  const [previewMeta, setPreviewMeta] = useState("00:28 · MP3 · 320 kbps");
-  const [previewDuration, setPreviewDuration] = useState("00:28");
+  const [branding, setBranding] = useState<PlatformBranding | null>(null);
 
   const toastTimer = useRef<undefined | ReturnType<typeof setTimeout>>(undefined);
   const spotlightRef = useRef<HTMLDivElement>(null);
@@ -63,10 +61,15 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    setPreviewTitle(window.localStorage.getItem("routlis.login.preview.title") ?? "Ident Promocional 2024");
-    setPreviewMeta(window.localStorage.getItem("routlis.login.preview.meta") ?? "00:28 · MP3 · 320 kbps");
-    setPreviewDuration(window.localStorage.getItem("routlis.login.preview.duration") ?? "00:28");
+    async function loadBranding() {
+      try {
+        const data = await api<PlatformBranding>("/platform-branding/public");
+        setBranding(data);
+      } catch {
+        setBranding(null);
+      }
+    }
+    void loadBranding();
   }, []);
 
   useEffect(() => {
@@ -173,40 +176,36 @@ export default function LoginPage() {
             Organiza, reproduce y distribuye tu audio en vivo o por programación. Simple, rápido y confiable.
           </p>
 
-          <div className={`login-audio-preview${previewPlaying ? " playing" : ""}`} id="audioPreview">
-            <button
-              className="login-play-tile"
-              type="button"
-              aria-label="Reproducir vista previa"
-              onClick={() => {
-                setPreviewPlaying(!previewPlaying);
-                showToast(previewPlaying ? "Vista previa pausada." : "Vista previa reproduciendo.");
-              }}
-            >
-              {previewPlaying ? (
-                <svg viewBox="0 0 48 48" fill="none">
-                  <path d="M17 13h6v22h-6V13Zm10 0h6v22h-6V13Z" fill="currentColor" />
-                </svg>
+          <div className="login-audio-preview">
+            <div className="login-play-tile">
+              {branding?.logoUrl ? (
+                <img
+                  src={apiUrl(branding.logoUrl)}
+                  alt={branding.platformName}
+                  className="h-full w-full rounded-2xl object-contain p-2"
+                />
               ) : (
                 <svg viewBox="0 0 48 48" fill="none">
-                  <path d="M17 13v22l20-11-20-11Z" fill="currentColor" />
+                  <path
+                    d="M8 25.5h5.4c1.1 0 2-.7 2.3-1.8l2-8.3c.5-2.1 3.5-2.1 4 0l4.8 19.1c.5 2.1 3.5 2.1 4 0l2.8-11.2c.3-1.1 1.2-1.8 2.3-1.8H40"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                  />
                 </svg>
               )}
-            </button>
+            </div>
             <div>
               <div className="login-track-title">
-                <span>{previewTitle}</span>
-                <small>{previewDuration}</small>
+                <span>{branding?.platformName ?? "Routlis"}</span>
+                <small>Plataforma</small>
               </div>
-              <div className="login-track-meta">{previewMeta}</div>
-              <div className="login-wave" aria-hidden="true">
-                {Array.from({ length: 20 }).map((_, i) => {
-                  const heights = [14, 22, 16, 28, 21, 26, 18, 30, 20, 24, 15, 27, 18, 25, 17, 29, 20, 26, 15, 22];
-                  return (
-                    <span key={i} style={{ "--h": `${heights[i]}px`, "--i": i + 1 } as React.CSSProperties} />
-                  );
-                })}
-              </div>
+              <div className="login-track-meta">{branding?.tagline ?? "Control total de tu contenido de audio."}</div>
+              {branding?.platformName ? (
+                <div className="login-wave text-sm text-on-surface-variant" aria-hidden="true">
+                  Marca global activa
+                </div>
+              ) : null}
             </div>
           </div>
 
