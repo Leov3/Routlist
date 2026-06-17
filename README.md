@@ -272,10 +272,22 @@ Limpieza conservadora de Docker en el VPS:
 ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh prune
 ```
 
+Limpieza completa y segura del VPS, incluyendo cache de Docker y backups viejos:
+
+```bash
+ENV_FILE=/opt/routlis/.env KEEP_BACKUPS=3 bash scripts/deploy-vps.sh cleanup
+```
+
 Puedes programarlo, por ejemplo, una vez por semana con cron:
 
 ```cron
 0 4 * * 0 cd /opt/routlis/app && ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh prune >/var/log/routlis-prune.log 2>&1
+```
+
+Si quieres también purgar backups antiguos, usa:
+
+```cron
+0 4 * * 0 cd /opt/routlis/app && ENV_FILE=/opt/routlis/.env KEEP_BACKUPS=3 bash scripts/deploy-vps.sh cleanup >/var/log/routlis-cleanup.log 2>&1
 ```
 
 El seed no debe ejecutarse en cada despliegue automatico.

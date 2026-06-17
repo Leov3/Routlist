@@ -294,7 +294,7 @@ export default function UsersPage() {
             </span>
           </div>
 
-          <form onSubmit={createInvite} className="mb-4 grid gap-3 md:grid-cols-[1fr_1fr_180px_auto]">
+          <form onSubmit={createInvite} className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_180px_auto]">
             <input
               value={inviteEmail}
               onChange={(event) => setInviteEmail(event.target.value)}
@@ -331,8 +331,8 @@ export default function UsersPage() {
           {inviteError ? <p className="mb-3 text-sm text-red-600">{inviteError}</p> : null}
 
           {invites.length ? (
-            <div className="overflow-hidden rounded-xl border border-outline-variant">
-              <table className="w-full min-w-[920px] text-left text-sm">
+            <div className="overflow-x-auto rounded-xl border border-outline-variant">
+              <table className="w-full min-w-[820px] text-left text-sm">
                 <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
                   <tr>
                     <th className="px-4 py-3">Email</th>
@@ -394,7 +394,7 @@ export default function UsersPage() {
         </section>
       ) : null}
 
-      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_1fr_1fr_160px_auto]">
+      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_160px_auto]">
         <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Nombre" className="h-10 rounded-xl border border-outline px-3 text-sm" required />
         <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" type="email" className="h-10 rounded-xl border border-outline px-3 text-sm" required />
         <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Contrasena" className="h-10 rounded-xl border border-outline px-3 text-sm" required />
@@ -423,7 +423,7 @@ export default function UsersPage() {
 
       {filteredUsers.length ? (
         <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
                 <th className="px-4 py-3"><button onClick={() => sortBy("fullName")} className="inline-flex items-center gap-1"><ArrowUpDown className="h-3 w-3" />Nombre</button></th>

@@ -215,16 +215,16 @@ export default function AdminAccessPage() {
       {loading ? (
         <DataState>Cargando configuración de accesos...</DataState>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <section className="rounded-2xl border border-outline-variant bg-surface-container p-5">
-            <div className="flex items-center justify-between gap-3">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,.92fr)]">
+          <section className="rounded-2xl border border-outline-variant bg-surface-container p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-on-surface">Editor simple</h2>
                 <p className="text-sm text-on-surface-variant">
                   Primero selecciona organización, luego rol. Los cambios se guardan como sobrescritura sobre la plantilla.
                 </p>
               </div>
-              <div className="inline-flex rounded-full border border-outline-variant bg-surface p-1">
+              <div className="inline-flex flex-wrap rounded-full border border-outline-variant bg-surface p-1">
                 <button
                   type="button"
                   onClick={() => setMode("role")}
@@ -250,7 +250,7 @@ export default function AdminAccessPage() {
 
             <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
               {mode === "organization" ? (
-                <div className="flex max-h-[calc(100dvh-18rem)] flex-col rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+                <div className="flex max-h-[32rem] flex-col rounded-2xl border border-outline-variant bg-surface-container-high p-4">
                   <div className="mb-3 flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
@@ -259,7 +259,7 @@ export default function AdminAccessPage() {
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                     <div className="grid gap-2">
-                    {organizations.map((organization) => {
+                      {organizations.map((organization) => {
                       const active = organization.id === selectedOrganizationId;
                       return (
                         <button
@@ -274,7 +274,7 @@ export default function AdminAccessPage() {
                           <p className="text-xs text-on-surface-variant">{organization.slug}</p>
                         </button>
                       );
-                    })}
+                      })}
                     </div>
                   </div>
                 </div>
@@ -349,7 +349,7 @@ export default function AdminAccessPage() {
                               </p>
                             ) : null}
                           </div>
-                          <span className="flex items-center gap-2 shrink-0">
+                          <span className="flex shrink-0 items-center gap-2">
                             <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
                               {enabled ? "ON" : "OFF"}
                             </span>
@@ -405,7 +405,7 @@ export default function AdminAccessPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-outline-variant bg-surface-container p-5">
+          <section className="rounded-2xl border border-outline-variant bg-surface-container p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-tertiary/10 text-tertiary">
                 <SlidersHorizontal className="h-4 w-4" />

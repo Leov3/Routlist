@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Menu,
   Bell,
   FileCode2,
   Gauge,
@@ -232,6 +233,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     system: true,
   });
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [storageState, setStorageState] = useState<StorageHealthState>({ data: null, status: "error" });
@@ -330,16 +332,28 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     } else if (pathname.startsWith("/admin/")) {
       setAdminOpen(true);
     }
+    setMobileSidebarOpen(false);
   }, [pathname]);
 
   return (
     <div
-      className={`flex h-screen overflow-hidden bg-surface ${density === "compact" ? "text-[0.98rem]" : ""}`}
+      className={`flex min-h-dvh bg-surface ${density === "compact" ? "text-[0.98rem]" : ""}`}
       style={{ "--routlis-sidebar-width": `${sidebarWidth}px` } as CSSProperties}
     >
+      {mobileSidebarOpen && (
+        <button
+          type="button"
+          aria-label="Cerrar navegación"
+          onClick={() => setMobileSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-black/35 backdrop-blur-[2px] lg:hidden"
+        />
+      )}
+
       {/* ── Sidebar ── */}
       <aside
-        className={`relative flex flex-shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-standard ${sidebarW}`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-[86vw] max-w-[320px] -translate-x-full flex-shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-standard lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0 lg:w-auto ${sidebarW} ${
+          mobileSidebarOpen ? "translate-x-0" : ""
+        }`}
         style={{ background: "var(--routlis-sidebar-bg)", borderColor: "var(--routlis-sidebar-border)" }}
       >
         {/* Logo */}
@@ -358,7 +372,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
         </div>
 
         {/* Nav */}
-        <nav className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 py-4">
+        <nav className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 py-4 pb-6">
           <div className="space-y-2">
             {!collapsed && (
               <div className="flex items-center gap-2 px-1 pb-1">
@@ -618,18 +632,28 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
       </aside>
 
       {/* ── Main area ── */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
         {/* Top header */}
-        <header className="grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-outline-variant bg-surface px-6">
-          <div className="min-w-0">
-            {pathname !== "/board" ? (
-              <p className="truncate text-lg font-semibold tracking-tight text-on-surface">
-                {pageTitle}
-              </p>
-            ) : null}
+        <header className="grid min-h-16 shrink-0 grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-outline-variant bg-surface px-3 py-3 sm:px-4 lg:grid-cols-[1fr_auto_1fr] lg:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMobileSidebarOpen(true)}
+              className="icon-button-surface inline-flex h-10 w-10 items-center justify-center rounded-full lg:hidden"
+              aria-label="Abrir navegación"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
+              {pathname !== "/board" ? (
+                <p className="truncate text-base font-semibold tracking-tight text-on-surface sm:text-lg">
+                  {pageTitle}
+                </p>
+              ) : null}
+            </div>
           </div>
 
-          <div className="flex min-w-0 justify-center">
+          <div className="hidden min-w-0 justify-center lg:flex">
             <div id="board-header-slot" className="flex min-w-0 items-center justify-center" />
           </div>
 
@@ -643,8 +667,8 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 
         {/* Scrollable content */}
         <main className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-           <div className={`flex-1 ${density === "compact" ? "p-4 lg:p-6" : "p-6 lg:p-8"}`}>{children}</div>
-         </main>
+          <div className={`flex-1 ${density === "compact" ? "p-3 sm:p-4 lg:p-6" : "p-4 sm:p-5 lg:p-8"}`}>{children}</div>
+        </main>
       </div>
 
       <AccountSettingsModal

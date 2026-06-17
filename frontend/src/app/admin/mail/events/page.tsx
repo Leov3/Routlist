@@ -221,7 +221,7 @@ export default function MailEventsPage() {
             })}
           </div>
 
-          <div className="max-h-[68vh] space-y-2 overflow-auto pr-1">
+          <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1 lg:max-h-[68vh]">
             {loading ? (
               <div className="rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-10 text-center text-sm text-on-surface-variant">
                 Cargando eventos...
@@ -277,8 +277,8 @@ export default function MailEventsPage() {
           )}
 
           <form onSubmit={onSave} className="space-y-4">
-            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-              <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h2 className="truncate text-xl font-semibold text-on-surface">
                     {selectedEvent?.name || form.name || "Nuevo evento"}
@@ -340,7 +340,7 @@ export default function MailEventsPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
               <h3 className="text-lg font-semibold text-on-surface">Datos básicos</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <Field label="Nombre">
@@ -395,7 +395,7 @@ export default function MailEventsPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-on-surface">Referencia</h3>

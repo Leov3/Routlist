@@ -92,9 +92,9 @@ export default function AdminPlatformPage() {
 
         {error ? <p className="text-sm text-error">{error}</p> : null}
 
-        <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
           <section className="rounded-[24px] border border-outline-variant bg-surface-container p-4 shadow-sm">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-base font-semibold text-on-surface">Activos</h3>
                 <p className="text-sm text-on-surface-variant">Logo y favicon actuales.</p>
@@ -108,8 +108,8 @@ export default function AdminPlatformPage() {
             </div>
           </section>
 
-          <section className="rounded-[24px] border border-outline-variant bg-surface-container p-5 shadow-sm">
-            <div className="grid gap-4 md:grid-cols-2">
+          <section className="rounded-[24px] border border-outline-variant bg-surface-container p-4 shadow-sm sm:p-5">
+            <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2">
                 <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Nombre visible</span>
                 <input className="input-surface h-11 rounded-2xl px-3 text-sm outline-none" value={form.platformName} onChange={(event) => setForm((current) => ({ ...current, platformName: event.target.value }))} />
@@ -128,7 +128,7 @@ export default function AdminPlatformPage() {
               </label>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 rounded-[20px] border border-dashed border-outline-variant p-4">
                 <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Subir logo</span>
                 <input type="file" accept="image/*" onChange={(event) => setLogo(event.target.files?.[0] ?? null)} />
@@ -162,7 +162,7 @@ function AssetPreview({ label, url, compact = false }: { label: string; url: str
   return (
     <div className="rounded-[20px] border border-outline-variant bg-surface-container-high p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">{label}</p>
-      <div className={`mt-3 overflow-hidden rounded-[18px] border border-outline-variant bg-surface ${compact ? "h-20" : "h-40"}`}>
+      <div className={`mt-3 overflow-hidden rounded-[18px] border border-outline-variant bg-surface ${compact ? "h-18 sm:h-20" : "h-32 sm:h-40"}`}>
         {url ? <img src={url} alt={label} className="h-full w-full object-contain p-4" /> : <div className="flex h-full items-center justify-center text-sm text-on-surface-variant">Sin {label.toLowerCase()} configurado</div>}
       </div>
     </div>

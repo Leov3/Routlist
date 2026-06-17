@@ -96,15 +96,15 @@ export function AudioButtonDetailsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 px-4 py-4 backdrop-blur-md sm:items-center"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 px-3 py-3 backdrop-blur-md sm:items-center sm:px-4 sm:py-4"
       onClick={onClose}
     >
       <div
-        className="flex h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface shadow-[0_30px_90px_rgba(0,0,0,.28)]"
+        className="flex h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface shadow-[0_30px_90px_rgba(0,0,0,.28)] sm:h-[calc(100dvh-2rem)]"
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.preventDefault()}
       >
-        <div className="flex items-center justify-between border-b border-outline-variant px-5 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-outline-variant px-4 py-4 sm:px-5">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-on-surface-variant">Detalles del botón</p>
             {hasLabel ? (
@@ -122,17 +122,17 @@ export function AudioButtonDetailsModal({
         </div>
 
         <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[1.05fr_.95fr]">
-          <div className="min-h-0 border-b border-outline-variant p-5 lg:border-b-0 lg:border-r">
+          <div className="min-h-0 border-b border-outline-variant p-4 sm:p-5 lg:border-b-0 lg:border-r">
             <div className="overflow-hidden rounded-[22px] border border-outline-variant bg-surface-container">
               {button.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={mediaUrl(button.imageUrl)}
                   alt={button.label}
-                  className="h-[320px] w-full object-cover"
+                  className="h-[240px] w-full object-cover sm:h-[320px]"
                 />
               ) : (
-                <div className="flex h-[320px] items-center justify-center text-sm text-on-surface-variant">
+                <div className="flex h-[240px] items-center justify-center text-sm text-on-surface-variant sm:h-[320px]">
                   Este botón no tiene imagen todavía.
                 </div>
               )}
@@ -160,7 +160,7 @@ export function AudioButtonDetailsModal({
             </div>
           </div>
 
-          <div className="min-h-0 overflow-y-auto p-5">
+          <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
             <div className="space-y-4 pb-1">
               <div className="rounded-[20px] border border-outline-variant bg-surface-container p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto del botón</p>
@@ -189,7 +189,7 @@ export function AudioButtonDetailsModal({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto adicional</p>
-                      <p className="mt-2 max-h-28 overflow-y-auto text-sm leading-6 text-on-surface">{button.description}</p>
+                    <p className="mt-2 max-h-28 overflow-y-auto text-sm leading-6 text-on-surface">{button.description}</p>
                     </div>
                     <button
                       type="button"

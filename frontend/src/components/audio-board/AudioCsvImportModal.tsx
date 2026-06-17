@@ -43,12 +43,12 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 px-4 py-4 backdrop-blur-md" onClick={onClose}>
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 px-3 py-3 backdrop-blur-md sm:items-center sm:px-4 sm:py-4" onClick={onClose}>
       <div
-        className="flex h-[calc(100dvh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface shadow-[0_30px_90px_rgba(0,0,0,.45)]"
+        className="flex h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface shadow-[0_30px_90px_rgba(0,0,0,.45)] sm:h-[calc(100dvh-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative border-b border-outline-variant px-5 py-4">
+        <div className="relative border-b border-outline-variant px-4 py-4 sm:px-5">
           <p className="text-[11px] uppercase tracking-[0.24em] text-on-surface-variant">Importación CSV</p>
           <h3 className="mt-1 text-xl font-semibold text-on-surface">
             {result ? "Importación confirmada" : "Revisar importación CSV"}
@@ -66,7 +66,7 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
 
         {errorMessage ? <div className="border-b danger-surface px-5 py-3 text-sm">{errorMessage}</div> : null}
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden p-5 lg:grid-cols-[1.05fr_.95fr]">
+        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden p-4 sm:p-5 lg:grid-cols-[1.05fr_.95fr]">
           <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
             <div className="grid grid-cols-3 gap-2">
               <Stat label="Filas" value={String(preview?.totalRows ?? 0)} />
@@ -77,7 +77,7 @@ export function AudioCsvImportModal({ open, preview, queue, busy = false, onConf
               <p className="warning-surface mt-3 rounded-2xl px-3 py-2 text-sm">Duplicados: {preview.duplicates.join(", ")}</p>
             ) : null}
             <div className="mt-4 max-h-[calc(100dvh-18rem)] overflow-auto rounded-2xl border border-outline-variant">
-              <table className="w-full text-left text-sm">
+              <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
                   <tr>
                     <th className="px-4 py-3">Archivo</th>

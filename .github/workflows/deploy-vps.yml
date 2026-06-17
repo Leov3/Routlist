@@ -201,7 +201,7 @@ jobs:
           host="${host#http://}"
           host="${host#https://}"
           port='${{ secrets.VPS_SSH_PORT }}'
-          port="${port:-22}"
+          port="${port:-${VPS_SSH_PORT:-2222}}"
           if [[ "$host" == *:* ]]; then
             port="${host##*:}"
             host="${host%:*}"

@@ -270,13 +270,13 @@ export function AudioBoard() {
 
   const gridClass =
     density === "compact"
-      ? "md:grid-cols-4 xl:grid-cols-6"
+      ? "sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7"
       : density === "large"
-        ? "md:grid-cols-2 xl:grid-cols-3"
-        : "md:grid-cols-3 xl:grid-cols-5";
+        ? "sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+        : "sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6";
 
   return (
-    <div className="pb-[190px]">
+      <div className="pb-[190px]">
       {headerSlot
         ? createPortal(
             <div className="flex w-full min-w-0 items-center justify-center">
@@ -304,7 +304,7 @@ export function AudioBoard() {
       <BoardRecentStrip events={recentEvents} onPlay={(buttonId) => void playButtonById(buttonId)} />
 
       {viewMode === "simple" ? (
-        <section className="flex max-h-[calc(100dvh-20rem)] flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)]">
+        <section className="flex max-h-[calc(100dvh-18rem)] flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-4 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)] sm:p-5">
           <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center">
             <AudioSearch
               value={sideA.search}
@@ -365,7 +365,7 @@ export function AudioBoard() {
           </div>
         </section>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2 2xl:gap-5">
           <BoardSidePanel
             title="Lado A"
             subtitle="Audios del lado A"

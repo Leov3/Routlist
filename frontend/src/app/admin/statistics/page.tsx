@@ -401,7 +401,7 @@ export default function AdminDashboardPage() {
         <DataState>Cargando estadisticas...</DataState>
       ) : (
         <div className="grid gap-5">
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <HealthCard
               icon={Activity}
               label="Frontend"
@@ -434,7 +434,7 @@ export default function AdminDashboardPage() {
           </section>
 
           {user?.role === "OWNER" ? (
-            <section className="grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
+            <section className="grid gap-4 xl:grid-cols-[1.05fr_.95fr]">
               <div className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -444,7 +444,7 @@ export default function AdminDashboardPage() {
                     Branding global, mail y mantenimiento.
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
                   <InfoTile label="Marca" value={branding?.platformName ?? "Sin configurar"} />
                   <InfoTile label="Logo" value={branding?.logoUrl ? "Activo" : "Pendiente"} />
                   <InfoTile label="Favicon" value={branding?.faviconUrl ? "Activo" : "Pendiente"} />
@@ -463,7 +463,7 @@ export default function AdminDashboardPage() {
                     Envíos, reintentos y actividad reciente.
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
                   <InfoTile label="Cola" value={String(mailCounts.queue)} />
                   <InfoTile label="Logs" value={String(mailCounts.logs)} />
                   <InfoTile label="Pendientes" value={pendingInvites.length ? String(pendingInvites.length) : "0"} />
@@ -473,7 +473,7 @@ export default function AdminDashboardPage() {
             </section>
           ) : null}
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
             {visibleMetrics.map((metric) => {
               const Icon = metric.icon;
 
@@ -499,8 +499,8 @@ export default function AdminDashboardPage() {
             })}
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-[1fr_1.2fr]">
-            <div className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,.95fr)_minmax(0,1.05fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1 2xl:p-6">
               <div className="mb-4">
                 <h2 className="text-lg font-semibold tracking-tight text-on-surface">
                   Activos vs inactivos
@@ -516,7 +516,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1 2xl:p-6">
               <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -535,7 +535,7 @@ export default function AdminDashboardPage() {
           </section>
 
           {user?.role === "OWNER" ? (
-            <section className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <section className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1 2xl:p-6">
               <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -551,8 +551,8 @@ export default function AdminDashboardPage() {
               </div>
 
               {pendingInvites.length ? (
-                <div className="overflow-hidden rounded-xl border border-outline-variant">
-                  <table className="w-full text-left text-sm">
+                <div className="overflow-x-auto rounded-xl border border-outline-variant">
+                  <table className="w-full min-w-[760px] text-left text-sm">
                     <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
                       <tr>
                         <th className="px-4 py-3">Email</th>
@@ -598,7 +598,7 @@ export default function AdminDashboardPage() {
             </section>
           ) : null}
 
-          <section className="rounded-xl border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+          <section className="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5 2xl:p-6">
             <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold tracking-tight text-on-surface">
@@ -617,7 +617,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {storage ? (
-              <div className="grid gap-5 xl:grid-cols-[1fr_1.2fr]">
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,.95fr)_minmax(0,1.05fr)]">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <DiskSummary
                     label="Total"

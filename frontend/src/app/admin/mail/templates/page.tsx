@@ -517,7 +517,7 @@ function TemplateListPanel({
         })}
       </div>
 
-      <div className="max-h-[68vh] space-y-2 overflow-auto pr-1">
+      <div className="max-h-[42vh] space-y-2 overflow-y-auto pr-1 lg:max-h-[68vh]">
         {loading ? (
           <div className="rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-10 text-center text-sm text-on-surface-variant">
             Cargando plantillas...
@@ -617,8 +617,8 @@ function TemplateEditorPanel({
   return (
     <section className="space-y-4">
       <form onSubmit={onSave} className="space-y-4">
-        <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-          <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h2 className="truncate text-xl font-semibold text-on-surface">
                 {selectedTemplate?.name || form.name || "Nueva plantilla"}
@@ -673,9 +673,9 @@ function TemplateEditorPanel({
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+        <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
           <h3 className="text-lg font-semibold text-on-surface">Datos básicos</h3>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <Field label="Nombre">
               <input
                 value={form.name}
@@ -710,7 +710,7 @@ function TemplateEditorPanel({
               />
             </Field>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <Field label="Estado">
               <select
                 value={String(form.isActive)}
@@ -812,8 +812,8 @@ function TemplateEditorPanel({
               Inserta o copia variables disponibles para usar en la plantilla. Al hacer clic se pegan en el contenido activo.
             </p>
             <div className="overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container-high">
-              <div className="max-h-[58vh] overflow-auto mail-scrollbar">
-                <table className="w-full border-collapse text-left text-sm">
+              <div className="max-h-[48vh] overflow-auto mail-scrollbar lg:max-h-[58vh]">
+                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
                   <thead className="sticky top-0 z-10 bg-surface-container-high">
                     <tr className="border-b border-outline-variant text-xs uppercase tracking-[0.18em] text-on-surface-variant">
                       <th className="px-4 py-3 font-semibold">Variable</th>
@@ -994,7 +994,7 @@ function TemplateTestPanel({
           </button>
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {testVariables.map((variable) => (
             <Field key={variable.key} label={variable.key}>
               <input

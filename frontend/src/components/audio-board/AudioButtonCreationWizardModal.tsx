@@ -424,7 +424,7 @@ export function AudioButtonCreationWizardModal({
         className="flex h-[calc(100dvh-1.5rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface shadow-[0_30px_90px_rgba(0,0,0,.45)] sm:h-[calc(100dvh-2rem)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="relative border-b border-outline-variant px-5 py-4">
+        <div className="relative border-b border-outline-variant px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] uppercase tracking-[0.24em] text-on-surface-variant">Creador guiado</p>
@@ -500,7 +500,7 @@ export function AudioButtonCreationWizardModal({
                   </span>
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-2">
                     <p className="text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">Creado</p>
                     <p className="mt-1 text-lg font-semibold text-on-surface">

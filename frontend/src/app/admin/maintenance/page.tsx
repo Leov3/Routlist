@@ -307,7 +307,7 @@ export default function MaintenancePage() {
             </div>
           )}
 
-          <section className="mb-5 grid gap-3 md:grid-cols-4">
+          <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
               label="Migraciones aplicadas"
               value={migration?.appliedCount ?? 0}
@@ -330,7 +330,7 @@ export default function MaintenancePage() {
             />
           </section>
 
-          <section className="mb-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <section className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)]">
             <div className="space-y-5">
               <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
                 <div className="flex items-center justify-between gap-3">
@@ -347,7 +347,7 @@ export default function MaintenancePage() {
                   </span>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <InfoPill
                     label="Última aplicada"
                     value={migration?.lastAppliedAt ?? "N/D"}
@@ -410,7 +410,7 @@ export default function MaintenancePage() {
                   </span>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label className="space-y-2">
                     <span className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
                       Nombre
@@ -753,7 +753,7 @@ export default function MaintenancePage() {
                     </select>
                   </label>
 
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <label className="space-y-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
                         Cada horas
