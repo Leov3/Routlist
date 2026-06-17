@@ -105,6 +105,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/access", label: "Accesos", icon: ShieldCheck, roles: ["OWNER"], group: "access" },
   { href: "/admin/statistics", label: "Estadísticas", icon: Gauge, roles: ["OWNER", "ADMIN", "SUPERVISOR"], group: "platform" },
   { href: "/admin/organizations", label: "Organizaciones", icon: Building2, roles: ["OWNER"], group: "platform" },
+  { href: "/admin/platform", label: "Personalización", icon: FileCode2, roles: ["OWNER"], group: "platform" },
   { href: "/admin/users", label: "Usuarios", icon: Users, permissions: ["user:create"], group: "platform" },
   { href: "/admin/integraciones", label: "Integraciones", icon: PlugZap, permissions: ["integration:manage"], group: "system" },
   { href: "/admin/audios", label: "Audios", icon: Library, permissions: ["audio:create"], group: "content" },

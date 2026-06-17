@@ -30,6 +30,7 @@ export const ACCESS_MODULES = [
   { key: "admin.narratives",  label: "Narrativas (admin)" },
   // ── Sistema ──────────────────────────────────────────────────
   { key: "admin.integrations",label: "Integraciones" },
+  { key: "admin.platform",    label: "Personalización de plataforma" },
   { key: "admin.storage",     label: "Almacenamiento" },
   { key: "admin.maintenance", label: "Migraciones y backup" },
   { key: "admin.history",     label: "Historial" },
@@ -63,6 +64,7 @@ export const DEFAULT_ROLE_PRESETS: Record<string, Record<string, boolean>> = {
     ["admin.buttons",       true],
     ["admin.narratives",    true],
     ["admin.integrations",  true],
+    ["admin.platform",      true],
     ["admin.history",       true],
     ["admin.mail",          true],
     // acceso y correo: solo OWNER por defecto
@@ -83,6 +85,7 @@ export const DEFAULT_ROLE_PRESETS: Record<string, Record<string, boolean>> = {
     // sin acceso a gestión de org, users, sistema ni correo
     ["admin.access",        false],
     ["admin.mail",          false],
+    ["admin.platform",      false],
     ["admin.organizations", false],
     ["admin.users",         false],
     ["admin.integrations",  false],
@@ -101,6 +104,7 @@ export const DEFAULT_ROLE_PRESETS: Record<string, Record<string, boolean>> = {
     ["admin",               false],
     ["admin.access",        false],
     ["admin.mail",          false],
+    ["admin.platform",      false],
     ["admin.organizations", false],
     ["admin.users",         false],
     ["admin.narratives",    false],

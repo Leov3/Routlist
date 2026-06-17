@@ -263,6 +263,18 @@ export type MaintenanceAuditItem = {
   } | null;
 };
 
+export type PlatformBranding = {
+  id: string;
+  platformName: string;
+  tagline?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  logoUrl?: string | null;
+  faviconUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type MaintenanceStatus = {
   migration: MaintenanceMigrationStatus;
   settings: MaintenanceBackupSettings;

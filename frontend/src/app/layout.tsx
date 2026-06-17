@@ -3,8 +3,11 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Routlis AudioBoard",
+  title: "Routlis",
   description: "Botonera modular de audios para operacion",
+  icons: {
+    icon: `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/platform-branding/favicon`,
+  },
 };
 
 export default function RootLayout({
