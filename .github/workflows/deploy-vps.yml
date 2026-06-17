@@ -66,11 +66,10 @@ jobs:
         run: |
           try_ssh() {
             local port="$1"
-            shift
-            local target="$1"
-            shift
-            scp -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.tar.gz "${{ secrets.VPS_USER }}@$target:/tmp/routlis.tar.gz" &&
-            ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$target" "mkdir -p '${{ secrets.VPS_APP_DIR }}' && find '${{ secrets.VPS_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
+            local target="$2"
+            local user="$3"
+            scp -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.tar.gz "${user}@$target:/tmp/routlis.tar.gz" &&
+            ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$target" "mkdir -p '${{ secrets.VPS_APP_DIR }}' && find '${{ secrets.VPS_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + && tar -xzf /tmp/routlis.tar.gz -C '${{ secrets.VPS_APP_DIR }}' && rm /tmp/routlis.tar.gz"
           }
           tar -czf /tmp/routlis.tar.gz --exclude=.git --exclude=node_modules --exclude=.next --exclude=dist .
           host='${{ secrets.VPS_HOST }}'
@@ -83,22 +82,29 @@ jobs:
             host="${host%:*}"
           fi
           fallback_ip="$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<< "$host" | head -n 1 || true)"
-          if ! try_ssh "$port" "$host"; then
-            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]]; then
-              echo "Primary SSH target failed, retrying with IP fallback ${fallback_ip}:${port}"
-              try_ssh "$port" "$fallback_ip"
-            else
-              exit 1
+          users=("${{ secrets.VPS_USER }}" root)
+          for user in "${users[@]}"; do
+            if [[ -z "$user" ]]; then
+              continue
             fi
-          fi
+            if try_ssh "$port" "$host" "$user"; then
+              exit 0
+            fi
+            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]] && try_ssh "$port" "$fallback_ip" "$user"; then
+              exit 0
+            fi
+          done
+          echo "Failed to sync project files using configured users" >&2
+          exit 1
 
       - name: Ensure VPS env file exists
         run: |
           try_copy_env() {
             local port="$1"
             local target="$2"
-            scp -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.env "${{ secrets.VPS_USER }}@$target:${{ env.VPS_ENV_FILE }}" &&
-            ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$target" "chmod 600 '${{ env.VPS_ENV_FILE }}' && chown '${{ secrets.VPS_USER }}':'${{ secrets.VPS_USER }}' '${{ env.VPS_ENV_FILE }}'"
+            local user="$3"
+            scp -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -P "$port" /tmp/routlis.env "${user}@$target:${{ env.VPS_ENV_FILE }}" &&
+            ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$target" "chmod 600 '${{ env.VPS_ENV_FILE }}' && chown '${user}':'${user}' '${{ env.VPS_ENV_FILE }}'"
           }
           printf '%s' '${{ secrets.VPS_ENV_CONTENT_B64 }}' | base64 -d > /tmp/routlis.env
           host='${{ secrets.VPS_HOST }}'
@@ -111,14 +117,20 @@ jobs:
             host="${host%:*}"
           fi
           fallback_ip="$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<< "$host" | head -n 1 || true)"
-          if ! try_copy_env "$port" "$host"; then
-            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]]; then
-              echo "Primary SSH target failed, retrying env copy with IP fallback ${fallback_ip}:${port}"
-              try_copy_env "$port" "$fallback_ip"
-            else
-              exit 1
+          users=("${{ secrets.VPS_USER }}" root)
+          for user in "${users[@]}"; do
+            if [[ -z "$user" ]]; then
+              continue
             fi
-          fi
+            if try_copy_env "$port" "$host" "$user"; then
+              exit 0
+            fi
+            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]] && try_copy_env "$port" "$fallback_ip" "$user"; then
+              exit 0
+            fi
+          done
+          echo "Failed to copy env using configured users" >&2
+          exit 1
           rm -f /tmp/routlis.env
 
       - name: Preflight on VPS
@@ -126,8 +138,9 @@ jobs:
           run_remote() {
             local port="$1"
             local target="$2"
-            local command="$3"
-            ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$target" "$command"
+            local user="$3"
+            local command="$4"
+            ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$target" "$command"
           }
           host='${{ secrets.VPS_HOST }}'
           host="${host#http://}"
@@ -139,14 +152,20 @@ jobs:
             host="${host%:*}"
           fi
           fallback_ip="$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<< "$host" | head -n 1 || true)"
-          if ! run_remote "$port" "$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"; then
-            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]]; then
-              echo "Primary SSH target failed, retrying preflight with IP fallback ${fallback_ip}:${port}"
-              run_remote "$port" "$fallback_ip" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"
-            else
-              exit 1
+          users=("${{ secrets.VPS_USER }}" root)
+          for user in "${users[@]}"; do
+            if [[ -z "$user" ]]; then
+              continue
             fi
-          fi
+            if run_remote "$port" "$host" "$user" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"; then
+              exit 0
+            fi
+            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]] && run_remote "$port" "$fallback_ip" "$user" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh preflight"; then
+              exit 0
+            fi
+          done
+          echo "Failed preflight using configured users" >&2
+          exit 1
 
       - name: Deploy app on VPS
         run: |
@@ -160,14 +179,20 @@ jobs:
             host="${host%:*}"
           fi
           fallback_ip="$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<< "$host" | head -n 1 || true)"
-          if ! ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"; then
-            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]]; then
-              echo "Primary SSH target failed, retrying deploy with IP fallback ${fallback_ip}:${port}"
-              ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$fallback_ip" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"
-            else
-              exit 1
+          users=("${{ secrets.VPS_USER }}" root)
+          for user in "${users[@]}"; do
+            if [[ -z "$user" ]]; then
+              continue
             fi
-          fi
+            if ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"; then
+              exit 0
+            fi
+            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]] && ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$fallback_ip" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh deploy"; then
+              exit 0
+            fi
+          done
+          echo "Failed to deploy using configured users" >&2
+          exit 1
 
       - name: Verify deploy on VPS
         run: |
@@ -181,14 +206,20 @@ jobs:
             host="${host%:*}"
           fi
           fallback_ip="$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<< "$host" | head -n 1 || true)"
-          if ! ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"; then
-            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]]; then
-              echo "Primary SSH target failed, retrying verify with IP fallback ${fallback_ip}:${port}"
-              ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$fallback_ip" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"
-            else
-              exit 1
+          users=("${{ secrets.VPS_USER }}" root)
+          for user in "${users[@]}"; do
+            if [[ -z "$user" ]]; then
+              continue
             fi
-          fi
+            if ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"; then
+              exit 0
+            fi
+            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]] && ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$fallback_ip" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh verify"; then
+              exit 0
+            fi
+          done
+          echo "Failed to verify deploy using configured users" >&2
+          exit 1
 
       - name: Bootstrap seed on demand
         if: github.event_name == 'workflow_dispatch' && inputs.run_seed == true
@@ -202,11 +233,17 @@ jobs:
             host="${host%:*}"
           fi
           fallback_ip="$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' <<< "$host" | head -n 1 || true)"
-          if ! ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"; then
-            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]]; then
-              echo "Primary SSH target failed, retrying seed with IP fallback ${fallback_ip}:${port}"
-              ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${{ secrets.VPS_USER }}@$fallback_ip" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"
-            else
-              exit 1
+          users=("${{ secrets.VPS_USER }}" root)
+          for user in "${users[@]}"; do
+            if [[ -z "$user" ]]; then
+              continue
             fi
-          fi
+            if ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$host" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"; then
+              exit 0
+            fi
+            if [[ -n "$fallback_ip" && "$fallback_ip" != "$host" ]] && ssh -o ConnectTimeout=${VPS_CONNECT_TIMEOUT} -o StrictHostKeyChecking=accept-new -p "$port" "${user}@$fallback_ip" "cd '${{ secrets.VPS_APP_DIR }}' && ENV_FILE='${{ env.VPS_ENV_FILE }}' bash scripts/deploy-vps.sh seed"; then
+              exit 0
+            fi
+          done
+          echo "Failed to seed using configured users" >&2
+          exit 1
