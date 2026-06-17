@@ -10,4 +10,9 @@ export class SendTestMailDto {
   @IsOptional()
   @IsString()
   subject?: string;
+
+  @ApiProperty({ example: 'Mensaje opcional de la prueba', required: false })
+  @IsOptional()
+  @IsString()
+  message?: string;
 }

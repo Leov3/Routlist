@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { useAudioPlayback } from "@/modules/audio-board/useAudioPlayback";
@@ -163,13 +163,13 @@ export function AudioBoard() {
     [detailsButtonId, flattenedButtons],
   );
 
-  const playButtonById = async (buttonId: string) => {
+  const playButtonById = useCallback(async (buttonId: string) => {
     const button = flattenedButtons.find((entry) => entry.id === buttonId);
     if (!button) return;
 
     await playback.playButton(button, volume);
     await refreshRecent();
-  };
+  }, [flattenedButtons, playback, volume]);
 
   async function refreshRecent() {
     const recentData = await api<RecentPlaybackEvent[]>(
@@ -255,7 +255,7 @@ export function AudioBoard() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [flattenedButtons, playback, volume]);
+  }, [flattenedButtons, playback, playButtonById]);
 
   if (loading) {
     return (
@@ -280,17 +280,21 @@ export function AudioBoard() {
       {headerSlot
         ? createPortal(
             <div className="flex w-full min-w-0 items-center justify-center">
-              <div className="flex max-w-full flex-wrap items-center justify-center gap-3 rounded-full border border-outline-variant/70 bg-surface-container/80 px-4 py-2 shadow-[0_10px_30px_rgba(0,0,0,.14)] backdrop-blur-md">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(124,58,237,.14)]">
-                  <span className="text-sm font-bold">B</span>
+              <div className="flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto rounded-[20px] border border-outline-variant bg-surface-container/75 px-3 py-2 shadow-[0_10px_24px_rgba(0,0,0,.08)] backdrop-blur-md">
+                <div className="flex min-w-0 shrink-0 items-center gap-2 pr-1">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container">
+                    <span className="text-sm font-bold">B</span>
+                  </div>
+                  <h1 className="truncate text-sm font-semibold tracking-tight text-on-surface sm:text-[15px]">
+                    /Botonera
+                  </h1>
                 </div>
 
-                <h1 className="truncate text-[15px] font-semibold tracking-tight text-on-surface sm:text-base">
-                  /Botonera
-                </h1>
+                <div className="h-8 w-px shrink-0 bg-outline-variant/80" />
 
-                <BoardViewModeToggle value={viewMode} onChange={changeViewMode} />
-                <BoardDensityToggle value={density} onChange={setDensity} />
+                <BoardViewModeToggle value={viewMode} onChange={changeViewMode} compact />
+
+                <BoardDensityToggle value={density} onChange={setDensity} compact />
               </div>
             </div>,
             headerSlot,

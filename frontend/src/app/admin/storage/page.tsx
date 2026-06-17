@@ -215,7 +215,7 @@ export default function StoragePage() {
           type="button"
           disabled={!selectedIds.length || working}
           onClick={() => void runBulk("ACTIVATE")}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-outline px-3 text-sm font-semibold disabled:opacity-50"
+          className="btn-surface-base btn-secondary-surface h-10 rounded-xl px-3 text-sm disabled:opacity-50"
         >
           <CheckCircle className="h-4 w-4" />
           Activar
@@ -224,7 +224,7 @@ export default function StoragePage() {
           type="button"
           disabled={!selectedIds.length || working}
           onClick={() => void runBulk("DEACTIVATE")}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-outline px-3 text-sm font-semibold disabled:opacity-50"
+          className="btn-surface-base btn-secondary-surface h-10 rounded-xl px-3 text-sm disabled:opacity-50"
         >
           <XCircle className="h-4 w-4" />
           Desactivar
@@ -233,7 +233,7 @@ export default function StoragePage() {
           type="button"
           disabled={!selectedIds.length || working}
           onClick={() => void runBulk("DELETE")}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-red-700 px-3 text-sm font-semibold text-on-primary disabled:opacity-50"
+          className="btn-surface-base btn-destructive-surface h-10 rounded-xl px-3 text-sm disabled:opacity-50"
         >
           <Trash2 className="h-4 w-4" />
           Eliminar
@@ -258,25 +258,25 @@ export default function StoragePage() {
                   />
                 </th>
                 <th className="px-4 py-3">
-                  <button onClick={() => sortBy("originalName")} className="inline-flex items-center gap-1">
+                  <button onClick={() => sortBy("originalName")} className="btn-ghost-surface inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-widest">
                     <ArrowUpDown className="h-3 w-3" />
                     Audio
                   </button>
                 </th>
                 <th className="px-4 py-3">
-                  <button onClick={() => sortBy("mimeType")} className="inline-flex items-center gap-1">
+                  <button onClick={() => sortBy("mimeType")} className="btn-ghost-surface inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-widest">
                     <ArrowUpDown className="h-3 w-3" />
                     Tipo
                   </button>
                 </th>
                 <th className="px-4 py-3">
-                  <button onClick={() => sortBy("sizeBytes")} className="inline-flex items-center gap-1">
+                  <button onClick={() => sortBy("sizeBytes")} className="btn-ghost-surface inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-widest">
                     <ArrowUpDown className="h-3 w-3" />
                     Tamano
                   </button>
                 </th>
                 <th className="px-4 py-3">
-                  <button onClick={() => sortBy("isActive")} className="inline-flex items-center gap-1">
+                  <button onClick={() => sortBy("isActive")} className="btn-ghost-surface inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-widest">
                     <ArrowUpDown className="h-3 w-3" />
                     Estado
                   </button>

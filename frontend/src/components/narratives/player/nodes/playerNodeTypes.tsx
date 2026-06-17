@@ -11,7 +11,6 @@ import {
   Ellipsis,
   FileText,
   Flag,
-  Lock,
   Pause,
   Play,
   Split,
@@ -126,26 +125,27 @@ function statusLabel(status: PlayerNodeState) {
 }
 
 function statusTone(status: PlayerNodeState) {
-  if (status === "current") return "border-primary/50 bg-primary/18 text-primary";
-  if (status === "completed") return "border-emerald-400/35 bg-emerald-500/12 text-emerald-300";
-  if (status === "error") return "border-red-400/35 bg-red-500/12 text-red-300";
-  if (status === "decision-selected") return "border-fuchsia-400/35 bg-fuchsia-500/12 text-fuchsia-300";
-  if (status === "locked") return "border-slate-500/25 bg-slate-900/55 text-slate-400";
-  return "border-white/10 bg-black/25 text-slate-300";
+  if (status === "current") return "border-primary/30 bg-primary-container text-on-primary-container";
+  if (status === "completed") return "success-surface";
+  if (status === "error") return "danger-surface";
+  if (status === "decision-selected") return "border-secondary/30 bg-secondary-container text-on-secondary-container";
+  if (status === "available") return "border-outline-variant bg-surface-container-high text-on-surface";
+  if (status === "locked") return "border-outline-variant bg-surface-container text-on-surface-variant";
+  return "border-outline-variant bg-surface-container text-on-surface-variant";
 }
 
 function nodeFrame(status: PlayerNodeState, selected?: boolean, extra = "") {
-  const selectedRing = selected ? "ring-2 ring-primary/80 ring-offset-2 ring-offset-[#120f1c] " : "";
+  const selectedRing = selected ? "ring-2 ring-primary/80 ring-offset-2 ring-offset-surface " : "";
   const statusFrame =
     status === "current"
-      ? "border-primary shadow-[0_0_42px_rgba(168,139,250,0.48)] ring-4 ring-primary/30 scale-[1.035]"
+      ? "border-primary/50 shadow-[0_0_32px_rgba(124,58,237,0.18)] ring-4 ring-primary/25 scale-[1.02]"
       : status === "completed"
-        ? "border-emerald-400/55 shadow-[0_18px_34px_rgba(16,185,129,0.08)]"
+        ? "border-[color:var(--success-border)] shadow-[0_18px_34px_rgba(16,185,129,0.08)]"
         : status === "error"
-          ? "border-red-400/70 shadow-[0_18px_34px_rgba(239,68,68,0.12)]"
+          ? "border-[color:var(--danger-border)] shadow-[0_18px_34px_rgba(239,68,68,0.12)]"
           : status === "locked"
-            ? "border-slate-600/35 opacity-65"
-            : "border-white/12";
+            ? "border-outline-variant opacity-75"
+            : "border-outline-variant";
   return `group relative transition-all duration-300 hover:scale-[1.018] ${selectedRing}${statusFrame} ${extra}`;
 }
 
@@ -166,7 +166,7 @@ function NodeActionButton({ id }: { id: string }) {
         event.stopPropagation();
         ctx?.openNodeMenu(id);
       }}
-      className="nodrag absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/35 text-slate-300 opacity-80 backdrop-blur transition hover:border-primary/50 hover:text-white group-hover:opacity-100"
+      className="nodrag absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-outline-variant bg-surface-container-high text-on-surface-variant opacity-90 backdrop-blur transition hover:border-primary hover:text-on-surface group-hover:opacity-100 dark:border-white/10 dark:bg-black/35 dark:text-slate-300"
       aria-label="Abrir acciones"
     >
       <Ellipsis className="h-4 w-4" />
@@ -187,13 +187,13 @@ function PrimaryButton({
 }) {
   const className =
     tone === "emerald"
-      ? "bg-emerald-500 text-white hover:bg-emerald-400"
+      ? "success-surface-strong text-on-surface"
       : tone === "amber"
-        ? "bg-amber-300 text-amber-950 hover:bg-amber-200"
+        ? "warning-surface-strong text-on-surface"
         : tone === "purple"
-          ? "bg-purple-500 text-white hover:bg-purple-400"
+          ? "border border-primary/25 bg-primary-container text-on-primary-container hover:bg-primary-container/90"
           : tone === "slate"
-            ? "bg-slate-200 text-slate-950 hover:bg-white"
+            ? "border border-outline-variant bg-surface-container-high text-on-surface hover:border-primary/40"
             : "bg-primary text-on-primary hover:bg-primary/90";
   return (
     <button
@@ -221,15 +221,15 @@ function HiddenHandles({ source = true, target = true }: { source?: boolean; tar
 
 export function PlayerStartNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   return (
-    <div className={nodeFrame(data.status, selected, "w-[220px] min-h-[88px] rounded-[28px] border-2 bg-gradient-to-br from-primary/24 via-[#171024] to-[#100d18] p-4 text-on-surface")}>
+    <div className={nodeFrame(data.status, selected, "w-[220px] min-h-[88px] rounded-[28px] border-2 success-surface p-4 text-on-surface")}>
       <HiddenHandles target={false} />
       <div className="flex items-start gap-3 pr-8">
-        <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-primary/20 text-primary">
+        <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--success-border)] bg-[color:var(--success-bg-strong)] text-[color:var(--success-icon)]">
           <Flag className="h-6 w-6" />
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-primary">Inicio</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[color:var(--success-text-muted)]">Inicio</p>
             <StateBadge status={data.status} />
           </div>
           <p className="mt-2 text-base font-black text-on-surface">Comenzar narrativa</p>
@@ -244,15 +244,15 @@ export function PlayerStartNode({ data, selected }: NodeProps<Node<PlayerFlowNod
 export function PlayerEndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
   return (
-    <div className={nodeFrame(data.status, selected, "w-[220px] min-h-[88px] rounded-[28px] border-2 bg-gradient-to-br from-emerald-500/22 via-[#101c18] to-[#0f1216] p-4 text-on-surface")}>
+    <div className={nodeFrame(data.status, selected, "w-[220px] min-h-[88px] rounded-[28px] border-2 success-surface p-4 text-on-surface")}>
       <HiddenHandles source={false} />
       <div className="flex items-start gap-3 pr-8">
-        <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-emerald-300/25 bg-emerald-400/15 text-emerald-300">
+        <div className="success-surface flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl">
           <CheckCircle2 className="h-6 w-6" />
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">Fin</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[color:var(--success-text-muted)] dark:text-emerald-300">Fin</p>
             <StateBadge status={data.status} />
           </div>
           <p className="mt-2 text-base font-black text-on-surface">{data.label || "Cierre de narrativa"}</p>
@@ -271,7 +271,6 @@ export function PlayerEndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeD
 
 export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const isCurrent = ctx?.currentNodeId === id;
   const isPlaying = ctx?.playbackState === "playing" && ctx?.currentNodeId === id;
   const isPaused = ctx?.playbackState === "paused" && ctx?.currentNodeId === id;
   const btnDetails = data.audioButtonDetail ?? null;
@@ -287,7 +286,7 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
   };
 
   return (
-    <div className={nodeFrame(data.status, selected, "w-[280px] min-h-[150px] overflow-hidden rounded-[30px] border-2 bg-gradient-to-br from-primary/28 via-[#171124] to-[#0f0c18] p-4 text-on-surface")}>
+    <div className={nodeFrame(data.status, selected, "w-[280px] min-h-[150px] overflow-hidden rounded-[30px] border-2 bg-primary-container p-4 text-on-primary-container")}>
       <HiddenHandles />
       <div className="flex items-start gap-4 pr-8">
         <button
@@ -296,18 +295,18 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
             event.stopPropagation();
             play();
           }}
-          className={`nodrag flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] border border-primary/30 shadow-elevation-2 transition active:scale-95 ${
-            isPlaying ? "bg-primary text-on-primary animate-pulse" : "bg-primary/20 text-primary hover:bg-primary/30"
+          className={`nodrag flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] border border-primary/25 shadow-elevation-2 transition active:scale-95 ${
+            isPlaying ? "bg-primary text-on-primary animate-pulse" : "bg-primary-container text-on-primary-container hover:bg-primary-container/90"
           }`}
         >
           {isPlaying ? <Pause className="h-7 w-7 fill-current" /> : <Play className="ml-1 h-7 w-7 fill-current" />}
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary">Botonera</span>
+            <span className="rounded-full border border-primary/25 bg-primary-container px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-on-primary-container">Botonera</span>
             <StateBadge status={data.status} />
           </div>
-          <p className="mt-3 line-clamp-2 text-xl font-black leading-tight text-on-surface">{label}</p>
+          <p className="mt-3 line-clamp-2 text-xl font-black leading-tight text-on-primary-container">{label}</p>
           <p className="mt-2 text-xs font-semibold text-on-surface-variant">Categoría: {category}</p>
         </div>
       </div>
@@ -316,14 +315,14 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
           {isPlaying ? "Pausar" : isPaused ? "Reanudar" : "Reproducir"}
         </PrimaryButton>
-        <p className="text-[11px] font-semibold text-primary/80">{btnDetails?.audioAsset?.originalName || "Audio asociado"}</p>
+        <p className="text-[11px] font-semibold text-on-primary-container/80">{btnDetails?.audioAsset?.originalName || "Audio asociado"}</p>
       </div>
       <NodeActionButton id={data.id} />
     </div>
   );
 }
 
-export function PlayerDynamicAudioNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
+export function PlayerDynamicAudioNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const template = String(data.template ?? data.summary ?? data.label ?? "");
   const variables = data.variables ?? [];
   const voice = String(data.voiceId ?? "").trim();
@@ -331,32 +330,32 @@ export function PlayerDynamicAudioNode({ id, data, selected }: NodeProps<Node<Pl
   const preview = template.trim() || "Audio dinámico preparado para ElevenLabs";
 
   return (
-    <div className={nodeFrame(data.status, selected, "w-[330px] min-h-[190px] overflow-hidden rounded-[30px] border-2 bg-gradient-to-br from-fuchsia-500/18 via-[#1a1028] to-[#0f0c18] p-5 text-on-surface")}>
+    <div className={nodeFrame(data.status, selected, "w-[330px] min-h-[190px] overflow-hidden rounded-[30px] border-2 bg-tertiary-container p-5 text-on-tertiary-container")}>
       <HiddenHandles />
       <div className="flex items-start justify-between gap-4 pr-8">
         <div className="flex items-center gap-3">
-          <div className="flex h-13 w-13 items-center justify-center rounded-2xl border border-fuchsia-300/25 bg-fuchsia-500/15 text-fuchsia-200">
+          <div className="flex h-13 w-13 items-center justify-center rounded-2xl border border-tertiary/25 bg-tertiary-container text-on-tertiary-container">
             <WandSparkles className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-fuchsia-200">Audio dinámico IA</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-on-tertiary-container">Audio dinámico IA</p>
             <p className="mt-1 text-xs font-semibold text-on-surface-variant">Plantilla con variables para ElevenLabs</p>
           </div>
         </div>
         <StateBadge status={data.status} />
       </div>
-      <p className="mt-4 line-clamp-3 text-lg font-black leading-tight text-on-surface">{preview}</p>
+      <p className="mt-4 line-clamp-3 text-lg font-black leading-tight text-on-tertiary-container">{preview}</p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-200">
+        <span className="rounded-full border border-tertiary/25 bg-tertiary-container px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-on-tertiary-container">
           {variables.length > 0 ? `${variables.length} variable(s)` : "Sin variables"}
         </span>
         {voice ? (
-          <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200">
+          <span className="rounded-full border border-outline-variant bg-surface-container-high px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant">
             Voz definida
           </span>
         ) : null}
         {model ? (
-          <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200">
+          <span className="rounded-full border border-outline-variant bg-surface-container-high px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant">
             Modelo definido
           </span>
         ) : null}
@@ -366,7 +365,7 @@ export function PlayerDynamicAudioNode({ id, data, selected }: NodeProps<Node<Pl
           {variables.slice(0, 5).map((variable) => (
             <span
               key={variable}
-              className="rounded-full border border-fuchsia-300/30 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-100"
+              className="rounded-full border border-tertiary/25 bg-tertiary-container px-3 py-1 text-xs font-semibold text-on-tertiary-container"
             >
               {`{{${variable}}}`}
             </span>
@@ -388,18 +387,18 @@ export function PlayerScriptTextNode({ id, data, selected }: NodeProps<Node<Play
   const isCurrent = ctx?.currentNodeId === id;
   const text = nodeTextPreview(data.label, "Sin guion disponible", 260);
   return (
-    <div className={nodeFrame(data.status, selected, "w-[320px] min-h-[200px] rotate-[0.8deg] overflow-hidden rounded-[8px] border-2 border-stone-300/70 bg-[#f6f0e4] p-5 text-stone-900 shadow-[0_18px_42px_rgba(0,0,0,0.12)]")}>
+    <div className={nodeFrame(data.status, selected, "w-[320px] min-h-[200px] rotate-[0.8deg] overflow-hidden rounded-[8px] border-2 border-outline-variant bg-surface-container-high p-5 text-on-surface shadow-[0_18px_42px_rgba(0,0,0,0.12)]")}>
       <HiddenHandles />
       <div className="flex items-start justify-between gap-4 pr-8">
-        <div className="flex items-center gap-2 text-stone-700">
+        <div className="flex items-center gap-2 text-on-surface-variant">
           <FileText className="h-5 w-5" />
           <span className="text-[11px] font-black uppercase tracking-[0.22em]">Guion</span>
         </div>
         <StateBadge status={data.status} />
       </div>
-      <div className="relative mt-4 min-h-[112px] overflow-hidden rounded-[10px] border border-stone-300/70 bg-[repeating-linear-gradient(to_bottom,rgba(120,113,108,0.08)_0,rgba(120,113,108,0.08)_1px,transparent_1px,transparent_26px)] px-4 py-4">
-        <div className="pointer-events-none absolute left-0 top-0 h-full w-8 border-r border-stone-300/35 bg-[linear-gradient(to_right,rgba(180,83,9,0.08),transparent)]" />
-        <p className="relative whitespace-pre-wrap pl-3 font-mono text-[15px] leading-7 text-stone-900">
+      <div className="relative mt-4 min-h-[112px] overflow-hidden rounded-[10px] border border-outline-variant bg-surface px-4 py-4">
+        <div className="pointer-events-none absolute left-0 top-0 h-full w-8 border-r border-outline-variant bg-[linear-gradient(to_right,rgba(124,58,237,0.08),transparent)]" />
+        <p className="relative whitespace-pre-wrap pl-3 font-mono text-[15px] leading-7 text-on-surface">
           {text}
         </p>
       </div>
@@ -422,18 +421,18 @@ export function PlayerInstructionNode({ id, data, selected }: NodeProps<Node<Pla
   const ctx = useContext(NarrativePlayerContext);
   const isCurrent = ctx?.currentNodeId === id;
   return (
-    <div className={nodeFrame(data.status, selected, "w-[300px] min-h-[190px] rotate-[-1.5deg] rounded-[10px] border-2 border-amber-200/55 bg-gradient-to-br from-amber-100 via-amber-50 to-amber-200 p-5 text-amber-950 shadow-[0_18px_42px_rgba(251,191,36,0.16)]")}>
+    <div className={nodeFrame(data.status, selected, "w-[300px] min-h-[190px] rotate-[-1.5deg] rounded-[10px] border-2 warning-surface-strong p-5 shadow-[0_18px_42px_rgba(251,191,36,0.16)]")}>
       <HiddenHandles />
       <div className="flex items-start justify-between gap-4 pr-8">
-        <div className="flex items-center gap-2 text-amber-950/80">
+        <div className="flex items-center gap-2 text-[color:var(--warning-text)]">
           <AlertCircle className="h-5 w-5" />
           <span className="text-[11px] font-black uppercase tracking-[0.22em]">Post-it</span>
         </div>
         <StateBadge status={data.status} />
       </div>
-      <div className="mt-4 rounded-[12px] border border-amber-300/40 bg-amber-50/70 p-4">
-        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-700">Instrucción operativa</p>
-        <p className="mt-3 whitespace-pre-wrap text-[16px] font-semibold leading-7 text-amber-950">
+      <div className="mt-4 rounded-[12px] border border-[color:var(--warning-border)] bg-[color:var(--warning-bg-strong)] p-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[color:var(--warning-text-muted)]">Instrucción operativa</p>
+        <p className="mt-3 whitespace-pre-wrap text-[16px] font-semibold leading-7 text-[color:var(--warning-text)]">
           {nodeTextPreview(data.label, "Sin instrucción", 220)}
         </p>
       </div>
@@ -442,7 +441,7 @@ export function PlayerInstructionNode({ id, data, selected }: NodeProps<Node<Pla
           <CheckCircle2 className="h-4 w-4" />
           Entendido
         </PrimaryButton>
-        <span className="h-6 w-6 rounded-br-lg border-b-2 border-r-2 border-amber-500/30" />
+        <span className="h-6 w-6 rounded-br-lg border-b-2 border-r-2 border-[color:var(--warning-border)]" />
       </div>
       <NodeActionButton id={data.id} />
     </div>
@@ -468,15 +467,15 @@ export function PlayerAudioNode({ id, data, selected }: NodeProps<Node<PlayerFlo
   };
 
   return (
-    <div className={nodeFrame(data.status, selected, "w-[280px] min-h-[150px] rounded-[30px] border-2 bg-gradient-to-br from-violet-500/22 via-[#161325] to-[#0f0c18] p-5 text-on-surface")}>
+    <div className={nodeFrame(data.status, selected, "w-[280px] min-h-[150px] rounded-[30px] border-2 bg-secondary-container p-5 text-on-secondary-container")}>
       <HiddenHandles />
       <div className="flex items-start justify-between gap-4 pr-8">
         <div className="flex items-center gap-3">
-          <div className={`flex h-13 w-13 items-center justify-center rounded-2xl border border-violet-300/25 ${isPlaying ? "bg-primary text-on-primary animate-pulse" : "bg-violet-500/18 text-violet-200"}`}>
+          <div className={`flex h-13 w-13 items-center justify-center rounded-2xl border border-secondary/25 ${isPlaying ? "bg-primary text-on-primary animate-pulse" : "bg-secondary-container text-on-secondary-container"}`}>
             {isPlaying ? <Pause className="h-6 w-6 fill-current" /> : <Volume2 className="h-6 w-6" />}
           </div>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-200">Audio</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-on-secondary-container">Audio</p>
             <p className="mt-1 text-xs font-semibold text-on-surface-variant">{data.isRequired ? "Obligatorio" : "Opcional"}</p>
           </div>
         </div>
@@ -507,15 +506,15 @@ export function PlayerPauseNode({ id, data, selected }: NodeProps<Node<PlayerFlo
   const isTimer = data.nodeData?.manual === false || data.nodeData?.pauseType === "timer";
   const duration = data.nodeData?.durationSeconds;
   return (
-    <div className={nodeFrame(data.status, selected, "w-[240px] min-h-[120px] rounded-[28px] border-2 bg-gradient-to-br from-slate-500/18 via-[#151821] to-[#0f1118] p-4 text-on-surface")}>
+    <div className={nodeFrame(data.status, selected, "w-[240px] min-h-[120px] rounded-[28px] border-2 bg-surface-container p-4 text-on-surface")}>
       <HiddenHandles />
       <div className="flex items-start gap-3 pr-8">
-        <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-slate-300/14 bg-slate-500/18 text-slate-200">
+        <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-outline-variant bg-surface-container-high text-on-surface-variant">
           <Clock3 className="h-6 w-6" />
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-200">Pausa</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-on-surface-variant">Pausa</p>
             <StateBadge status={data.status} />
           </div>
           <p className="mt-2 text-base font-black text-on-surface">{isTimer ? "Temporizada" : "Manual"}</p>
@@ -540,16 +539,16 @@ export function PlayerDecisionNode({ id, data, selected }: NodeProps<Node<Player
     ? data.decisionChoices
     : readDecisionLabels(data.nodeData?.options).map((label) => ({ label, targetNodeId: label }));
   return (
-    <div className={nodeFrame(data.status, selected, "w-[320px] min-h-[180px] rounded-[32px] border-2 bg-gradient-to-br from-purple-500/22 via-[#1b1126] to-[#100d18] p-5 text-on-surface")}>
+    <div className={nodeFrame(data.status, selected, "w-[320px] min-h-[180px] rounded-[32px] border-2 bg-secondary-container p-5 text-on-secondary-container")}>
       <HiddenHandles />
       <div className="flex items-start justify-between gap-4 pr-8">
-        <div className="flex items-center gap-2 text-purple-200">
+        <div className="flex items-center gap-2 text-on-secondary-container">
           <Split className="h-5 w-5" />
           <span className="text-[11px] font-black uppercase tracking-[0.22em]">Decisión</span>
         </div>
         <StateBadge status={data.status} />
       </div>
-      <p className="mt-4 text-[15px] font-black leading-6 text-purple-50">{nodeTextPreview(data.label, "¿Qué sigue?", 170)}</p>
+      <p className="mt-4 text-[15px] font-black leading-6 text-on-secondary-container">{nodeTextPreview(data.label, "¿Qué sigue?", 170)}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {choices.slice(0, 5).map((choice) => (
           <button
@@ -560,13 +559,13 @@ export function PlayerDecisionNode({ id, data, selected }: NodeProps<Node<Player
               event.stopPropagation();
               if (isCurrent) void ctx?.chooseDecision(choice.targetNodeId, choice.label);
             }}
-            className="nodrag rounded-2xl border border-purple-300/28 bg-purple-950/55 px-3 py-2 text-xs font-black text-purple-100 transition hover:border-purple-200/70 hover:bg-purple-500/20 disabled:cursor-default disabled:opacity-80"
+            className="nodrag rounded-2xl border border-outline-variant bg-surface-container-high px-3 py-2 text-xs font-black text-on-surface transition hover:border-secondary hover:bg-surface-container disabled:cursor-default disabled:opacity-80"
           >
             {choice.label}
           </button>
         ))}
       </div>
-      {isCurrent ? <p className="mt-3 text-xs font-bold text-purple-200">Selecciona una ruta para continuar</p> : null}
+      {isCurrent ? <p className="mt-3 text-xs font-bold text-on-secondary-container">Selecciona una ruta para continuar</p> : null}
       <NodeActionButton id={data.id} />
     </div>
   );

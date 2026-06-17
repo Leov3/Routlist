@@ -242,8 +242,8 @@ export class ElevenLabsService {
     const response = await this.requestJson<unknown>(resolved, '/v1/models', 'GET');
     const rawModels = Array.isArray(response)
       ? response
-      : this.isRecord(response) && Array.isArray((response as Record<string, unknown>).models)
-        ? ((response as Record<string, unknown>).models as Array<Record<string, unknown>>)
+      : this.isRecord(response) && Array.isArray((response).models)
+        ? ((response).models as Array<Record<string, unknown>>)
         : [];
 
     const models = rawModels

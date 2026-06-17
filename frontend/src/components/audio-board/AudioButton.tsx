@@ -63,7 +63,7 @@ export function AudioButton({
       }`}
     >
       <div className="flex items-start gap-3 px-3 pt-3">
-        <div className={`relative shrink-0 overflow-hidden rounded-[14px] border border-white/8 bg-surface-container ${thumbSize}`}>
+        <div className={`relative shrink-0 overflow-hidden rounded-[14px] border border-outline-variant bg-surface-container ${thumbSize}`}>
           {button.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

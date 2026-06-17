@@ -8,7 +8,74 @@ import { MailAuditService } from './mail-audit.service';
 import { MailSettingsService } from './mail-settings.service';
 import { MailTemplateService } from './mail-template.service';
 import { SmtpMailProvider } from './providers/smtp-mail.provider';
-import type { MailRenderContext, MailSendResult, MailTemplateType } from './mail.types';
+import type { SendTemplatePreviewDto } from './dto/send-template-preview.dto';
+import type {
+  MailEventRecord,
+  MailRenderContext,
+  MailSendResult,
+  MailTemplateRecord,
+  MailTemplateType,
+} from './mail.types';
+
+const MAIL_TEMPLATE_SEEDS: Array<Pick<MailTemplateRecord, 'key' | 'name' | 'description' | 'subject' | 'htmlBody' | 'textBody' | 'isActive'>> = [
+  {
+    key: 'WELCOME',
+    name: 'Bienvenida',
+    description: 'Plantilla para usuarios nuevos.',
+    subject: 'Bienvenido a Routlis',
+    htmlBody: '<h1>Bienvenido a Routlis</h1><p>Tu cuenta ya está lista.</p>',
+    textBody: 'Bienvenido a Routlis. Tu cuenta ya está lista.',
+    isActive: true,
+  },
+  {
+    key: 'INVITE',
+    name: 'Invitación a organización',
+    description: 'Correo de invitación a organizaciones.',
+    subject: 'Te invitaron a Routlis',
+    htmlBody: '<h1>Invitación</h1><p>Fuiste invitado a una organización.</p>',
+    textBody: 'Fuiste invitado a una organización.',
+    isActive: true,
+  },
+  {
+    key: 'PASSWORD_RESET',
+    name: 'Recuperación de contraseña',
+    description: 'Correo para restablecer contraseña.',
+    subject: 'Restablece tu contraseña',
+    htmlBody: '<h1>Restablece tu contraseña</h1>',
+    textBody: 'Restablece tu contraseña',
+    isActive: true,
+  },
+  {
+    key: 'PASSWORD_CHANGED',
+    name: 'Cambio de contraseña',
+    description: 'Notificación de cambio de contraseña.',
+    subject: 'Tu contraseña fue actualizada',
+    htmlBody: '<h1>Contraseña actualizada</h1>',
+    textBody: 'Tu contraseña fue actualizada',
+    isActive: true,
+  },
+  {
+    key: 'TEST',
+    name: 'Prueba de correo',
+    description: 'Correo de prueba desde el panel.',
+    subject: 'Prueba de correo Routlis',
+    htmlBody: '<h1>Correo de prueba</h1>',
+    textBody: 'Correo de prueba',
+    isActive: true,
+  },
+];
+
+const MAIL_EVENT_SEEDS: Array<Pick<MailEventRecord, 'key' | 'name' | 'description' | 'isEnabled' | 'templateKey' | 'channels'>> = [
+  { key: 'USER_CREATED', name: 'Usuario creado', description: 'Dispara bienvenida', isEnabled: true, templateKey: 'WELCOME', channels: ['email'] },
+  { key: 'INVITE_SENT', name: 'Invitación enviada', description: 'Dispara invitación', isEnabled: true, templateKey: 'INVITE', channels: ['email'] },
+  { key: 'PASSWORD_RESET_REQUESTED', name: 'Recuperación de contraseña', description: 'Dispara reset', isEnabled: true, templateKey: 'PASSWORD_RESET', channels: ['email'] },
+  { key: 'PASSWORD_CHANGED', name: 'Cambio de contraseña', description: 'Notifica cambio', isEnabled: true, templateKey: 'PASSWORD_CHANGED', channels: ['email'] },
+  { key: 'STORAGE_HIGH', name: 'Alerta por almacenamiento alto', description: 'Alerta operativa', isEnabled: false, templateKey: null, channels: ['email'] },
+  { key: 'NARRATIVE_READY', name: 'Narrativa lista', description: 'Notifica proceso completado', isEnabled: false, templateKey: null, channels: ['email'] },
+  { key: 'AUDIO_PROCESSED', name: 'Audio procesado', description: 'Procesamiento correcto', isEnabled: false, templateKey: null, channels: ['email'] },
+  { key: 'AUDIO_ERROR', name: 'Error de procesamiento', description: 'Procesamiento fallido', isEnabled: false, templateKey: null, channels: ['email'] },
+  { key: 'LICENSE_EXPIRING', name: 'Licencia próxima a vencer', description: 'Aviso preventivo', isEnabled: false, templateKey: null, channels: ['email'] },
+];
 
 type RequestContext = {
   ipAddress?: string | null;
@@ -33,15 +100,184 @@ export class MailService {
     return this.settingsService.updateSettings(dto, user.id);
   }
 
-  async testMail(user: AuthenticatedUser, to: string, subject?: string) {
+  async listTemplates() {
+    await this.ensureMailCatalogSeeded();
+    return this.db().mailTemplate.findMany({ orderBy: [{ isActive: 'desc' }, { createdAt: 'asc' }] });
+  }
+
+  async upsertTemplate(user: AuthenticatedUser, input: {
+    key: string;
+    name: string;
+    description?: string;
+    subject: string;
+    htmlBody: string;
+    textBody?: string;
+    isActive?: boolean;
+  }) {
+    await this.ensureMailCatalogSeeded();
+    return this.db().mailTemplate.upsert({
+      where: { key: input.key },
+      update: {
+        name: input.name,
+        description: input.description ?? null,
+        subject: input.subject,
+        htmlBody: input.htmlBody,
+        textBody: input.textBody ?? null,
+        isActive: input.isActive ?? true,
+        updatedByUserId: user.id,
+      },
+      create: {
+        key: input.key,
+        name: input.name,
+        description: input.description ?? null,
+        subject: input.subject,
+        htmlBody: input.htmlBody,
+        textBody: input.textBody ?? null,
+        isActive: input.isActive ?? true,
+        updatedByUserId: user.id,
+      },
+    });
+  }
+
+  async deleteTemplate(key: string) {
+    return this.db().mailTemplate.delete({ where: { key } });
+  }
+
+  async listEvents() {
+    await this.ensureMailCatalogSeeded();
+    return this.db().mailEvent.findMany({ orderBy: [{ isEnabled: 'desc' }, { createdAt: 'asc' }] });
+  }
+
+  async updateEvent(user: AuthenticatedUser, key: string, input: { templateKey?: string; isEnabled?: boolean }) {
+    await this.ensureMailCatalogSeeded();
+    return this.db().mailEvent.update({
+      where: { key },
+      data: {
+        templateKey: input.templateKey ?? null,
+        isEnabled: input.isEnabled ?? true,
+        updatedByUserId: user.id,
+      },
+    });
+  }
+
+  async listQueue() {
+    return this.db().mailQueueItem.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      take: 100,
+    });
+  }
+
+  async enqueueMail(user: AuthenticatedUser, input: {
+    to: string;
+    subject: string;
+    eventKey?: string;
+    templateKey?: string;
+  }) {
+    return this.db().mailQueueItem.create({
+      data: {
+        to: input.to,
+        subject: input.subject,
+        eventKey: input.eventKey ?? null,
+        templateKey: input.templateKey ?? null,
+        createdByUserId: user.id,
+        status: 'PENDING',
+      },
+    });
+  }
+
+  async retryQueueItem(user: AuthenticatedUser, id: string) {
+    const item = await this.db().mailQueueItem.update({
+      where: { id },
+      data: {
+        status: 'PENDING',
+        lastError: null,
+        attempts: { increment: 1 },
+        updatedAt: new Date(),
+        createdByUserId: user.id,
+      },
+    });
+
+    return item;
+  }
+
+  async testMail(user: AuthenticatedUser, to: string, subject?: string, message?: string) {
     return this.sendTemplate({
       type: 'TEST',
       to,
       organizationId: user.organizationId,
       userId: user.id,
-      context: {},
+      context: { message: message ?? '' },
       subjectOverride: subject,
     });
+  }
+
+  async sendTemplatePreview(user: AuthenticatedUser, input: SendTemplatePreviewDto) {
+    const settings = await this.settingsService.resolveEffectiveSettings();
+    const subject = input.subject?.trim() || 'Plantilla de prueba';
+    const renderContext = {
+      ...input.context,
+      fromEmail: settings.fromEmail,
+      fromName: settings.fromName,
+      appName: settings.fromName,
+      replyTo: settings.replyTo ?? undefined,
+      supportEmail: settings.replyTo ?? undefined,
+    };
+    const rendered = this.templateService.renderCustom(
+      {
+        subject,
+        html: this.normalizeHtmlEmail(input.htmlBody),
+        text: input.textBody?.trim() || this.htmlToPlainText(this.normalizeHtmlEmail(input.htmlBody)),
+      },
+      renderContext,
+    );
+
+    try {
+      const result = await this.provider.sendMail(settings, {
+        to: input.to,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        replyTo: settings.replyTo,
+      });
+
+      await this.auditService.logSuccess({
+        organizationId: user.organizationId,
+        userId: user.id,
+        type: 'TEST',
+        to: input.to,
+        subject: rendered.subject,
+        providerMessageId: result.messageId ?? null,
+        acceptedRecipients: result.acceptedRecipients ?? [],
+        rejectedRecipients: result.rejectedRecipients ?? [],
+        responseMessage: result.responseMessage ?? null,
+        context: {
+          templateKey: input.templateKey ?? null,
+          mode: 'template-preview',
+        },
+      });
+
+      return {
+        ok: true,
+        messageId: result.messageId,
+        acceptedRecipients: result.acceptedRecipients,
+        rejectedRecipients: result.rejectedRecipients,
+        responseMessage: result.responseMessage ?? null,
+      };
+    } catch (error) {
+      await this.auditService.logFailure({
+        organizationId: user.organizationId,
+        userId: user.id,
+        type: 'TEST',
+        to: input.to,
+        subject: rendered.subject,
+        error,
+        context: {
+          templateKey: input.templateKey ?? null,
+          mode: 'template-preview',
+        },
+      });
+      return { ok: false, error: error instanceof Error ? error.message : 'Mail error' };
+    }
   }
 
   async listLogs(limit = 50) {
@@ -482,21 +718,41 @@ export class MailService {
     context: MailRenderContext;
   }): Promise<MailSendResult> {
     const settings = await this.settingsService.resolveEffectiveSettings();
-    const template = this.templateService.render(input.type, {
-      ...input.context,
-      fromEmail: settings.fromEmail,
-      fromName: settings.fromName,
-      appName: settings.fromName,
-      replyTo: settings.replyTo ?? undefined,
-      supportEmail: settings.replyTo ?? undefined,
+    const eventConfig = await this.db().mailEvent.findUnique({
+      where: { key: input.type },
+      select: { templateKey: true, isEnabled: true },
     });
+    if (eventConfig && !eventConfig.isEnabled) {
+      return { ok: true, skipped: true };
+    }
+    const resolvedTemplateKey = eventConfig?.templateKey?.trim() || input.type;
+    const storedTemplate = await this.db().mailTemplate.findUnique({
+      where: { key: resolvedTemplateKey },
+    });
+    const template = storedTemplate?.isActive
+      ? this.templateService.renderStored(storedTemplate, {
+          ...input.context,
+          fromEmail: settings.fromEmail,
+          fromName: settings.fromName,
+          appName: settings.fromName,
+          replyTo: settings.replyTo ?? undefined,
+          supportEmail: settings.replyTo ?? undefined,
+        })
+      : this.templateService.render(input.type, {
+        ...input.context,
+        fromEmail: settings.fromEmail,
+        fromName: settings.fromName,
+        appName: settings.fromName,
+        replyTo: settings.replyTo ?? undefined,
+        supportEmail: settings.replyTo ?? undefined,
+      });
     const subject = input.subjectOverride ?? template.subject;
 
     try {
       const result = await this.provider.sendMail(settings, {
         to: input.to,
         subject,
-        html: template.html,
+        html: this.normalizeHtmlEmail(template.html),
         text: template.text,
         replyTo: settings.replyTo,
       });
@@ -511,7 +767,7 @@ export class MailService {
         acceptedRecipients: result.acceptedRecipients ?? [],
         rejectedRecipients: result.rejectedRecipients ?? [],
         responseMessage: result.responseMessage ?? null,
-        context: input.context,
+        context: { ...input.context, templateKey: resolvedTemplateKey, eventKey: input.type },
       });
 
       return {
@@ -529,10 +785,29 @@ export class MailService {
         to: input.to,
         subject,
         error,
-        context: input.context,
+        context: { ...input.context, templateKey: resolvedTemplateKey, eventKey: input.type },
       });
       return { ok: false, error: error instanceof Error ? error.message : 'Mail error' };
     }
+  }
+
+  private async ensureMailCatalogSeeded() {
+    await Promise.all([
+      ...MAIL_TEMPLATE_SEEDS.map((template) =>
+        this.db().mailTemplate.upsert({
+          where: { key: template.key },
+          update: {},
+          create: template,
+        }),
+      ),
+      ...MAIL_EVENT_SEEDS.map((event) =>
+        this.db().mailEvent.upsert({
+          where: { key: event.key },
+          update: {},
+          create: event,
+        }),
+      ),
+    ]);
   }
 
   private generateToken() {
@@ -581,5 +856,45 @@ export class MailService {
     if (activeMembers + pendingInvites >= organization.maxUsers) {
       throw new ForbiddenException('Organization user limit reached');
     }
+  }
+
+  private db() {
+    return this.prisma as any;
+  }
+
+  private htmlToPlainText(html: string) {
+    return html
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private normalizeHtmlEmail(html: string) {
+    const source = String(html ?? '').trim();
+    if (!source) {
+      return '<!doctype html><html lang="es"><body></body></html>';
+    }
+
+    if (/<html[\s>]/i.test(source)) {
+      return source;
+    }
+
+    const styleBlocks = source.match(/<style[\s\S]*?<\/style>/gi) ?? [];
+    const bodyContent = source.replace(/<style[\s\S]*?<\/style>/gi, '').trim();
+    const headContent = [
+      '<meta charset="utf-8" />',
+      '<meta name="viewport" content="width=device-width, initial-scale=1" />',
+      ...styleBlocks,
+    ].join('\n');
+
+    return `<!doctype html>
+<html lang="es">
+  <head>
+    ${headContent}
+  </head>
+  <body>${bodyContent}</body>
+</html>`;
   }
 }

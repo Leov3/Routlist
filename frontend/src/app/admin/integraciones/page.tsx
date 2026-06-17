@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, PlugZap, RefreshCw, ShieldAlert, Sparkles, ToggleLeft } from "lucide-react";
 import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
@@ -124,7 +124,7 @@ export default function IntegrationsSettingsPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLabel, setPreviewLabel] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -155,7 +155,7 @@ export default function IntegrationsSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   async function loadVoices() {
     setLoadingVoices(true);
@@ -185,13 +185,13 @@ export default function IntegrationsSettingsPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const connectionColor = useMemo(() => {
     const status = settings?.connectionStatus ?? "not_configured";
-    if (status === "connected") return "text-emerald-400 bg-emerald-500/10";
-    if (status === "error") return "text-red-400 bg-red-500/10";
-    if (status === "pending") return "text-amber-300 bg-amber-500/10";
+    if (status === "connected") return "success-surface";
+    if (status === "error") return "danger-surface";
+    if (status === "pending") return "warning-surface";
     if (status === "inactive") return "text-on-surface-variant bg-outline-variant/30";
     return "text-on-surface-variant bg-outline-variant/30";
   }, [settings?.connectionStatus]);
@@ -464,17 +464,17 @@ export default function IntegrationsSettingsPage() {
             </div>
 
             {error ? (
-              <div className="mb-4 flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
+            <div className="danger-surface mb-4 flex items-start gap-3 rounded-2xl p-4 text-sm">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
             ) : null}
 
             {feedback ? (
-              <div className="mb-4 flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{feedback}</span>
-              </div>
+            <div className="success-surface mb-4 flex items-start gap-3 rounded-2xl p-4 text-sm">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{feedback}</span>
+            </div>
             ) : null}
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -484,7 +484,7 @@ export default function IntegrationsSettingsPage() {
                   onClick={() => updateField("isActive", !form.isActive)}
                   className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors ${
                     form.isActive
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                      ? "success-surface"
                       : "border-outline-variant bg-surface-container-high text-on-surface-variant"
                   }`}
                 >
@@ -711,7 +711,7 @@ export default function IntegrationsSettingsPage() {
                 type="button"
                 onClick={() => void handleDisconnect()}
                 disabled={disconnecting}
-                className="inline-flex h-11 items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-5 text-sm font-semibold text-red-200 transition-colors hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="danger-surface-strong inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {disconnecting ? "Desconectando..." : "Desconectar"}
               </button>

@@ -214,7 +214,7 @@ export class AudioGenerationService {
             style: dto.style ?? 0,
             speed: dto.speed ?? 1,
             speakerBoost: dto.speakerBoost ?? true,
-          } as Prisma.InputJsonValue,
+          },
           generationJobId: job.id,
         },
         include: {

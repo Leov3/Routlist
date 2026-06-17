@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -112,7 +112,7 @@ export default function AudioIAPage() {
 
   const canCreateButton = Boolean(user?.permissions.includes("button:create"));
 
-  async function loadLookups() {
+  const loadLookups = useCallback(async () => {
     setLoadingLookup(true);
     setIntegrationError(null);
     setCategoryError(null);
@@ -161,9 +161,9 @@ export default function AudioIAPage() {
     } finally {
       setLoadingLookup(false);
     }
-  }
+  }, []);
 
-  async function loadLibrary() {
+  const loadLibrary = useCallback(async () => {
     const query = new URLSearchParams();
     if (search.trim()) query.set("search", search.trim());
     if (lifecycleFilter !== "all") query.set("lifecycleStatus", lifecycleFilter);
@@ -172,25 +172,25 @@ export default function AudioIAPage() {
       `/audio-generation/library${query.toString() ? `?${query.toString()}` : ""}`,
     );
     setLibrary(result.items);
-  }
+  }, [search, lifecycleFilter]);
 
-  async function loadJobs() {
+  const loadJobs = useCallback(async () => {
     const query = new URLSearchParams();
     if (search.trim()) query.set("search", search.trim());
     const result = await api<{ items: AudioGenerationJob[] }>(
       `/audio-generation${query.toString() ? `?${query.toString()}` : ""}`,
     );
     setJobs(result.items);
-  }
+  }, [search]);
 
   useEffect(() => {
     void loadLookups();
-  }, []);
+  }, [loadLookups]);
 
   useEffect(() => {
     if (loadingLookup) return;
     void Promise.all([loadLibrary(), loadJobs()]).then(() => setLoading(false));
-  }, [loadingLookup, search, lifecycleFilter]);
+  }, [loadingLookup, loadJobs, loadLibrary]);
 
   useEffect(() => {
     if (!preferencesReady) return;
@@ -611,15 +611,15 @@ export default function AudioIAPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSpeakerBoost((current) => !current)}
-                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
-                      speakerBoost
-                        ? "border-emerald-300/30 bg-emerald-500/10 text-emerald-200"
+                    <button
+                      type="button"
+                      onClick={() => setSpeakerBoost((current) => !current)}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                        speakerBoost
+                        ? "success-surface"
                         : "border-outline-variant bg-surface text-on-surface-variant"
-                    }`}
-                  >
+                      }`}
+                    >
                     <CheckCircle2 className="h-4 w-4" />
                     Speaker boost {speakerBoost ? "activado" : "desactivado"}
                   </button>
@@ -720,7 +720,7 @@ export default function AudioIAPage() {
                           </div>
                           <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
                             item.lifecycleStatus === "PERSISTED"
-                              ? "border border-emerald-300/30 bg-emerald-500/10 text-emerald-200"
+                              ? "success-surface"
                               : "border border-amber-300/30 bg-amber-500/10 text-amber-200"
                           }`}>
                             {item.lifecycleStatus === "PERSISTED" ? "Persistente" : "Temporal"}

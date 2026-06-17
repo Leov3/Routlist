@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, RotateCcw, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -58,7 +58,7 @@ export default function AdminAccessPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -76,12 +76,11 @@ export default function AdminAccessPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
   const groups = useMemo(() => groupModules(), []);
 
@@ -208,7 +207,7 @@ export default function AdminAccessPage() {
       />
 
       {error ? (
-        <div className="mb-4 rounded-xl border border-red-300/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <div className="danger-surface mb-4 rounded-xl px-4 py-3 text-sm">
           {error}
         </div>
       ) : null}
@@ -251,14 +250,15 @@ export default function AdminAccessPage() {
 
             <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
               {mode === "organization" ? (
-                <div className="rounded-2xl border border-outline-variant bg-surface p-4">
+                <div className="flex max-h-[calc(100dvh-18rem)] flex-col rounded-2xl border border-outline-variant bg-surface p-4">
                   <div className="mb-3 flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
                       Organizaciones
                     </h3>
                   </div>
-                  <div className="grid gap-2">
+                  <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                    <div className="grid gap-2">
                     {organizations.map((organization) => {
                       const active = organization.id === selectedOrganizationId;
                       return (
@@ -275,6 +275,7 @@ export default function AdminAccessPage() {
                         </button>
                       );
                     })}
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -437,7 +438,7 @@ export default function AdminAccessPage() {
               {ACCESS_MODULES.map((module) => (
                 <div key={module.key} className="flex items-center justify-between gap-4">
                   <span className="text-on-surface-variant">{module.label}</span>
-                  <span className={`font-semibold ${effectiveModules[module.key] ? "text-emerald-400" : "text-on-surface-variant"}`}>
+                  <span className={`font-semibold ${effectiveModules[module.key] ? "text-[color:var(--success-text-muted)]" : "text-on-surface-variant"}`}>
                     {effectiveModules[module.key] ? "ON" : "OFF"}
                   </span>
                 </div>

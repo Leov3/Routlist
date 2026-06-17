@@ -85,7 +85,7 @@ export function AudioPlayerBar({
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const active = !!label;
+  const active = isPlaying || !!label;
 
   return (
     <div

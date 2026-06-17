@@ -109,7 +109,7 @@ export default function NarrativesPage() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,.8fr)]">
           <section className="space-y-4">
-            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="flex h-full flex-col rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1 xl:max-h-[calc(100dvh-18rem)]">
               <div className="mb-4 flex items-start gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-on-primary">
                   <Workflow className="h-4 w-4" />
@@ -127,7 +127,8 @@ export default function NarrativesPage() {
               {loading ? (
                 <DataState>Cargando narrativas activas...</DataState>
               ) : narratives.length > 0 ? (
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                  <div className="grid gap-4 lg:grid-cols-2">
                   {narratives.map((narrative) => (
                     <article
                       key={narrative.id}
@@ -179,6 +180,7 @@ export default function NarrativesPage() {
                       </div>
                     </article>
                   ))}
+                  </div>
                 </div>
               ) : (
                 <DataState>
@@ -194,7 +196,7 @@ export default function NarrativesPage() {
           </section>
 
           <aside className="space-y-4">
-            <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+            <div className="flex h-full flex-col rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1 xl:max-h-[calc(100dvh-18rem)]">
               <div className="mb-4 flex items-start gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-on-primary">
                   <History className="h-4 w-4" />
@@ -210,7 +212,7 @@ export default function NarrativesPage() {
               </div>
 
               {runs.length > 0 ? (
-                <div className="space-y-3">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
                   {runs.map((run) => (
                     <article
                       key={run.id}

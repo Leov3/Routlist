@@ -33,6 +33,12 @@ type NarrativePrefs = {
   playerViewMode?: "simple" | "dual";
 };
 
+type LoginPreviewPrefs = {
+  title: string;
+  meta: string;
+  duration: string;
+};
+
 type AccountSettingsModalProps = {
   user: AuthUser;
   open: boolean;
@@ -64,6 +70,11 @@ export function AccountSettingsModal({
   const [audioLookups, setAudioLookups] = useState<AudioLookup>({ voices: [], models: [] });
   const [narrativeDistance, setNarrativeDistance] = useState("normal");
   const [narrativeViewMode, setNarrativeViewMode] = useState<"simple" | "dual">("simple");
+  const [loginPreviewPrefs, setLoginPreviewPrefs] = useState<LoginPreviewPrefs>({
+    title: "Ident Promocional 2024",
+    meta: "00:28 · MP3 · 320 kbps",
+    duration: "00:28",
+  });
   const [savingSection, setSavingSection] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [boardError, setBoardError] = useState<string | null>(null);
@@ -103,6 +114,11 @@ export function AccountSettingsModal({
       setAudioPreferences(audioPrefs);
       setNarrativeDistance(narrativePrefs?.playerDistance ?? "normal");
       setNarrativeViewMode(narrativePrefs?.playerViewMode === "dual" ? "dual" : "simple");
+      setLoginPreviewPrefs({
+        title: window.localStorage.getItem("routlis.login.preview.title") ?? "Ident Promocional 2024",
+        meta: window.localStorage.getItem("routlis.login.preview.meta") ?? "00:28 · MP3 · 320 kbps",
+        duration: window.localStorage.getItem("routlis.login.preview.duration") ?? "00:28",
+      });
     }
 
     void loadPreferences().catch((error) => {
@@ -145,22 +161,22 @@ export function AccountSettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center overflow-y-auto bg-black/60 px-3 py-3 backdrop-blur-md sm:items-center sm:px-4 sm:py-4"
+      className="fixed inset-0 z-[120] flex items-end justify-center overflow-y-auto bg-black/50 px-3 py-3 backdrop-blur-md sm:items-center sm:px-4 sm:py-4"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#161320] shadow-[0_30px_90px_rgba(0,0,0,.55)] sm:max-h-[calc(100vh-2rem)] sm:rounded-[28px]"
+        className="surface-panel flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[24px] sm:max-h-[calc(100vh-2rem)] sm:rounded-[28px]"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-white/8 px-4 py-4 sm:px-5">
+        <header className="flex shrink-0 items-center justify-between border-b border-sidebar-border px-4 py-4 sm:px-5">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-[#998cc6]">Configuración de cuenta</p>
-            <h3 className="mt-1 text-xl font-semibold text-white">Personalización básica</h3>
+            <p className="text-xs uppercase tracking-[0.22em] text-on-surface-variant">Configuración de cuenta</p>
+            <h3 className="mt-1 text-xl font-semibold text-on-surface">Personalización básica</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-[#d7d0e7] transition-colors hover:bg-white/10 hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface"
             aria-label="Cerrar"
           >
             <X className="h-4 w-4" />
@@ -168,15 +184,15 @@ export function AccountSettingsModal({
         </header>
 
         <div className="grid min-h-0 flex-1 gap-0 overflow-hidden xl:grid-cols-[.85fr_1.15fr]">
-          <div className="border-b border-white/8 p-4 sm:p-5 xl:border-b-0 xl:border-r">
-            <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+          <div className="border-b border-sidebar-border p-4 sm:p-5 xl:border-b-0 xl:border-r">
+            <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#8e5dff] text-white">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-on-primary">
                   <UserCircle2 className="h-6 w-6" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-base font-semibold text-white">{user.fullName}</p>
-                  <p className="truncate text-sm text-[#a39bb4]">{user.email}</p>
+                  <p className="truncate text-base font-semibold text-on-surface">{user.fullName}</p>
+                  <p className="truncate text-sm text-on-surface-variant">{user.email}</p>
                 </div>
               </div>
 
@@ -187,20 +203,20 @@ export function AccountSettingsModal({
               </div>
             </div>
 
-            <div className="mt-4 rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[#978cb9]">Barra lateral</p>
+            <div className="mt-4 rounded-[20px] border border-outline-variant bg-surface-container p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Barra lateral</p>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-[#f0ebf8]">Modo compacto</p>
-                  <p className="text-sm text-[#a39bb4]">Reduce el ancho de la navegación lateral.</p>
+                  <p className="text-sm font-medium text-on-surface">Modo compacto</p>
+                  <p className="text-sm text-on-surface-variant">Reduce el ancho de la navegación lateral.</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                   className={`inline-flex h-11 min-w-[122px] items-center justify-center gap-2 rounded-full px-4 text-sm font-medium transition-colors ${
                     sidebarCollapsed
-                      ? "bg-[#8e5dff] text-white"
-                      : "border border-white/10 bg-white/5 text-[#f5efff] hover:bg-white/10"
+                      ? "bg-primary text-on-primary"
+                      : "border border-outline-variant bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
                   }`}
                 >
                   {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
@@ -209,8 +225,8 @@ export function AccountSettingsModal({
               </div>
             </div>
 
-            <div className="mt-4 rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[#978cb9]">Densidad global</p>
+            <div className="mt-4 rounded-[20px] border border-outline-variant bg-surface-container p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Densidad global</p>
               <div className="mt-3 grid gap-2">
                 {[
                   ["comfortable", "Cómoda", "Más aire y separación entre bloques."],
@@ -224,12 +240,12 @@ export function AccountSettingsModal({
                       onClick={() => setDensity(value as DensityMode)}
                       className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
                         active
-                          ? "border-[#8e5dff]/60 bg-[#8e5dff]/15"
-                          : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-outline-variant bg-surface hover:bg-surface-container-high"
                       }`}
                     >
-                      <p className="text-sm font-semibold text-[#f0ebf8]">{label}</p>
-                      <p className="mt-1 text-sm text-[#a39bb4]">{description}</p>
+                      <p className="text-sm font-semibold text-on-surface">{label}</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">{description}</p>
                     </button>
                   );
                 })}
@@ -238,8 +254,8 @@ export function AccountSettingsModal({
           </div>
 
           <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
-            <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[#978cb9]">Tema</p>
+            <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Tema</p>
               <div className="mt-3 grid gap-3">
                 {[
                   { value: "system", label: "Sistema", description: "Sigue el modo de tu dispositivo.", icon: MonitorSmartphone },
@@ -255,29 +271,29 @@ export function AccountSettingsModal({
                       onClick={() => setTheme(option.value as ThemeMode)}
                       className={`flex items-start justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition-colors ${
                         active
-                          ? "border-[#8e5dff]/60 bg-[#8e5dff]/15"
-                          : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-outline-variant bg-surface hover:bg-surface-container-high"
                       }`}
                     >
                       <span className="flex items-start gap-3">
-                        <span className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl ${active ? "bg-[#8e5dff] text-white" : "bg-white/5 text-[#d7d0e7]"}`}>
+                        <span className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl ${active ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"}`}>
                           <Icon className="h-4 w-4" />
                         </span>
                         <span>
-                          <span className="block text-sm font-semibold text-[#f0ebf8]">{option.label}</span>
-                          <span className="mt-1 block text-sm text-[#a39bb4]">{option.description}</span>
+                          <span className="block text-sm font-semibold text-on-surface">{option.label}</span>
+                          <span className="mt-1 block text-sm text-on-surface-variant">{option.description}</span>
                         </span>
                       </span>
-                      {active ? <Check className="mt-1 h-4 w-4 shrink-0 text-[#c59bff]" /> : null}
+                      {active ? <Check className="mt-1 h-4 w-4 shrink-0 text-primary" /> : null}
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            <div className="mt-4 rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-[#978cb9]">Preferencias por módulo</p>
-              <p className="mt-2 text-sm leading-6 text-[#a39bb4]">
+            <div className="mt-4 rounded-[20px] border border-outline-variant bg-surface-container p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Preferencias por módulo</p>
+              <p className="mt-2 text-sm leading-6 text-on-surface-variant">
                 Ajusta directamente la Botonera, Audio IA o Narrativas sin salir del popup.
               </p>
 
@@ -287,7 +303,7 @@ export function AccountSettingsModal({
                 <SectionTab active={section === "narratives"} onClick={() => setSection("narratives")} icon={Workflow} label="Narrativas" />
               </div>
 
-              <div className="mt-4 rounded-2xl border border-white/8 bg-[#120f1c] p-4">
+              <div className="mt-4 rounded-2xl border border-outline-variant bg-surface p-4">
                 {section === "board" ? (
                   <BoardQuickSettings
                     boardPreferences={boardPreferences}
@@ -355,11 +371,11 @@ export function AccountSettingsModal({
                   />
                 ) : null}
 
-                {generalError ? <p className="mt-3 text-sm text-amber-300">{generalError}</p> : null}
-                {section === "board" && boardError ? <p className="mt-3 text-sm text-amber-300">{boardError}</p> : null}
-                {section === "audio" && audioError ? <p className="mt-3 text-sm text-amber-300">{audioError}</p> : null}
-                {section === "narratives" && narrativeError ? <p className="mt-3 text-sm text-amber-300">{narrativeError}</p> : null}
-                {savingSection ? <p className="mt-3 text-sm text-[#a39bb4]">Guardando cambios...</p> : null}
+                {generalError ? <p className="mt-3 text-sm text-error">{generalError}</p> : null}
+                {section === "board" && boardError ? <p className="mt-3 text-sm text-error">{boardError}</p> : null}
+                {section === "audio" && audioError ? <p className="mt-3 text-sm text-error">{audioError}</p> : null}
+                {section === "narratives" && narrativeError ? <p className="mt-3 text-sm text-error">{narrativeError}</p> : null}
+                {savingSection ? <p className="mt-3 text-sm text-on-surface-variant">Guardando cambios...</p> : null}
               </div>
 
               <button
@@ -369,10 +385,58 @@ export function AccountSettingsModal({
                   setDensity("comfortable");
                   setSidebarCollapsed(false);
                 }}
-                className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#f5efff] transition-colors hover:bg-white/10"
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
               >
                 Restablecer ajustes
               </button>
+            </div>
+
+            <div className="mt-4 rounded-[20px] border border-outline-variant bg-surface-container p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Audio de login</p>
+              <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+                Personaliza el audio mostrado en la vista previa del login sin tocar el contenido real del sistema.
+              </p>
+              <div className="mt-4 grid gap-3">
+                <label className="grid gap-1.5">
+                  <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Título</span>
+                  <input
+                    value={loginPreviewPrefs.title}
+                    onChange={(event) => setLoginPreviewPrefs((current) => ({ ...current, title: event.target.value }))}
+                    className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Meta</span>
+                  <input
+                    value={loginPreviewPrefs.meta}
+                    onChange={(event) => setLoginPreviewPrefs((current) => ({ ...current, meta: event.target.value }))}
+                    className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Duración</span>
+                  <input
+                    value={loginPreviewPrefs.duration}
+                    onChange={(event) => setLoginPreviewPrefs((current) => ({ ...current, duration: event.target.value }))}
+                    className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+              </div>
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.localStorage.setItem("routlis.login.preview.title", loginPreviewPrefs.title);
+                    window.localStorage.setItem("routlis.login.preview.meta", loginPreviewPrefs.meta);
+                    window.localStorage.setItem("routlis.login.preview.duration", loginPreviewPrefs.duration);
+                    setSavingSection(true);
+                    window.setTimeout(() => setSavingSection(false), 400);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
+                >
+                  Guardar audio de login
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -396,10 +460,10 @@ function SectionTab({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${
-        active
-          ? "border-[#8e5dff]/60 bg-[#8e5dff]/15 text-[#f5efff]"
-          : "border-white/10 bg-white/[0.03] text-[#a39bb4] hover:bg-white/[0.06]"
+    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${
+      active
+          ? "border-primary/40 bg-primary/10 text-on-surface"
+          : "border-outline-variant bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest"
       }`}
     >
       <Icon className="h-4 w-4" />
@@ -428,19 +492,19 @@ function BoardQuickSettings({
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <p className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">Vista</p>
-        <div className="inline-flex rounded-full border border-white/8 bg-white/[0.03] p-1">
+        <p className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Vista</p>
+        <div className="inline-flex rounded-full border border-outline-variant bg-surface-container-high p-1">
           <button
             type="button"
             onClick={() => setViewMode("simple")}
-            className={`rounded-full px-3 py-2 text-sm ${viewMode === "simple" ? "bg-[#8e5dff] text-white" : "text-[#a39bb4]"}`}
+            className={`rounded-full px-3 py-2 text-sm ${viewMode === "simple" ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}
           >
             Simple
           </button>
           <button
             type="button"
             onClick={() => setViewMode("dual")}
-            className={`rounded-full px-3 py-2 text-sm ${viewMode === "dual" ? "bg-[#8e5dff] text-white" : "text-[#a39bb4]"}`}
+            className={`rounded-full px-3 py-2 text-sm ${viewMode === "dual" ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}
           >
             Dual
           </button>
@@ -448,7 +512,7 @@ function BoardQuickSettings({
       </div>
 
       <div className="grid gap-2">
-        <p className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">Densidad</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Densidad</p>
         <div className="grid gap-2">
           {([
             ["compact", "Compacta"],
@@ -461,18 +525,18 @@ function BoardQuickSettings({
               onClick={() => setDensity(value)}
               className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
                 density === value
-                  ? "border-[#8e5dff]/60 bg-[#8e5dff]/15"
-                  : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
+                  ? "border-primary/40 bg-primary/10"
+                  : "border-outline-variant bg-surface hover:bg-surface-container-high"
               }`}
             >
-              <p className="text-sm font-semibold text-[#f0ebf8]">{label}</p>
+              <p className="text-sm font-semibold text-on-surface">{label}</p>
             </button>
           ))}
         </div>
       </div>
 
       <div className="grid gap-2">
-        <p className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">Volumen</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Volumen</p>
         <input
           type="range"
           min={0}
@@ -488,7 +552,7 @@ function BoardQuickSettings({
         <button
           type="button"
           onClick={() => void onSave({ viewMode, density, volume })}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#f5efff] transition-colors hover:bg-white/10"
+          className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
         >
           Guardar Botonera
         </button>
@@ -519,20 +583,20 @@ function AudioQuickSettings({
   return (
     <div className="grid gap-4">
       <label className="grid gap-1.5">
-        <span className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">Texto por defecto</span>
+        <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Texto por defecto</span>
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
-          className="min-h-28 rounded-2xl border border-white/8 bg-surface px-4 py-3 text-sm text-[#f0ebf8] outline-none focus:border-primary"
+          className="input-surface min-h-28 rounded-2xl px-4 py-3 text-sm outline-none focus:border-primary"
         />
       </label>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="grid gap-1.5">
-          <span className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">Voz</span>
+          <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Voz</span>
           <select
             value={voiceId}
             onChange={(event) => setVoiceId(event.target.value)}
-            className="h-11 rounded-2xl border border-white/8 bg-surface px-3 text-sm text-[#f0ebf8] outline-none focus:border-primary"
+            className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
           >
             <option value="">Sin voz</option>
             {lookups.voices.map((voice) => (
@@ -543,11 +607,11 @@ function AudioQuickSettings({
           </select>
         </label>
         <label className="grid gap-1.5">
-          <span className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">Modelo</span>
+          <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Modelo</span>
           <select
             value={modelId}
             onChange={(event) => setModelId(event.target.value)}
-            className="h-11 rounded-2xl border border-white/8 bg-surface px-3 text-sm text-[#f0ebf8] outline-none focus:border-primary"
+            className="input-surface h-11 rounded-2xl px-3 text-sm outline-none focus:border-primary"
           >
             <option value="">Sin modelo</option>
             {lookups.models.map((model) => (
@@ -574,7 +638,7 @@ function AudioQuickSettings({
               composerSpeakerBoost: preferences?.composerSpeakerBoost ?? true,
             })
           }
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#f5efff] transition-colors hover:bg-white/10"
+          className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
         >
           Guardar Audio IA
         </button>
@@ -599,19 +663,19 @@ function NarrativeQuickSettings({
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <p className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">Vista del player</p>
-        <div className="inline-flex rounded-full border border-white/8 bg-white/[0.03] p-1">
+        <p className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Vista del player</p>
+        <div className="inline-flex rounded-full border border-outline-variant bg-surface-container-high p-1">
           <button
             type="button"
             onClick={() => onChangeViewMode("simple")}
-            className={`rounded-full px-3 py-2 text-sm ${viewMode === "simple" ? "bg-[#8e5dff] text-white" : "text-[#a39bb4]"}`}
+            className={`rounded-full px-3 py-2 text-sm ${viewMode === "simple" ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}
           >
             Simple
           </button>
           <button
             type="button"
             onClick={() => onChangeViewMode("dual")}
-            className={`rounded-full px-3 py-2 text-sm ${viewMode === "dual" ? "bg-[#8e5dff] text-white" : "text-[#a39bb4]"}`}
+            className={`rounded-full px-3 py-2 text-sm ${viewMode === "dual" ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}
           >
             Doble
           </button>
@@ -619,7 +683,7 @@ function NarrativeQuickSettings({
       </div>
 
       <div className="grid gap-2">
-        <p className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">Distancia del layout</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">Distancia del layout</p>
         <div className="grid gap-2">
           {["compact", "tight", "normal", "wide", "max"].map((item) => (
             <button
@@ -628,11 +692,11 @@ function NarrativeQuickSettings({
               onClick={() => onChangeDistance(item)}
               className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
                 distance === item
-                  ? "border-[#8e5dff]/60 bg-[#8e5dff]/15"
-                  : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
+                  ? "border-primary/40 bg-primary/10"
+                  : "border-outline-variant bg-surface hover:bg-surface-container-high"
               }`}
             >
-              <p className="text-sm font-semibold text-[#f0ebf8]">{item}</p>
+              <p className="text-sm font-semibold text-on-surface">{item}</p>
             </button>
           ))}
         </div>
@@ -642,7 +706,7 @@ function NarrativeQuickSettings({
         <button
           type="button"
           onClick={() => void onSave()}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#f5efff] transition-colors hover:bg-white/10"
+          className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
         >
           Guardar Narrativas
         </button>
@@ -653,9 +717,9 @@ function NarrativeQuickSettings({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-2.5">
-      <span className="text-xs uppercase tracking-[0.18em] text-[#978cb9]">{label}</span>
-      <span className="max-w-[55%] truncate text-sm text-[#f0ebf8]">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-outline-variant bg-surface px-3 py-2.5">
+      <span className="text-xs uppercase tracking-[0.18em] text-on-surface-variant">{label}</span>
+      <span className="max-w-[55%] truncate text-sm text-on-surface">{value}</span>
     </div>
   );
 }

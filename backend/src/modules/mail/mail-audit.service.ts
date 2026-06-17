@@ -33,7 +33,7 @@ export class MailAuditService {
           acceptedRecipients: input.acceptedRecipients ?? [],
           rejectedRecipients: input.rejectedRecipients ?? [],
           responseMessage: input.responseMessage ?? null,
-        } satisfies Prisma.InputJsonValue) as Prisma.InputJsonValue,
+        } satisfies Prisma.InputJsonValue),
       },
     });
   }

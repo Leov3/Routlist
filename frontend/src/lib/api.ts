@@ -1,5 +1,3 @@
-const DEFAULT_API_URL = "__AUTO__";
-
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, "");
 }
