@@ -20,6 +20,12 @@ export const ACCESS_MODULES: AccessModuleDefinition[] = [
     category: 'platform',
   },
   {
+    key: 'admin.access',
+    label: 'Configuración de accesos',
+    permissions: ['permission:read', 'role:read'],
+    category: 'access',
+  },
+  {
     key: 'admin.organizations',
     label: 'Organizaciones',
     permissions: ['organization:read', 'organization:update'],
@@ -80,6 +86,12 @@ export const ACCESS_MODULES: AccessModuleDefinition[] = [
     category: 'system',
   },
   {
+    key: 'admin.mail',
+    label: 'Módulo de correo',
+    permissions: [],
+    category: 'system',
+  },
+  {
     key: 'board.use',
     label: 'Botonera',
     permissions: ['board:use'],
@@ -114,6 +126,7 @@ export const DEFAULT_ACCESS_STATE: AccessState = {
     OWNER: buildPreset(allModuleKeys.map((key) => [key, true])),
     ADMIN: buildPreset([
       ['admin', true],
+      ['admin.access', true],
       ['admin.organizations', true],
       ['admin.users', true],
       ['admin.audios', true],
@@ -122,6 +135,7 @@ export const DEFAULT_ACCESS_STATE: AccessState = {
       ['admin.narratives', true],
       ['admin.history', true],
       ['admin.integrations', true],
+      ['admin.mail', true],
       ['board.use', true],
       ['narratives.run', true],
       ['audio.generate', true],
@@ -133,6 +147,7 @@ export const DEFAULT_ACCESS_STATE: AccessState = {
       ['admin.buttons', true],
       ['admin.narratives', true],
       ['admin.history', true],
+      ['admin.mail', false],
       ['board.use', true],
       ['narratives.run', true],
       ['audio.generate', true],
@@ -141,6 +156,7 @@ export const DEFAULT_ACCESS_STATE: AccessState = {
       ['admin.audios', true],
       ['admin.categories', true],
       ['admin.buttons', true],
+      ['admin.mail', false],
       ['board.use', true],
       ['narratives.run', true],
       ['audio.generate', true],

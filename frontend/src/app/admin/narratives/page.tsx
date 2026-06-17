@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, Sparkles } from "lucide-react";
 import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -12,6 +13,7 @@ import type { AuthUser } from "@/types/routlis";
 import type { NarrativeListItem } from "@/types/narratives";
 
 export default function AdminNarrativesPage() {
+  const router = useRouter();
   const [narratives, setNarratives] = useState<NarrativeListItem[]>([]);
   const [currentOrganizationId, setCurrentOrganizationId] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,7 @@ export default function AdminNarrativesPage() {
       body: JSON.stringify(values),
     });
     await load();
-    window.location.href = `/admin/narratives/${created.id}/builder`;
+    router.push(`/admin/narratives/${created.id}/builder`);
   }
 
   async function duplicateNarrative(id: string) {

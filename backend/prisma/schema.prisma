@@ -568,6 +568,7 @@ model OrganizationInvite {
   invitedByUserId  String?
   acceptedByUserId String?
   email           String
+  inviteeName     String?
   role            String
   tokenHash       String   @unique
   status          String   @default("PENDING")

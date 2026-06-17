@@ -17,7 +17,6 @@ import {
   History,
   Library,
   LogOut,
-  Mail,
   PanelTop,
   MousePointerClick,
   PlugZap,
@@ -71,34 +70,28 @@ type StorageHealthState = {
 type SectionMeta = {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
-  description: string;
 };
 
 const adminGroupMeta: Record<"operation" | "access" | "platform" | "content" | "system", SectionMeta> = {
   operation: {
     title: "Operación",
     icon: Workflow,
-    description: "Controles principales",
   },
   access: {
     title: "Acceso",
     icon: ShieldCheck,
-    description: "Permisos y usuarios",
   },
   platform: {
     title: "Plataforma",
     icon: Gauge,
-    description: "Estado general",
   },
   content: {
     title: "Contenido",
     icon: Library,
-    description: "Biblioteca y flujos",
   },
   system: {
     title: "Sistema",
     icon: Wrench,
-    description: "Correo, storage y mantenimiento",
   },
 };
 
@@ -110,7 +103,7 @@ const navItems: NavItem[] = [
 
 const adminItems: NavItem[] = [
   { href: "/admin/access", label: "Accesos", icon: ShieldCheck, roles: ["OWNER"], group: "access" },
-  { href: "/admin", label: "Estadísticas", icon: Gauge, roles: ["OWNER", "ADMIN", "SUPERVISOR"], group: "platform" },
+  { href: "/admin/statistics", label: "Estadísticas", icon: Gauge, roles: ["OWNER", "ADMIN", "SUPERVISOR"], group: "platform" },
   { href: "/admin/organizations", label: "Organizaciones", icon: Building2, roles: ["OWNER"], group: "platform" },
   { href: "/admin/users", label: "Usuarios", icon: Users, permissions: ["user:create"], group: "platform" },
   { href: "/admin/integraciones", label: "Integraciones", icon: PlugZap, permissions: ["integration:manage"], group: "system" },
@@ -146,6 +139,10 @@ function isLocalHost() {
 
 const SIDEBAR_COLLAPSED_KEY = "routlis.sidebar.collapsed";
 const UI_DENSITY_KEY = "routlis.ui.density";
+const ADMIN_OPEN_KEY = "routlis.sidebar.admin.open";
+const MAIL_OPEN_KEY = "routlis.sidebar.mail.open";
+const ADMIN_GROUP_OPEN_KEY = "routlis.sidebar.admin.groups.open";
+const ADMIN_GROUPS = ["operation", "access", "platform", "content", "system"] as const;
 
 // ─── Topbar (inside sidebar layout) ──────────────────────────────────────────
 function TopbarControls({
@@ -224,8 +221,15 @@ function TopbarControls({
 export function AppShell({ user, children }: { user: AuthUser; children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
-  const [adminOpen, setAdminOpen] = useState(pathname.startsWith("/admin"));
-  const [mailOpen, setMailOpen] = useState(pathname.startsWith("/admin/mail"));
+  const [adminOpen, setAdminOpen] = useState(true);
+  const [mailOpen, setMailOpen] = useState(true);
+  const [adminGroupOpen, setAdminGroupOpen] = useState<Record<(typeof ADMIN_GROUPS)[number], boolean>>({
+    operation: true,
+    access: true,
+    platform: true,
+    content: true,
+    system: true,
+  });
   const [collapsed, setCollapsed] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
@@ -249,6 +253,28 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     if (saved === "true") {
       setCollapsed(true);
     }
+    const savedAdminOpen = window.localStorage.getItem(ADMIN_OPEN_KEY);
+    if (savedAdminOpen !== null) {
+      setAdminOpen(savedAdminOpen === "true");
+    }
+    const savedMailOpen = window.localStorage.getItem(MAIL_OPEN_KEY);
+    if (savedMailOpen !== null) {
+      setMailOpen(savedMailOpen === "true");
+    }
+    const savedAdminGroups = window.localStorage.getItem(ADMIN_GROUP_OPEN_KEY);
+    if (savedAdminGroups) {
+      try {
+        const parsed = JSON.parse(savedAdminGroups) as Partial<Record<(typeof ADMIN_GROUPS)[number], boolean>>;
+        setAdminGroupOpen((current) => ({
+          ...current,
+          ...Object.fromEntries(
+            ADMIN_GROUPS.map((group) => [group, parsed[group] ?? current[group]]),
+          ),
+        }));
+      } catch {
+        // Ignore malformed persisted state.
+      }
+    }
     const savedDensity = window.localStorage.getItem(UI_DENSITY_KEY);
     if (savedDensity === "compact") {
       setDensity("compact");
@@ -262,6 +288,18 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   useEffect(() => {
     window.localStorage.setItem(UI_DENSITY_KEY, density);
   }, [density]);
+
+  useEffect(() => {
+    window.localStorage.setItem(ADMIN_OPEN_KEY, String(adminOpen));
+  }, [adminOpen]);
+
+  useEffect(() => {
+    window.localStorage.setItem(MAIL_OPEN_KEY, String(mailOpen));
+  }, [mailOpen]);
+
+  useEffect(() => {
+    window.localStorage.setItem(ADMIN_GROUP_OPEN_KEY, JSON.stringify(adminGroupOpen));
+  }, [adminGroupOpen]);
 
   useEffect(() => {
     if (user.role !== "OWNER") return;
@@ -285,7 +323,12 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   }, [user.role]);
 
   useEffect(() => {
-    setMailOpen(pathname.startsWith("/admin/mail"));
+    if (pathname.startsWith("/admin/mail")) {
+      setAdminOpen(true);
+      setMailOpen(true);
+    } else if (pathname.startsWith("/admin/")) {
+      setAdminOpen(true);
+    }
   }, [pathname]);
 
   return (
@@ -356,9 +399,9 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               <button
                 type="button"
                 onClick={() => !collapsed && setAdminOpen((v) => !v)}
-                title={collapsed ? "Panel de control" : undefined}
+                title={collapsed ? "Administración" : undefined}
                 className={`flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all duration-200 ${
-                  pathname.startsWith("/admin")
+                  pathname === "/admin/statistics"
                     ? "nav-active text-primary"
                     : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
                 }`}
@@ -366,7 +409,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                 <Gauge className="h-4 w-4 shrink-0" />
                 {!collapsed && (
                   <>
-                    <span className="flex-1 truncate text-left">Panel de control</span>
+                    <span className="flex-1 truncate text-left">Administración</span>
                     <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${adminOpen ? "rotate-180" : ""}`} />
                   </>
                 )}
@@ -383,24 +426,32 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                     const meta = adminGroupMeta[group];
                     return (
                       <div key={group} className="space-y-2">
-                        <div className="flex items-center gap-2 px-1">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAdminGroupOpen((current) => ({ ...current, [group]: !current[group] }))
+                          }
+                          className="flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left transition-colors hover:bg-surface-container-high/60"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary/10 text-primary">
                             <meta.icon className="h-3.5 w-3.5" />
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
-                              {meta.title}
-                            </p>
-                            <p className="text-[11px] text-on-surface-variant/80">{meta.description}</p>
-                          </div>
-                        </div>
+                          <p className="flex-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
+                            {meta.title}
+                          </p>
+                          <ChevronDown
+                            className={`h-3 w-3 shrink-0 text-on-surface-variant transition-transform ${
+                              adminGroupOpen[group] ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
 
-                        {group === "system" && user.role === "OWNER" && (
+                        {group === "system" && adminGroupOpen[group] && user.role === "OWNER" && (
                           <div className="space-y-1">
                             <button
                               type="button"
                               onClick={() => setMailOpen((current) => !current)}
-                              className={`flex h-9 w-full items-center gap-3 rounded-lg px-2.5 text-sm transition-all duration-200 ${
+                              className={`flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-sm transition-all duration-200 ${
                                 pathname.startsWith("/admin/mail")
                                   ? "bg-primary/15 font-semibold text-primary"
                                   : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
@@ -411,27 +462,30 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                                   pathname.startsWith("/admin/mail") ? "bg-primary" : "bg-outline"
                                 }`}
                               />
-                              <Mail className="h-4 w-4 shrink-0" />
                               <span className="flex-1 truncate text-left">Correo</span>
                               <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${mailOpen ? "rotate-180" : ""}`} />
                             </button>
 
                             {mailOpen && (
-                              <div className="space-y-1 pl-4">
+                              <div className="relative space-y-1 pl-4">
+                                <span className="absolute left-[0.5rem] top-2 bottom-2 w-px rounded-full bg-outline-variant/80" />
                                 {mailItems.map((item) => {
                                   const active = pathname === item.href;
-                                  const Icon = item.icon;
                                   return (
                                     <Link
                                       key={item.href}
                                       href={item.href}
-                                      className={`flex h-8 items-center gap-2 rounded-lg px-2 text-sm transition-all duration-200 ${
+                                      className={`relative flex h-8 items-center gap-2 rounded-lg px-2 text-sm transition-all duration-200 ${
                                         active
                                           ? "bg-primary/15 font-semibold text-primary"
                                           : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
                                       }`}
                                     >
-                                      <Icon className="h-4 w-4 shrink-0" />
+                                      <span
+                                        className={`absolute -left-[0.1rem] top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-sidebar ${
+                                          active ? "bg-primary" : "bg-outline"
+                                        }`}
+                                      />
                                       <span className="truncate">{item.label}</span>
                                     </Link>
                                   );
@@ -441,7 +495,8 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                           </div>
                         )}
 
-                        <div className="space-y-1">
+                        {adminGroupOpen[group] && (
+                          <div className="space-y-1">
                           {items.map((item) => {
                             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                             return (
@@ -459,7 +514,8 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                               </Link>
                             );
                           })}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -619,6 +675,6 @@ function getPageTitle(pathname: string) {
   if (pathname === "/admin/mail" || pathname.startsWith("/admin/mail/")) return "/Correo";
   if (pathname === "/admin/users") return "/Usuarios";
   if (pathname === "/admin/history") return "/Historial";
-  if (pathname === "/admin") return "/Estadísticas";
+  if (pathname === "/admin/statistics") return "/Estadísticas";
   return "/Routlis";
 }

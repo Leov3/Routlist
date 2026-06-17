@@ -218,6 +218,30 @@
     cursor: pointer;
   }
 
+  .mail-scrollbar {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--md-sys-color-primary) transparent;
+  }
+
+  .mail-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .mail-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .mail-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 70%, transparent);
+    border-radius: 999px;
+  }
+
+  .mail-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--md-sys-color-primary);
+  }
+
   :focus-visible {
     outline: 2px solid var(--md-sys-color-primary);
     outline-offset: 2px;
