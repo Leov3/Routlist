@@ -268,7 +268,14 @@ SEED_ADMIN_PASSWORD=$seed_password
 EOF
 
   cd "$INSTALL_DIR"
-  if [[ ! -f "$bootstrap_marker" ]]; then
+  local has_bootstrap_marker=0
+  local has_postgres_volume=0
+  local has_storage_volume=0
+  [[ -f "$bootstrap_marker" ]] && has_bootstrap_marker=1
+  volume_exists "${COMPOSE_PROJECT_NAME}_postgres_data" && has_postgres_volume=1
+  volume_exists "${COMPOSE_PROJECT_NAME}_storage" && has_storage_volume=1
+
+  if [[ "$has_bootstrap_marker" -eq 0 || "$has_postgres_volume" -eq 0 || "$has_storage_volume" -eq 0 ]]; then
     echo "Bootstrapping fresh Docker volumes..."
     docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" up -d postgres
     docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" run --rm --no-deps --build backend npm run prisma:deploy
