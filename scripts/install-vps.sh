@@ -198,6 +198,24 @@ volume_exists() {
   docker volume inspect "$1" >/dev/null 2>&1
 }
 
+wait_for_postgres() {
+  local project_name="$1"
+  local attempts=60
+  local delay=2
+
+  echo "Waiting for PostgreSQL to become ready..."
+  for ((i = 1; i <= attempts; i++)); do
+    if docker compose -f docker-compose.prod.yml -p "$project_name" exec -T postgres \
+      pg_isready -U "${POSTGRES_USER:-routlis}" -d "${POSTGRES_DB:-routlis}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  echo "PostgreSQL did not become ready in time." >&2
+  return 1
+}
+
 main() {
   parse_args "$@"
   ensure_root
@@ -278,6 +296,7 @@ EOF
   if [[ "$has_bootstrap_marker" -eq 0 || "$has_postgres_volume" -eq 0 || "$has_storage_volume" -eq 0 ]]; then
     echo "Bootstrapping fresh Docker volumes..."
     docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" up -d postgres
+    wait_for_postgres "$COMPOSE_PROJECT_NAME"
     docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" run --rm --no-deps --build backend npm run prisma:deploy
     docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" up -d --build backend frontend
     if [[ "$RUN_SEED" == "1" ]]; then
