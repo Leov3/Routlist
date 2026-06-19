@@ -285,6 +285,11 @@ NEXT_PUBLIC_MEDIA_URL=https://$api_host
 SEED_ADMIN_PASSWORD=$seed_password
 EOF
 
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+
   cd "$INSTALL_DIR"
   local has_bootstrap_marker=0
   local has_postgres_volume=0
