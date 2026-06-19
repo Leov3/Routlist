@@ -232,6 +232,7 @@ main() {
 
   install_dir_parent="$(dirname "$INSTALL_DIR")"
   mkdir -p "$install_dir_parent"
+  bootstrap_marker="$ENV_DIR/.bootstrap-complete"
 
   if [[ -d "$INSTALL_DIR/.git" ]]; then
     git -C "$INSTALL_DIR" fetch --all --prune
@@ -267,7 +268,7 @@ SEED_ADMIN_PASSWORD=$seed_password
 EOF
 
   cd "$INSTALL_DIR"
-  if ! volume_exists "${COMPOSE_PROJECT_NAME}_postgres_data" || ! volume_exists "${COMPOSE_PROJECT_NAME}_storage"; then
+  if [[ ! -f "$bootstrap_marker" ]]; then
     echo "Bootstrapping fresh Docker volumes..."
     docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" up -d postgres
     docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" run --rm --no-deps --build backend npm run prisma:deploy
@@ -275,6 +276,7 @@ EOF
     if [[ "$RUN_SEED" == "1" ]]; then
       docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" exec -T backend npm run prisma:seed || true
     fi
+    touch "$bootstrap_marker"
   else
     ENV_FILE="$ENV_FILE" COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" bash scripts/deploy-vps.sh deploy
     if [[ "$RUN_SEED" == "1" ]]; then
