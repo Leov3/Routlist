@@ -194,6 +194,10 @@ ensure_docker() {
   }
 }
 
+volume_exists() {
+  docker volume inspect "$1" >/dev/null 2>&1
+}
+
 main() {
   parse_args "$@"
   ensure_root
@@ -263,10 +267,19 @@ SEED_ADMIN_PASSWORD=$seed_password
 EOF
 
   cd "$INSTALL_DIR"
-  ENV_FILE="$ENV_FILE" COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" bash scripts/deploy-vps.sh deploy
-
-  if [[ "$RUN_SEED" == "1" ]]; then
-    ENV_FILE="$ENV_FILE" COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" bash scripts/deploy-vps.sh seed || true
+  if ! volume_exists "${COMPOSE_PROJECT_NAME}_postgres_data" || ! volume_exists "${COMPOSE_PROJECT_NAME}_storage"; then
+    echo "Bootstrapping fresh Docker volumes..."
+    docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" up -d postgres
+    docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" run --rm --no-deps --build backend npm run prisma:deploy
+    docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" up -d --build backend frontend
+    if [[ "$RUN_SEED" == "1" ]]; then
+      ALLOW_PROD_SEED=1 docker compose -f docker-compose.prod.yml -p "$COMPOSE_PROJECT_NAME" exec -T backend npm run prisma:seed || true
+    fi
+  else
+    ENV_FILE="$ENV_FILE" COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" bash scripts/deploy-vps.sh deploy
+    if [[ "$RUN_SEED" == "1" ]]; then
+      ENV_FILE="$ENV_FILE" COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" bash scripts/deploy-vps.sh seed || true
+    fi
   fi
 
   cat <<EOF
