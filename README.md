@@ -301,6 +301,36 @@ Flujo de ramas:
 
 El VPS actual usa un proxy externo fuera del compose de la app. La aplicación solo necesita levantar `postgres`, `backend` y `frontend`, y el proxy externo apunta a los puertos internos de esos contenedores.
 
+### Instalador de una sola linea
+
+Puedes instalar y desplegar el VPS directamente desde GitHub con:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Leov3/Routlist/principal/scripts/install-vps.sh | bash
+```
+
+El instalador:
+
+- clona el repositorio en `/opt/routlis/app`
+- crea `/opt/routlis/.env`
+- puede instalar Docker y Compose en Debian/Ubuntu si faltan
+- pide o recibe por variables los dominios y secretos
+- deja configurados `FRONTEND_URL`, `PUBLIC_AUDIO_BASE_URL` y `CORS_ORIGINS` con HTTPS
+- ejecuta el deploy con `scripts/deploy-vps.sh`
+
+Tambien puedes pasar valores por variables de entorno para automatizarlo sin prompts:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Leov3/Routlist/principal/scripts/install-vps.sh | bash -s -- \
+  --frontend-host routlis.tudominio.com \
+  --api-host api.tudominio.com \
+  --email admin@tudominio.com \
+  --postgres-password una-clave-larga \
+  --jwt-secret otro-secreto-largo \
+  --integration-key clave-integradora-larga \
+  --seed-password Admin123*
+```
+
 ### Estado estable del login
 
 La pantalla de login consulta estadísticas públicas como ayuda visual. Si ese endpoint falla temporalmente, el acceso no debe bloquearse: el formulario de autenticación sigue siendo la fuente real de entrada al panel.
