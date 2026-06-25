@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - principal
+      - easypanel
   workflow_dispatch:
     inputs:
       run_seed:
