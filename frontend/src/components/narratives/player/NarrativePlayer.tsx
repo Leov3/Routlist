@@ -320,6 +320,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const objectUrlRef = useRef<string | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance<Node<PlayerFlowNodeData>, Edge> | null>(null);
   const hasFitViewRef = useRef(false);
+  const [reactFlowReady, setReactFlowReady] = useState(false);
   const dynamicAudioClipsRef = useRef<Record<string, DynamicAudioClip | null>>({});
   const [run, setRun] = useState<NarrativeRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -925,11 +926,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
   useEffect(() => {
     hasFitViewRef.current = false;
+    setReactFlowReady(false);
   }, [runId]);
 
   useEffect(() => {
     hasFitViewRef.current = false;
     setCanvasViewport({ x: 0, y: 0, zoom: 0.8 });
+    setReactFlowReady(false);
   }, [playerViewMode, runId]);
 
   useEffect(() => {
@@ -999,7 +1002,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }, [distancePresetId, playerViewMode, canvasViewport, preferencesReady]);
 
   useEffect(() => {
-    if (hasFitViewRef.current || !reactFlowRef.current || flowNodes.length === 0 || !preferencesReady) return;
+    if (hasFitViewRef.current || !reactFlowReady || flowNodes.length === 0 || !preferencesReady) return;
 
     const frame = window.requestAnimationFrame(() => {
       reactFlowRef.current?.fitView({
@@ -1012,7 +1015,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [canvasViewport, flowNodes.length, preferencesReady, runId]);
+  }, [canvasViewport, flowNodes.length, preferencesReady, reactFlowReady, runId]);
 
   async function syncCurrentNode(nextNodeId: string, eventType: NarrativeRunEventType, payload?: Record<string, unknown>) {
     if (!run) return;
@@ -1579,6 +1582,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 }}
                 onInit={(instance) => {
                   reactFlowRef.current = instance;
+                  setReactFlowReady(true);
                 }}
                 onMoveEnd={(_, viewport) => {
                   setCanvasViewport({
