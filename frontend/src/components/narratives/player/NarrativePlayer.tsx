@@ -1593,7 +1593,10 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 selectionOnDrag={false}
                 elevateNodesOnSelect={false}
               >
-                <Controls showInteractive={false} className="!left-auto !right-3 !top-3 !bottom-auto !rounded-2xl !border !border-white/10 !bg-black/45 !backdrop-blur" />
+                <Controls
+                  showInteractive={false}
+                  className="narrative-flow-controls !left-auto !right-3 !top-3 !bottom-auto"
+                />
                 <Background color="rgba(148,163,184,0.16)" gap={20} size={1.1} />
               </ReactFlow>
 
