@@ -42,9 +42,9 @@ COOKIE_SECURE=true
 FRONTEND_URL=https://routlis.adminpage.space
 CORS_ORIGINS=https://routlis.adminpage.space,https://*.adminpage.space
 STORAGE_DRIVER=local
-LOCAL_STORAGE_PATH=/var/www/routlis/storage
-LOCAL_AUDIO_PATH=/var/www/routlis/storage/audio-assets
-LOCAL_BACKUP_PATH=/var/www/routlis/storage/backups
+LOCAL_STORAGE_PATH=/app/storage
+LOCAL_AUDIO_PATH=/app/storage/audio-assets
+LOCAL_BACKUP_PATH=/app/storage/backups
 PUBLIC_AUDIO_BASE_URL=https://api.adminpage.space/files/audio-assets
 SEED_ADMIN_PASSWORD=Admin123*
 ```
@@ -72,6 +72,7 @@ NEXT_PUBLIC_MEDIA_URL=https://api.adminpage.space
   - rama: `easypanel`
   - ruta de compilacion: `backend`
   - Dockerfile: `backend/Dockerfile`
+  - volumen persistente: `routlis_storage` montado en `/app/storage`
 
 ## Orden correcto de despliegue
 
