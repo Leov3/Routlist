@@ -1813,16 +1813,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                                       <p className="mt-1 text-xs text-on-surface-variant">
                                         {generatedClip.sizeBytes.toLocaleString("es-CO")} bytes · {formatDateTime(generatedClip.generatedAt)}
                                       </p>
-                                      <div className="mt-3">
-                                        <a
-                                          href={generatedClip.objectUrl}
-                                          download={generatedClip.fileName}
-                                          className="success-surface-strong inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition hover:bg-[color:var(--success-bg-strong)]"
-                                        >
-                                          <Copy className="h-3.5 w-3.5" />
-                                          Descargar audio
-                                        </a>
-                                      </div>
                                     </div>
                                   ) : (
                                     <p className="text-xs text-on-surface-variant">

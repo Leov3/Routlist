@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Download, Pause, Play, Square, X } from "lucide-react";
+import { Check, Copy, Pause, Play, Square, X } from "lucide-react";
 import { mediaUrl } from "@/lib/api";
 import type { BoardAudioButton } from "@/types/routlis";
 
@@ -146,15 +146,6 @@ export function AudioButtonDetailsModal({
                 >
                   <Download className="h-4 w-4" />
                   Descargar imagen
-                </a>
-              ) : null}
-              {button.audioAsset.audioDownloadUrl ? (
-                <a
-                  href={mediaUrl(button.audioAsset.audioDownloadUrl)}
-                  className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:brightness-110"
-                >
-                  <Download className="h-4 w-4" />
-                  Descargar audio
                 </a>
               ) : null}
             </div>
