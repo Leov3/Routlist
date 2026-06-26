@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import { useAudioPlayback } from "@/modules/audio-board/useAudioPlayback";
 import type { BoardCategory, RecentPlaybackEvent } from "@/types/routlis";
 import { AudioButtonDetailsModal } from "@/components/audio-board/AudioButtonDetailsModal";
-import { BoardRecentStrip } from "@/components/audio-board/BoardRecentStrip";
 import { BoardSidePanel } from "@/components/audio-board/BoardSidePanel";
 import { createDefaultSideState, type BoardButton, type BoardCategoryOption, type BoardSideState } from "@/components/audio-board/board-ui";
 
@@ -98,14 +97,6 @@ export function NarrativeAudioLibraryPanel() {
     setRecentEvents(recentData);
   }
 
-  async function playButtonById(buttonId: string) {
-    const button = flattenedButtons.find((entry) => entry.id === buttonId);
-    if (!button) return;
-
-    await playback.playButton(button, volume);
-    await refreshRecent();
-  }
-
   async function toggleFavorite(buttonId: string) {
     const nextFavorite = !favoriteIds.includes(buttonId);
     setFavoriteIds((current) =>
@@ -137,8 +128,6 @@ export function NarrativeAudioLibraryPanel() {
 
   return (
     <div className="flex min-h-0 w-full flex-col gap-4">
-      <BoardRecentStrip events={recentEvents} onPlay={(buttonId) => void playButtonById(buttonId)} />
-
       <BoardSidePanel
         title="Botonera auxiliar"
         subtitle="Biblioteca de audios para apoyar la narrativa"

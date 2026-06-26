@@ -997,17 +997,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     if (hasFitViewRef.current || !reactFlowRef.current || flowNodes.length === 0 || !preferencesReady) return;
 
     const frame = window.requestAnimationFrame(() => {
-      const hasSavedViewport = !(canvasViewport.x === 0 && canvasViewport.y === 0 && canvasViewport.zoom === 0.8);
-      if (hasSavedViewport) {
-        reactFlowRef.current?.setViewport(canvasViewport, { duration: 0 });
-      } else {
-        reactFlowRef.current?.fitView({
-          padding: 0.2,
-          minZoom: 0.2,
-          maxZoom: 2,
-          duration: 500,
-        });
-      }
+      reactFlowRef.current?.fitView({
+        padding: 0.2,
+        minZoom: 0.2,
+        maxZoom: 2,
+        duration: 500,
+      });
       hasFitViewRef.current = true;
     });
 
@@ -1512,14 +1507,14 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         }}
         className="hidden"
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className={isDualView ? "grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(360px,.75fr)]" : "flex min-h-0 flex-1 flex-col gap-4"}>
         {message ? (
           <div className="fixed left-4 right-4 top-4 z-40 mx-auto max-w-3xl rounded-2xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface shadow-elevation-2 lg:left-auto lg:right-6 lg:top-6 lg:mx-0">
             {message}
           </div>
         ) : null}
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <div className={isDualView ? "flex min-h-0 flex-col gap-4" : "flex min-h-0 flex-1 flex-col gap-4"}>
           <section className="flex min-h-[calc(100dvh-12rem)] flex-1 flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1 lg:min-h-[calc(100dvh-11rem)]">
             <div className="relative h-full min-h-[520px] flex-1 overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container">
               <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
@@ -1967,12 +1962,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             </div>
           </section>
         </div>
-      </div>
-      {isDualView ? (
-          <aside className="min-w-0 w-full lg:sticky lg:top-4 lg:self-start">
+        {isDualView ? (
+          <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start">
             <NarrativeAudioLibraryPanel />
           </aside>
         ) : null}
+      </div>
     </ReactFlowProvider>
     </NarrativePlayerContext.Provider>
   );
