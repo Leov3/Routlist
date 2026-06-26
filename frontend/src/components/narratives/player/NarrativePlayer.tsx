@@ -35,7 +35,7 @@ import type {
   NarrativeRunDetail,
   NarrativeRunEventType,
 } from "@/types/narratives";
-import type { BoardAudioButton, BoardCategory, BoardViewMode } from "@/types/routlis";
+import type { BoardAudioButton, BoardCategory } from "@/types/routlis";
 import { ApiError } from "@/lib/api";
 import { AudioButtonDetailsModal } from "@/components/audio-board/AudioButtonDetailsModal";
 import { NarrativeAudioLibraryPanel } from "./NarrativeAudioLibraryPanel";
@@ -81,7 +81,6 @@ type LayoutPosition = {
 
 type NarrativePlayerPreferences = {
   playerDistance?: string;
-  playerViewMode?: BoardViewMode;
   playerViewportX?: number;
   playerViewportY?: number;
   playerViewportZoom?: number;
@@ -121,8 +120,6 @@ function mapBoardButtonToAudioButtonDetail(button: BoardAudioButton): AudioButto
 }
 
 const DEFAULT_NARRATIVE_DISTANCE = "max";
-const DEFAULT_NARRATIVE_VIEW_MODE: BoardViewMode = "dual";
-
 const PLAYER_DISTANCE_PRESETS: LayoutDistancePreset[] = [
   { id: "compact", label: "Cerca", xScale: 0.92, yScale: 1.22 },
   { id: "tight", label: "Tenso", xScale: 1.08, yScale: 1.42 },
@@ -337,7 +334,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
   const [distancePresetId, setDistancePresetId] = useState<string>("max");
-  const [playerViewMode, setPlayerViewMode] = useState<BoardViewMode>("dual");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 0.8 });
   const savePreferencesTimerRef = useRef<number | null>(null);
@@ -949,13 +945,11 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         };
 
         setDistancePresetId(backendDistance?.id || DEFAULT_NARRATIVE_DISTANCE);
-        setPlayerViewMode(DEFAULT_NARRATIVE_VIEW_MODE);
         setCanvasViewport(backendViewport);
       })
       .catch(() => {
         if (!cancelled) {
           setDistancePresetId(DEFAULT_NARRATIVE_DISTANCE);
-          setPlayerViewMode(DEFAULT_NARRATIVE_VIEW_MODE);
           setCanvasViewport({ x: 0, y: 0, zoom: 0.8 });
         }
       })
@@ -982,7 +976,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         method: "PATCH",
         body: JSON.stringify({
           playerDistance: distancePresetId,
-          playerViewMode,
           playerViewportX: canvasViewport.x,
           playerViewportY: canvasViewport.y,
           playerViewportZoom: canvasViewport.zoom,
@@ -997,7 +990,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         window.clearTimeout(savePreferencesTimerRef.current);
       }
     };
-  }, [distancePresetId, playerViewMode, canvasViewport, preferencesReady]);
+  }, [distancePresetId, canvasViewport, preferencesReady]);
 
   useEffect(() => {
     if (hasFitViewRef.current || !reactFlowReady || flowNodes.length === 0 || !preferencesReady) return;
@@ -1258,7 +1251,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     );
   }
 
-  const isDualView = playerViewMode === "dual";
+  const isDualView = true;
 
   async function copyNodeText(nodeId: string) {
     const node = nodeMap.get(nodeId);
@@ -1528,7 +1521,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 </span>
               </div>
               <ReactFlow
-                key={`${runId}-${playerViewMode}`}
+                key={runId}
                 nodes={flowNodes}
                 edges={flowEdges}
                 nodeTypes={playerNodeTypes}
