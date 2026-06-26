@@ -40,7 +40,7 @@ INTEGRATION_ENCRYPTION_KEY=K8nV4pZ1sT6xR3mQ9hD2cF7jL0wB5aN8yE4uP1t
 COOKIE_NAME=routlis_token
 COOKIE_SECURE=true
 FRONTEND_URL=https://routlis.adminpage.space
-CORS_ORIGINS=https://routlis.adminpage.space
+CORS_ORIGINS=https://routlis.adminpage.space,https://*.adminpage.space
 STORAGE_DRIVER=local
 LOCAL_STORAGE_PATH=/var/www/routlis/storage
 LOCAL_AUDIO_PATH=/var/www/routlis/storage/audio-assets
@@ -196,4 +196,3 @@ Debe devolver `null` para confirmar que no hay puerto publico directo.
 - No usar `3000` para Routlis en el host, porque ese puerto lo usa Easypanel.
 - No exponer Postgres ni puertos internos.
 - No correr seed automatico en cada deploy.
-
