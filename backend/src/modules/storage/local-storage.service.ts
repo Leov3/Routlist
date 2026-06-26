@@ -168,9 +168,14 @@ export class LocalStorageService {
   }
 
   private audioCandidates(rootPath: string, storageKey: string) {
+    const normalizedKey = storageKey.replace(/^\/+/, '');
+    const trimmedRoot = rootPath.replace(/\/+$/, '');
+
     return [
-      join(rootPath, storageKey),
-      join(rootPath, ...storageKey.split('/')),
+      join(trimmedRoot, normalizedKey),
+      join(trimmedRoot, ...normalizedKey.split('/')),
+      join(trimmedRoot, 'audio-assets', normalizedKey),
+      join(trimmedRoot, 'audio-assets', ...normalizedKey.split('/')),
     ];
   }
 
