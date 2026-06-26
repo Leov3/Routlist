@@ -38,7 +38,6 @@ import type {
 import type { BoardAudioButton, BoardCategory, BoardViewMode } from "@/types/routlis";
 import { ApiError } from "@/lib/api";
 import { AudioButtonDetailsModal } from "@/components/audio-board/AudioButtonDetailsModal";
-import { BoardViewModeToggle } from "@/components/audio-board/BoardViewModeToggle";
 import { NarrativeAudioLibraryPanel } from "./NarrativeAudioLibraryPanel";
 import {
   NarrativePlayerContext,
@@ -122,7 +121,7 @@ function mapBoardButtonToAudioButtonDetail(button: BoardAudioButton): AudioButto
 }
 
 const DEFAULT_NARRATIVE_DISTANCE = "max";
-const DEFAULT_NARRATIVE_VIEW_MODE: BoardViewMode = "simple";
+const DEFAULT_NARRATIVE_VIEW_MODE: BoardViewMode = "dual";
 
 const PLAYER_DISTANCE_PRESETS: LayoutDistancePreset[] = [
   { id: "compact", label: "Cerca", xScale: 0.92, yScale: 1.22 },
@@ -338,7 +337,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
   const [distancePresetId, setDistancePresetId] = useState<string>("max");
-  const [playerViewMode, setPlayerViewMode] = useState<BoardViewMode>("simple");
+  const [playerViewMode, setPlayerViewMode] = useState<BoardViewMode>("dual");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 0.8 });
   const savePreferencesTimerRef = useRef<number | null>(null);
@@ -933,7 +932,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     hasFitViewRef.current = false;
     setCanvasViewport({ x: 0, y: 0, zoom: 0.8 });
     setReactFlowReady(false);
-  }, [playerViewMode, runId]);
+  }, [runId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -943,7 +942,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       .then((preferences) => {
         if (cancelled) return;
         const backendDistance = PLAYER_DISTANCE_PRESETS.find((item) => item.id === preferences.playerDistance);
-        const backendViewMode = preferences.playerViewMode === "dual" ? "dual" : "simple";
         const backendViewport = {
           x: typeof preferences.playerViewportX === "number" ? preferences.playerViewportX : 0,
           y: typeof preferences.playerViewportY === "number" ? preferences.playerViewportY : 0,
@@ -951,7 +949,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         };
 
         setDistancePresetId(backendDistance?.id || DEFAULT_NARRATIVE_DISTANCE);
-        setPlayerViewMode(backendViewMode || DEFAULT_NARRATIVE_VIEW_MODE);
+        setPlayerViewMode(DEFAULT_NARRATIVE_VIEW_MODE);
         setCanvasViewport(backendViewport);
       })
       .catch(() => {
@@ -1473,14 +1471,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         },
       }}
     >
-      {headerSlot
-        ? createPortal(
-            <div className="flex min-w-0 items-center justify-center">
-              <BoardViewModeToggle value={playerViewMode} onChange={setPlayerViewMode} />
-            </div>,
-            headerSlot,
-          )
-        : null}
+      {headerSlot ? createPortal(<div className="flex min-w-0 items-center justify-center" />, headerSlot) : null}
 
     <ReactFlowProvider>
       {buttonBoardModalButton ? (
