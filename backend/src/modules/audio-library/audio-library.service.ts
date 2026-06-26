@@ -355,7 +355,7 @@ export class AudioLibraryService {
   }
 
   async streamPath(user: AuthenticatedUser, id: string) {
-    const asset = await this.ensureAsset(user, id, true);
+    const asset = await this.ensureAsset(user, id);
     return {
       asset,
       path: await this.storage.getAudioPath(asset.storageKey),
