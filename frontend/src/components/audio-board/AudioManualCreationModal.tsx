@@ -306,7 +306,10 @@ export function AudioManualCreationModal({ open, assets, categories, onClose, on
 
           <section className="flex min-h-0 flex-col overflow-hidden p-4 pr-2 pb-6 lg:p-5 lg:pb-6">
             {currentAsset && currentDraft ? (
-              <div className="flex min-h-0 w-full flex-1 flex-col">
+              <div
+                className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto pr-1 pb-4 overscroll-contain"
+                style={{ scrollbarGutter: "stable" }}
+              >
                 <div className="shrink-0 rounded-[24px] border border-outline-variant bg-surface-container p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -362,77 +365,75 @@ export function AudioManualCreationModal({ open, assets, categories, onClose, on
                   </div>
                 </div>
 
-                <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 pb-4 overscroll-contain" style={{ scrollbarGutter: "stable" }}>
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    <div className="min-w-0 rounded-[24px] border border-outline-variant bg-surface-container p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Datos del botón</p>
-                      <div className="mt-4 grid gap-3">
+                <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                  <div className="min-w-0 rounded-[24px] border border-outline-variant bg-surface-container p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Datos del botón</p>
+                    <div className="mt-4 grid gap-3">
+                      <label className="grid gap-1.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Etiqueta</span>
+                        <input value={currentDraft.label} onChange={(e) => updateDraft("label", e.target.value)} className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none" />
+                      </label>
+                      <label className="grid gap-1.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Categoría</span>
+                        <select value={currentDraft.categoryId} onChange={(e) => updateDraft("categoryId", e.target.value)} className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none">
+                          {!availableCategories.length ? <option value="">Se creara Principal automaticamente</option> : null}
+                          {availableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                        </select>
+                      </label>
+                      <div className="grid gap-3">
                         <label className="grid gap-1.5">
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Etiqueta</span>
-                          <input value={currentDraft.label} onChange={(e) => updateDraft("label", e.target.value)} className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none" />
-                        </label>
-                        <label className="grid gap-1.5">
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Categoría</span>
-                          <select value={currentDraft.categoryId} onChange={(e) => updateDraft("categoryId", e.target.value)} className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none">
-                            {!availableCategories.length ? <option value="">Se creara Principal automaticamente</option> : null}
-                            {availableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                          </select>
-                        </label>
-                        <div className="grid gap-3">
-                          <label className="grid gap-1.5">
-                            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Orden</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={currentDraft.sortOrder}
-                              onChange={(e) => updateDraft("sortOrder", e.target.value)}
-                              className="h-10 w-full min-w-0 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none"
-                            />
-                          </label>
-                          <label className="grid gap-1.5">
-                            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Shortcut</span>
-                            <input
-                              value={currentDraft.shortcutKey}
-                              onChange={(e) => updateDraft("shortcutKey", e.target.value)}
-                              className="h-10 w-full min-w-0 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none"
-                            />
-                          </label>
-                        </div>
-                        <label className="grid gap-1.5">
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Descripción</span>
-                          <textarea value={currentDraft.description} onChange={(e) => updateDraft("description", e.target.value)} className="min-h-28 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none" />
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 rounded-[24px] border border-outline-variant bg-surface-container p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Apariencia y archivo</p>
-                      <div className="mt-4 grid gap-3">
-                        <label className="grid gap-1.5">
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Color</span>
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Orden</span>
                           <input
-                            type="color"
-                            value={currentDraft.color}
-                            onChange={(e) => updateDraft("color", e.target.value)}
-                            className="h-10 w-full rounded-2xl border border-outline-variant bg-surface p-1"
+                            type="number"
+                            min="0"
+                            value={currentDraft.sortOrder}
+                            onChange={(e) => updateDraft("sortOrder", e.target.value)}
+                            className="h-10 w-full min-w-0 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none"
                           />
                         </label>
                         <label className="grid gap-1.5">
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Imagen opcional</span>
-                          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-outline-variant bg-surface px-3 py-3">
-                            <ImagePlus className="h-4 w-4 shrink-0 text-on-surface-variant" />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-on-surface">{currentDraft.imageFile ? currentDraft.imageFile.name : "Adjuntar imagen"}</p>
-                              <p className="text-xs text-on-surface-variant">Opcional. Sirve para asociar una imagen al botón.</p>
-                            </div>
-                            <input type="file" accept="image/*" onChange={(e) => updateDraft("imageFile", e.target.files?.[0] ?? null)} className="sr-only" />
-                          </label>
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Shortcut</span>
+                          <input
+                            value={currentDraft.shortcutKey}
+                            onChange={(e) => updateDraft("shortcutKey", e.target.value)}
+                            className="h-10 w-full min-w-0 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none"
+                          />
                         </label>
-                        <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Vista previa</p>
-                          <p className="mt-2 text-sm font-semibold text-on-surface">{currentDraft.label || "Etiqueta del botón"}</p>
-                          <p className="mt-1 text-sm leading-6 text-on-surface-variant">{currentDraft.description || "Sin descripción adicional"}</p>
-                        </div>
+                      </div>
+                      <label className="grid gap-1.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Descripción</span>
+                        <textarea value={currentDraft.description} onChange={(e) => updateDraft("description", e.target.value)} className="min-h-28 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none" />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 rounded-[24px] border border-outline-variant bg-surface-container p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Apariencia y archivo</p>
+                    <div className="mt-4 grid gap-3">
+                      <label className="grid gap-1.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Color</span>
+                        <input
+                          type="color"
+                          value={currentDraft.color}
+                          onChange={(e) => updateDraft("color", e.target.value)}
+                          className="h-10 w-full rounded-2xl border border-outline-variant bg-surface p-1"
+                        />
+                      </label>
+                      <label className="grid gap-1.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Imagen opcional</span>
+                        <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-outline-variant bg-surface px-3 py-3">
+                          <ImagePlus className="h-4 w-4 shrink-0 text-on-surface-variant" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-on-surface">{currentDraft.imageFile ? currentDraft.imageFile.name : "Adjuntar imagen"}</p>
+                            <p className="text-xs text-on-surface-variant">Opcional. Sirve para asociar una imagen al botón.</p>
+                          </div>
+                          <input type="file" accept="image/*" onChange={(e) => updateDraft("imageFile", e.target.files?.[0] ?? null)} className="sr-only" />
+                        </label>
+                      </label>
+                      <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Vista previa</p>
+                        <p className="mt-2 text-sm font-semibold text-on-surface">{currentDraft.label || "Etiqueta del botón"}</p>
+                        <p className="mt-1 text-sm leading-6 text-on-surface-variant">{currentDraft.description || "Sin descripción adicional"}</p>
                       </div>
                     </div>
                   </div>

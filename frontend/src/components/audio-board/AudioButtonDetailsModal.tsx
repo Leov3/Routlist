@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Pause, Play, Square, X } from "lucide-react";
+import { Check, Copy, Download, Pause, Play, Square, X } from "lucide-react";
 import { mediaUrl } from "@/lib/api";
 import type { BoardAudioButton } from "@/types/routlis";
 
