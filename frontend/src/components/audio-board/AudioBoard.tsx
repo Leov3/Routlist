@@ -18,7 +18,6 @@ import { AudioSearch } from "./AudioSearch";
 import { BoardDensityToggle } from "./BoardDensityToggle";
 import { BoardFilterChips } from "./BoardFilterChips";
 import { BoardMoreFiltersMenu } from "./BoardMoreFiltersMenu";
-import { BoardRecentStrip } from "./BoardRecentStrip";
 import { BoardSidePanel } from "./BoardSidePanel";
 import { BoardViewModeToggle } from "./BoardViewModeToggle";
 import {
@@ -300,8 +299,6 @@ export function AudioBoard() {
             headerSlot,
           )
         : null}
-
-      <BoardRecentStrip events={recentEvents} onPlay={(buttonId) => void playButtonById(buttonId)} />
 
       {viewMode === "simple" ? (
         <section className="flex max-h-[calc(100dvh-18rem)] flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-4 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)] sm:p-5">

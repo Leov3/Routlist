@@ -99,7 +99,7 @@ const adminGroupMeta: Record<"operation" | "access" | "platform" | "content" | "
 const navItems: NavItem[] = [
   { href: "/board", label: "Botonera", icon: PanelTop, permissions: ["board:use"], group: "operation" },
   { href: "/audio-ia", label: "Audio IA", icon: Sparkles, permissions: ["audio:generate"], group: "operation" },
-  { href: "/narratives", label: "Narrativas", icon: Workflow, permissions: ["narratives:run"], group: "operation" },
+  { href: "/narratives", label: "Llamadas", icon: Workflow, permissions: ["narratives:run"], group: "operation" },
 ];
 
 const adminItems: NavItem[] = [
@@ -112,7 +112,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/audios", label: "Audios", icon: Library, permissions: ["audio:create"], group: "content" },
   { href: "/admin/categories", label: "Categorías", icon: Tags, permissions: ["category:create"], group: "content" },
   { href: "/admin/buttons", label: "Botones", icon: MousePointerClick, permissions: ["button:create"], group: "content" },
-  { href: "/admin/narratives", label: "Narrativas", icon: Workflow, permissions: ["narratives:view"], group: "content" },
+  { href: "/admin/narratives", label: "Llamadas", icon: Workflow, permissions: ["narratives:view"], group: "content" },
   { href: "/admin/storage", label: "Almacenamiento", icon: HardDrive, roles: ["OWNER"], group: "system" },
   { href: "/admin/maintenance", label: "Migraciones y backup", icon: Wrench, roles: ["OWNER"], group: "system" },
   { href: "/admin/history", label: "Historial", icon: History, permissions: ["history:read"], group: "system" },
@@ -237,6 +237,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [storageState, setStorageState] = useState<StorageHealthState>({ data: null, status: "error" });
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
   const pageTitle = getPageTitle(pathname);
   const visibleMainItems = navItems.filter((item) => canSeeNavItem(user, item));
   const visibleAdminItems = adminItems.filter((item) => canSeeNavItem(user, item));
@@ -326,6 +327,22 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   }, [user.role]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    void api<{ id: string; name: string }>("/organizations/current")
+      .then((organization) => {
+        if (!cancelled) setOrganizationName(organization.name);
+      })
+      .catch(() => {
+        if (!cancelled) setOrganizationName(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (pathname.startsWith("/admin/mail")) {
       setAdminOpen(true);
       setMailOpen(true);
@@ -365,7 +382,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-sm font-bold leading-tight text-on-surface">Routlis</p>
+              <p className="text-sm font-bold leading-tight text-on-surface">{organizationName ?? "Organización"}</p>
               <p className="text-xs font-medium text-gradient-primary">AudioBoard</p>
             </div>
           )}
@@ -687,10 +704,10 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 }
 
 function getPageTitle(pathname: string) {
-  if (pathname === "/narratives" || pathname.startsWith("/narratives/")) return "/Narrativas";
+  if (pathname === "/narratives" || pathname.startsWith("/narratives/")) return "/Llamadas";
   if (pathname === "/audio-ia") return "/Audio IA";
   if (pathname === "/board") return "/Botonera";
-  if (pathname.startsWith("/admin/narratives")) return "/Narrativas";
+  if (pathname.startsWith("/admin/narratives")) return "/Llamadas";
   if (pathname === "/admin/buttons") return "/Botones";
   if (pathname === "/admin/integraciones") return "/Integraciones";
   if (pathname === "/admin/organizations") return "/Organizaciones";

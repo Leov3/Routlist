@@ -1337,7 +1337,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           <div>
             <h2 className="text-lg font-semibold text-on-surface">No se encontró la ejecución</h2>
             <p className="mt-1 text-sm text-on-surface-variant">
-              Vuelve a intentar desde el listado de narrativas.
+              Vuelve a intentar desde el listado de llamadas.
             </p>
           </div>
         </div>
@@ -1619,7 +1619,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-3">
             <div className="min-w-0">
               <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
-                Narrativas / {run.narrative.title}
+                Llamadas / {run.narrative.title}
               </p>
               <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-on-surface">
                 {run.narrative.title}

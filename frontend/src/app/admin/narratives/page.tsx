@@ -57,7 +57,7 @@ export default function AdminNarrativesPage() {
     <AdminProtectedPage>
       <div className="space-y-6">
         <PageHeader
-          title="Narrativas"
+          title="Llamadas"
           description="Constructor visual de flujos operativos para la operación diaria."
           action={
             <Link
@@ -65,7 +65,7 @@ export default function AdminNarrativesPage() {
               className="btn-surface-base btn-primary-surface flex h-11 w-full items-center justify-center rounded-2xl px-4 text-sm sm:w-auto"
             >
               <Plus className="h-4 w-4" />
-              Nueva narrativa
+              Nueva llamada
             </Link>
           }
         />
@@ -84,7 +84,7 @@ export default function AdminNarrativesPage() {
                     Flujos disponibles
                   </h2>
                   <p className="text-sm text-on-surface-variant">
-                    {loading ? "Cargando narrativas..." : `${narratives.length} narrativas encontradas`}
+                    {loading ? "Cargando llamadas..." : `${narratives.length} llamadas encontradas`}
                   </p>
                 </div>
               </div>

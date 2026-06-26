@@ -237,12 +237,12 @@ export function AccountSettingsModal({
             <div className="mt-4 rounded-[20px] border border-outline-variant bg-surface-container p-4">
               <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Preferencias por módulo</p>
               <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-                Ajusta directamente la Botonera, Audio IA o Narrativas sin salir del popup.
+                Ajusta directamente la Botonera, Audio IA o Llamadas sin salir del popup.
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <SectionTab active={section === "board"} onClick={() => setSection("board")} icon={Waves} label="Botonera" />
-                <SectionTab active={section === "narratives"} onClick={() => setSection("narratives")} icon={Workflow} label="Narrativas" />
+                <SectionTab active={section === "narratives"} onClick={() => setSection("narratives")} icon={Workflow} label="Llamadas" />
               </div>
 
               <div className="mt-4 rounded-2xl border border-outline-variant bg-surface p-4">
@@ -283,7 +283,7 @@ export function AccountSettingsModal({
                           }),
                         });
                       } catch (error) {
-                        setNarrativeError(error instanceof Error ? error.message : "No se pudo guardar Narrativas.");
+                        setNarrativeError(error instanceof Error ? error.message : "No se pudo guardar Llamadas.");
                       } finally {
                         setSavingSection(false);
                       }
@@ -493,7 +493,7 @@ function NarrativeQuickSettings({
           onClick={() => void onSave()}
           className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
         >
-          Guardar Narrativas
+          Guardar Llamadas
         </button>
       </div>
     </div>

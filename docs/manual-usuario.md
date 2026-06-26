@@ -102,7 +102,7 @@ Puedes encontrar:
 
 - Botonera
 - Audio IA
-- Narrativas
+- Llamadas
 - Administración
 - módulos de sistema
 
@@ -669,4 +669,3 @@ Si cambian nuevas funciones o módulos, este documento puede crecer con:
 - capturas
 - flujos paso a paso
 - anexos por módulo
-

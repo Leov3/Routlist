@@ -10,7 +10,7 @@ type NarrativeCreateFormProps = {
 
 export function NarrativeCreateForm({
   onCreate,
-  submitLabel = "Crear narrativa",
+  submitLabel = "Crear llamada",
 }: NarrativeCreateFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -30,7 +30,7 @@ export function NarrativeCreateForm({
       setTitle("");
       setDescription("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear la narrativa.");
+      setError(err instanceof Error ? err.message : "No se pudo crear la llamada.");
     } finally {
       setSaving(false);
     }
@@ -47,7 +47,7 @@ export function NarrativeCreateForm({
         </div>
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-on-surface">
-            Nueva narrativa
+            Nueva llamada
           </h2>
           <p className="text-sm text-on-surface-variant">
             Crea un borrador para diseñar el flujo por nodos.
@@ -63,7 +63,7 @@ export function NarrativeCreateForm({
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Narrativa de apertura"
+            placeholder="Llamada de apertura"
             className="h-11 rounded-2xl border border-outline-variant bg-surface px-4 text-sm text-on-surface outline-none transition-colors focus:border-primary"
             required
             minLength={3}

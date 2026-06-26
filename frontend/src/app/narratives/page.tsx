@@ -53,7 +53,7 @@ export default function NarrativesPage() {
     setNarratives(visibleNarratives);
     setRuns(visibleRuns);
     if (sessionResult.status === "rejected" || narrativesResult.status === "rejected" || runsResult.status === "rejected") {
-      setMessage("No se pudieron cargar todas las narrativas disponibles.");
+      setMessage("No se pudieron cargar todas las llamadas disponibles.");
     }
     setLoading(false);
   }
@@ -83,7 +83,7 @@ export default function NarrativesPage() {
     <ProtectedPage requiredPermissions={["narratives:run"]}>
       <div className="space-y-6">
         <PageHeader
-          title="Narrativas"
+          title="Llamadas"
           description="Selecciona un guion operativo activo para iniciar o revisar una ejecución."
           action={
             <button
@@ -116,16 +116,16 @@ export default function NarrativesPage() {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight text-on-surface">
-                    Narrativas activas
+                    Llamadas activas
                   </h2>
                   <p className="text-sm text-on-surface-variant">
-                    {loading ? "Cargando..." : `${activeCount} narrativas listas para ejecutar`}
+                    {loading ? "Cargando..." : `${activeCount} llamadas listas para ejecutar`}
                   </p>
                 </div>
               </div>
 
               {loading ? (
-                <DataState>Cargando narrativas activas...</DataState>
+                <DataState>Cargando llamadas activas...</DataState>
               ) : narratives.length > 0 ? (
                 <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                   <div className="grid gap-4 lg:grid-cols-2">
@@ -185,9 +185,9 @@ export default function NarrativesPage() {
               ) : (
                 <DataState>
                   <div className="flex flex-col items-center gap-2 text-center">
-                    <p>No hay narrativas activas disponibles.</p>
+                    <p>No hay llamadas activas disponibles.</p>
                     <p className="text-xs text-on-surface-variant">
-                      Cuando un ADMIN publique una narrativa aparecerá aquí para ejecución.
+                      Cuando un ADMIN publique una llamada aparecerá aquí para ejecución.
                     </p>
                   </div>
                 </DataState>
@@ -206,7 +206,7 @@ export default function NarrativesPage() {
                     Ejecuciones activas
                   </h2>
                   <p className="text-sm text-on-surface-variant">
-                    Reanuda o revisa narrativas ya iniciadas.
+                    Reanuda o revisa llamadas ya iniciadas.
                   </p>
                 </div>
               </div>

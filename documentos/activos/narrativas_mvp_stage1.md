@@ -1,13 +1,13 @@
-# Narrativas MVP - Etapa 1
+# Llamadas MVP - Etapa 1
 
 Estado: implementada en backend y validada localmente.
 
 Incluye:
 - modelos Prisma para Narrative, NarrativeVersion, NarrativeRun y NarrativeRunEvent;
-- permisos RBAC de narrativas;
+- permisos RBAC de llamadas;
 - módulo backend para CRUD, validación de grafo, publicación y ejecución;
 - migración SQL para el esquema nuevo;
-- seed actualizado para limpiar datos de narrativas solo cuando se usa reset controlado.
+- seed actualizado para limpiar datos de llamadas solo cuando se usa reset controlado.
 
 Pendiente para siguientes etapas:
 - builder visual en frontend;

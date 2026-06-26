@@ -282,7 +282,7 @@ export default function OrganizationsPage() {
       }>(`/organizations/${organization.id}/narrative-integrity`);
       setIntegrityReport(report);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No se pudo auditar las narrativas.");
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo auditar las llamadas.");
     }
   }
 
@@ -616,7 +616,7 @@ export default function OrganizationsPage() {
                           className="inline-flex items-center gap-2 rounded-xl border border-outline px-3 py-2 text-xs font-semibold"
                         >
                           <Search className="h-4 w-4" />
-                          Auditar narrativas
+                          Auditar llamadas
                         </button>
                         <button
                           type="button"
@@ -750,7 +750,7 @@ export default function OrganizationsPage() {
           <div className="w-full max-w-3xl rounded-2xl border border-outline-variant bg-surface-container p-5 shadow-2xl">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold">Auditoría de narrativas</h2>
+                <h2 className="text-lg font-semibold">Auditoría de llamadas</h2>
                 <p className="text-sm text-on-surface-variant">{integrityOrganization.name}</p>
               </div>
               <button
@@ -766,21 +766,21 @@ export default function OrganizationsPage() {
             </div>
 
             {!integrityReport ? (
-              <DataState>Revisando narrativas...</DataState>
+              <DataState>Revisando llamadas...</DataState>
             ) : integrityReport.ok ? (
               <div className="success-surface rounded-2xl px-4 py-3 text-sm">
-                No se encontraron problemas. {integrityReport.narrativesCount} narrativas revisadas.
+                No se encontraron problemas. {integrityReport.narrativesCount} llamadas revisadas.
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="danger-surface rounded-2xl px-4 py-3 text-sm">
-                  {integrityReport.issuesCount} problema(s) detectado(s) en {integrityReport.narrativesCount} narrativas.
+                  {integrityReport.issuesCount} problema(s) detectado(s) en {integrityReport.narrativesCount} llamadas.
                 </div>
                 <div className="max-h-[420px] overflow-auto rounded-2xl border border-outline-variant">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
                       <tr>
-                        <th className="px-4 py-3">Narrativa</th>
+                        <th className="px-4 py-3">Llamada</th>
                         <th className="px-4 py-3">Tipo</th>
                         <th className="px-4 py-3">Recurso</th>
                         <th className="px-4 py-3">Mensaje</th>
@@ -914,7 +914,7 @@ function OrganizationCard({
           Editar
         </button>
         <button type="button" onClick={onAudit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
-          Auditar narrativas
+          Auditar llamadas
         </button>
         <button type="button" onClick={onSwitch} disabled={isCurrent} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface disabled:opacity-50">
           {isCurrent ? "Activa" : "Usar"}

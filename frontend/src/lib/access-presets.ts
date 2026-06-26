@@ -17,7 +17,7 @@ export const ACCESS_MODULES = [
   // ── Operación ───────────────────────────────────────────────
   { key: "board.use",         label: "Botonera" },
   { key: "audio.generate",    label: "Audio IA" },
-  { key: "narratives.run",    label: "Narrativas (ejecución)" },
+  { key: "narratives.run",    label: "Llamadas (ejecución)" },
   // ── Plataforma ───────────────────────────────────────────────
   { key: "admin",             label: "Estadísticas" },
   { key: "admin.access",      label: "Configuración de accesos" },
@@ -27,7 +27,7 @@ export const ACCESS_MODULES = [
   { key: "admin.audios",      label: "Audios" },
   { key: "admin.categories",  label: "Categorías" },
   { key: "admin.buttons",     label: "Botones" },
-  { key: "admin.narratives",  label: "Narrativas (admin)" },
+  { key: "admin.narratives",  label: "Llamadas (admin)" },
   // ── Sistema ──────────────────────────────────────────────────
   { key: "admin.integrations",label: "Integraciones" },
   { key: "admin.platform",    label: "Personalización de plataforma" },

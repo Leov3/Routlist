@@ -51,7 +51,7 @@ export default function NarrativeRunPage() {
       } catch (error) {
         if (!cancelled) {
           startAttemptedRef.current = false;
-          setMessage(error instanceof Error ? error.message : "No se pudo iniciar la narrativa.");
+          setMessage(error instanceof Error ? error.message : "No se pudo iniciar la llamada.");
         }
       } finally {
         if (!cancelled) setStarting(false);
@@ -90,7 +90,7 @@ export default function NarrativeRunPage() {
                 <Play className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-on-surface">Inicia la narrativa</h2>
+                <h2 className="text-lg font-semibold text-on-surface">Inicia la llamada</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
                   Se abrirá una nueva ejecución cuando el player termine de preparar el flujo.
                 </p>

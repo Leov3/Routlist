@@ -57,7 +57,7 @@ export function NarrativeList({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-on-surface">
-            Narrativas
+            Llamadas
           </h2>
           <p className="text-sm text-on-surface-variant">
             Diseña flujos operativos y ejecútalos desde el player guiado.
@@ -76,7 +76,7 @@ export function NarrativeList({
 
       {hiddenCount > 0 ? (
         <div className="warning-surface rounded-2xl px-4 py-3 text-sm">
-          Se ocultaron {hiddenCount} narrativa(s) que no pertenecen a la organización activa.
+          Se ocultaron {hiddenCount} llamada(s) que no pertenecen a la organización activa.
         </div>
       ) : null}
 
@@ -149,7 +149,7 @@ export function NarrativeList({
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase tracking-widest text-on-surface-variant">
               <tr>
-                <th className="px-5 py-3">Narrativa</th>
+                <th className="px-5 py-3">Llamada</th>
                 <th className="px-5 py-3">Estado</th>
                 <th className="px-5 py-3">Organización</th>
                 <th className="px-5 py-3">Versiones</th>
@@ -229,7 +229,7 @@ export function NarrativeList({
       ) : (
         <DataState>
           <div className="flex flex-col items-center gap-2 text-center">
-            <p>No hay narrativas todavía.</p>
+            <p>No hay llamadas todavía.</p>
             {canCreate ? (
               <p className="text-xs text-on-surface-variant">
                 Crea la primera para empezar a construir el flujo.

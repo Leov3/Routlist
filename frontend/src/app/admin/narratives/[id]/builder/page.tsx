@@ -13,7 +13,7 @@ export default function AdminNarrativeBuilderPage() {
     <AdminProtectedPage>
       {!narrativeId ? (
         <div className="rounded-2xl border border-outline-variant bg-surface-container p-6 text-sm text-on-surface-variant shadow-elevation-1">
-          No se encontró el identificador de la narrativa.
+          No se encontró el identificador de la llamada.
         </div>
       ) : (
         <NarrativeBuilderCanvasShell narrativeId={narrativeId} />

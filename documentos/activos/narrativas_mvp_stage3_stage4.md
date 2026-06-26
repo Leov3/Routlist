@@ -1,7 +1,7 @@
-# Narrativas MVP - Etapas 3 y 4
+# Llamadas MVP - Etapas 3 y 4
 
 Estado actual:
-- El backend ya valida y publica el grafo de Narrativas.
+- El backend ya valida y publica el grafo de Llamadas.
 - La ejecución narrativa ya usa:
   - `POST /narratives/:id/runs`
   - `GET /narrative-runs/:id`
@@ -9,14 +9,14 @@ Estado actual:
   - `POST /narrative-runs/:id/events`
   - `POST /narrative-runs/:id/complete`
   - `POST /narrative-runs/:id/cancel`
-- Se añadió un stream específico para Narrativas en audios:
+- Se añadió un stream específico para Llamadas en audios:
   - `GET /audio-assets/:id/narrative-stream`
 - El frontend ya tiene:
-  - listado de narrativas activas en `/narratives`
+  - listado de llamadas activas en `/narratives`
   - player guiado en `/narratives/[id]/run`
 - El build de frontend y backend pasa correctamente.
 
 Pendiente después:
 - Pulido de UX del player.
 - Mejorar automatizaciones de avance por tipo de nodo si hace falta.
-- Añadir reportes básicos de ejecución de narrativas.
+- Añadir reportes básicos de ejecución de llamadas.
