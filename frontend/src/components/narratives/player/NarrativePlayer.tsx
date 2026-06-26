@@ -1507,7 +1507,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         ) : null}
 
         <div className={isDualView ? "flex min-h-0 flex-col gap-4 self-stretch" : "flex min-h-0 flex-1 flex-col gap-4"}>
-          <section className="flex h-full min-h-[calc(100dvh-12rem)] flex-1 flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1 lg:min-h-[calc(100dvh-11rem)]">
+          <section
+            className="flex h-full flex-1 flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1"
+            style={{
+              minHeight: "clamp(560px, calc(100dvh - 12rem), 980px)",
+            }}
+          >
             <div className="relative h-full min-h-[520px] flex-1 overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container">
               <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-primary/20 bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
@@ -1595,7 +1600,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               >
                 <Controls
                   showInteractive={false}
-                  className="narrative-flow-controls !left-auto !right-3 !top-3 !bottom-auto"
+                  className="narrative-flow-controls narrative-flow-controls-dark !left-auto !right-3 !top-3 !bottom-auto"
                 />
                 <Background color="rgba(148,163,184,0.16)" gap={20} size={1.1} />
               </ReactFlow>
