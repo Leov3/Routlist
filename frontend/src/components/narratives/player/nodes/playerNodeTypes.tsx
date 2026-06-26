@@ -77,8 +77,6 @@ export type NarrativePlayerContextType = {
   playbackState: AudioPlaybackState;
   working: boolean;
   currentNodeId: string | null;
-  selectedNodeId: string | null;
-  zoom: number;
   startAudioPlayback: (overrideNodeId?: string) => Promise<void>;
   pauseAudio: () => void;
   resumeAudio: () => void;
@@ -90,7 +88,6 @@ export type NarrativePlayerContextType = {
   setMessage: (msg: string | null) => void;
   selectNode: (nodeId: string) => void;
   openNodeMenu: (nodeId: string) => void;
-  openNodeDetails: (nodeId: string) => void;
 };
 
 export const NarrativePlayerContext = createContext<NarrativePlayerContextType | null>(null);
@@ -294,7 +291,7 @@ function HiddenHandles({ source = true, target = true }: { source?: boolean; tar
 
 export function PlayerStartNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
+  const mode: "far" | "medium" | "close" = "close";
   return (
     <div className={nodeFrame(data.status, selected, "w-[240px] min-h-[96px] rounded-[28px] border-2 success-surface p-4 text-on-surface")}>
       <HiddenHandles target={false} />
@@ -308,7 +305,7 @@ export function PlayerStartNode({ data, selected }: NodeProps<Node<PlayerFlowNod
             <StateBadge status={data.status} />
           </div>
           <p className="mt-2 line-clamp-2 text-[15px] font-black leading-tight text-on-surface">Comenzar narrativa</p>
-          {mode !== "far" ? <p className="mt-1 text-xs font-semibold text-on-surface-variant">Arranque del flujo guiado</p> : null}
+          <p className="mt-1 text-xs font-semibold text-on-surface-variant">Arranque del flujo guiado</p>
         </div>
       </div>
       <NodeActionButton id={data.id} />
@@ -318,7 +315,7 @@ export function PlayerStartNode({ data, selected }: NodeProps<Node<PlayerFlowNod
 
 export function PlayerEndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
+  const mode: "far" | "medium" | "close" = "close";
   return (
     <div className={nodeFrame(data.status, selected, "w-[240px] min-h-[96px] rounded-[28px] border-2 success-surface p-4 text-on-surface")}>
       <HiddenHandles source={false} />
@@ -332,7 +329,7 @@ export function PlayerEndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeD
             <StateBadge status={data.status} />
           </div>
           <p className="mt-2 line-clamp-2 text-[15px] font-black leading-tight text-on-surface">{data.label || "Cierre de narrativa"}</p>
-          {mode !== "far" ? <p className="mt-1 text-xs font-semibold text-on-surface-variant">Cierre de la ejecución</p> : null}
+          <p className="mt-1 text-xs font-semibold text-on-surface-variant">Cierre de la ejecución</p>
           <div className="mt-3">
             <PrimaryButton tone="emerald" onClick={() => void ctx?.finishRun()}>
               <CheckCircle2 className="h-4 w-4" />
@@ -348,7 +345,7 @@ export function PlayerEndNode({ data, selected }: NodeProps<Node<PlayerFlowNodeD
 
 export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
+  const mode: "far" | "medium" | "close" = "close";
   const isPlaying = ctx?.playbackState === "playing" && ctx?.currentNodeId === id;
   const isPaused = ctx?.playbackState === "paused" && ctx?.currentNodeId === id;
   const btnDetails = data.audioButtonDetail ?? null;
@@ -385,7 +382,7 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
             <StateBadge status={data.status} />
           </div>
           <p className="mt-3 line-clamp-2 text-[15px] font-black leading-tight text-on-primary-container">{label}</p>
-          {mode !== "far" ? <p className="mt-2 text-xs font-semibold text-on-surface-variant">Categoría: {category}</p> : null}
+          <p className="mt-2 text-xs font-semibold text-on-surface-variant">Categoría: {category}</p>
         </div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3">
@@ -393,7 +390,7 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
           {isPlaying ? "Pausar" : isPaused ? "Reanudar" : "Reproducir"}
         </PrimaryButton>
-        {mode === "close" ? <p className="text-[11px] font-semibold text-on-primary-container/80">{btnDetails?.audioAsset?.originalName || "Audio asociado"}</p> : null}
+        <p className="text-[11px] font-semibold text-on-primary-container/80">{btnDetails?.audioAsset?.originalName || "Audio asociado"}</p>
       </div>
       <NodeActionButton id={data.id} />
     </div>
@@ -402,7 +399,7 @@ export function PlayerAudioButtonNode({ id, data, selected }: NodeProps<Node<Pla
 
 export function PlayerDynamicAudioNode({ data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
+  const mode: "far" | "medium" | "close" = "close";
   const template = String(data.template ?? data.summary ?? data.label ?? "");
   const variables = data.variables ?? [];
   const voice = String(data.voiceId ?? "").trim();
@@ -419,7 +416,7 @@ export function PlayerDynamicAudioNode({ data, selected }: NodeProps<Node<Player
           </div>
           <div>
             <NodeTypeBadge type={data.type} />
-            {mode !== "far" ? <p className="mt-1 text-xs font-semibold text-on-surface-variant">Plantilla con variables para ElevenLabs</p> : null}
+            <p className="mt-1 text-xs font-semibold text-on-surface-variant">Plantilla con variables para ElevenLabs</p>
           </div>
         </div>
         <StateBadge status={data.status} />
@@ -440,7 +437,7 @@ export function PlayerDynamicAudioNode({ data, selected }: NodeProps<Node<Player
           </span>
         ) : null}
       </div>
-      {mode === "close" && variables.length > 0 ? (
+      {variables.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-2">
           {variables.slice(0, 5).map((variable) => (
             <span
@@ -452,11 +449,11 @@ export function PlayerDynamicAudioNode({ data, selected }: NodeProps<Node<Player
           ))}
         </div>
       ) : null}
-      {mode !== "far" ? <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
+      <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
         <span>Voice ID: {voice || "pendiente"}</span>
         <span className="opacity-50">·</span>
         <span>Model ID: {model || "pendiente"}</span>
-      </div> : null}
+      </div>
       <NodeActionButton id={data.id} />
     </div>
   );
@@ -464,7 +461,7 @@ export function PlayerDynamicAudioNode({ data, selected }: NodeProps<Node<Player
 
 export function PlayerScriptTextNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
+  const mode: "far" | "medium" | "close" = "close";
   const isCurrent = ctx?.currentNodeId === id;
   const title = nodeDetailTitle(data);
   const text = nodeTextPreview(data.summary || data.nodeData?.body || data.label, "Sin guion disponible", 180);
@@ -481,7 +478,7 @@ export function PlayerScriptTextNode({ id, data, selected }: NodeProps<Node<Play
       <div className="relative mt-4 min-h-[112px] overflow-hidden rounded-[10px] border border-outline-variant bg-surface px-4 py-4">
         <div className="pointer-events-none absolute left-0 top-0 h-full w-8 border-r border-outline-variant bg-[linear-gradient(to_right,rgba(124,58,237,0.08),transparent)]" />
         <p className="relative whitespace-pre-wrap pl-3 text-[15px] font-semibold leading-6 text-on-surface">
-          {mode === "far" ? title : text}
+          {text}
         </p>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -501,7 +498,7 @@ export function PlayerScriptTextNode({ id, data, selected }: NodeProps<Node<Play
 
 export function PlayerInstructionNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
+  const mode: "far" | "medium" | "close" = "close";
   const isCurrent = ctx?.currentNodeId === id;
   return (
     <div className={nodeFrame(data.status, selected, "w-[320px] min-h-[190px] rotate-[-1.5deg] rounded-[16px] border-2 warning-surface-strong p-5 shadow-[0_18px_42px_rgba(251,191,36,0.16)]")}>
@@ -524,7 +521,7 @@ export function PlayerInstructionNode({ id, data, selected }: NodeProps<Node<Pla
           <CheckCircle2 className="h-4 w-4" />
           Entendido
         </PrimaryButton>
-        {mode === "close" ? <span className="h-6 w-6 rounded-br-lg border-b-2 border-r-2 border-[color:var(--warning-border)]" /> : null}
+        <span className="h-6 w-6 rounded-br-lg border-b-2 border-r-2 border-[color:var(--warning-border)]" />
       </div>
       <NodeActionButton id={data.id} />
     </div>
@@ -533,7 +530,7 @@ export function PlayerInstructionNode({ id, data, selected }: NodeProps<Node<Pla
 
 export function PlayerAudioNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
+  const mode: "far" | "medium" | "close" = "close";
   const isCurrent = ctx?.currentNodeId === id;
   const isPlaying = isCurrent && ctx?.playbackState === "playing";
   const isPaused = isCurrent && ctx?.playbackState === "paused";
@@ -560,13 +557,13 @@ export function PlayerAudioNode({ id, data, selected }: NodeProps<Node<PlayerFlo
           </div>
           <div>
             <NodeTypeBadge type={data.type} />
-            {mode !== "far" ? <p className="mt-1 text-xs font-semibold text-on-surface-variant">{data.isRequired ? "Obligatorio" : "Opcional"}</p> : null}
+            <p className="mt-1 text-xs font-semibold text-on-surface-variant">{data.isRequired ? "Obligatorio" : "Opcional"}</p>
           </div>
         </div>
         <StateBadge status={data.status} />
       </div>
       <p className="mt-4 line-clamp-2 text-[15px] font-black leading-tight text-on-surface">{data.label}</p>
-      {mode !== "far" ? <p className="mt-2 text-xs font-semibold text-on-surface-variant">{isPlaying ? "Reproduciendo" : isPaused ? "Pausado" : "No reproducido"}</p> : null}
+      <p className="mt-2 text-xs font-semibold text-on-surface-variant">{isPlaying ? "Reproduciendo" : isPaused ? "Pausado" : "No reproducido"}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         <PrimaryButton onClick={() => play()}>
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
@@ -586,7 +583,6 @@ export function PlayerAudioNode({ id, data, selected }: NodeProps<Node<PlayerFlo
 
 export function PlayerPauseNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
   const isCurrent = ctx?.currentNodeId === id;
   const isTimer = data.nodeData?.manual === false || data.nodeData?.pauseType === "timer";
   const duration = data.nodeData?.durationSeconds;
@@ -603,7 +599,7 @@ export function PlayerPauseNode({ id, data, selected }: NodeProps<Node<PlayerFlo
             <StateBadge status={data.status} />
           </div>
           <p className="mt-2 text-[15px] font-black text-on-surface">{isTimer ? "Temporizada" : "Manual"}</p>
-          {mode !== "far" ? <p className="mt-1 text-xs font-semibold text-on-surface-variant">{isTimer && duration ? `${duration}s de espera` : "Esperar señal"}</p> : null}
+          <p className="mt-1 text-xs font-semibold text-on-surface-variant">{isTimer && duration ? `${duration}s de espera` : "Esperar señal"}</p>
         </div>
       </div>
       <div className="mt-4">
@@ -619,7 +615,6 @@ export function PlayerPauseNode({ id, data, selected }: NodeProps<Node<PlayerFlo
 
 export function PlayerDecisionNode({ id, data, selected }: NodeProps<Node<PlayerFlowNodeData>>) {
   const ctx = useContext(NarrativePlayerContext);
-  const mode = zoomMode(ctx?.zoom ?? 1);
   const isCurrent = ctx?.currentNodeId === id;
   const choices = data.decisionChoices?.length
     ? data.decisionChoices
@@ -635,7 +630,7 @@ export function PlayerDecisionNode({ id, data, selected }: NodeProps<Node<Player
         <StateBadge status={data.status} />
       </div>
       <p className="mt-4 line-clamp-2 text-[15px] font-black leading-6 text-on-secondary-container">{nodeTextPreview(data.label, "¿Qué sigue?", 170)}</p>
-      {mode !== "far" ? <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {choices.slice(0, 5).map((choice) => (
           <button
             key={`${choice.targetNodeId}-${choice.label}`}
@@ -650,7 +645,7 @@ export function PlayerDecisionNode({ id, data, selected }: NodeProps<Node<Player
             {choice.label}
           </button>
         ))}
-      </div> : null}
+      </div>
       {isCurrent ? <p className="mt-3 text-xs font-bold text-on-secondary-container">Selecciona una ruta para continuar</p> : null}
       <NodeActionButton id={data.id} />
     </div>
