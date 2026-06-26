@@ -127,7 +127,7 @@ export function NarrativeAudioLibraryPanel() {
   }
 
   return (
-    <div className="flex min-h-0 w-full flex-col gap-4">
+    <div className="flex h-full min-h-0 w-full flex-col gap-4">
       <BoardSidePanel
         title="Botonera auxiliar"
         subtitle="Biblioteca de audios para apoyar la narrativa"

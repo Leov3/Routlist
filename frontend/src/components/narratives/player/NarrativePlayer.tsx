@@ -1955,7 +1955,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           </section>
         </div>
         {isDualView ? (
-          <aside className="min-w-0 self-stretch lg:sticky lg:top-4 lg:self-start">
+          <aside className="min-w-0 self-stretch lg:sticky lg:top-4 lg:h-[calc(100dvh-12rem)] lg:self-start">
             <NarrativeAudioLibraryPanel />
           </aside>
         ) : null}
