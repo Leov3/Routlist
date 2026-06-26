@@ -215,28 +215,6 @@ function nodeSummary(node: NodeMeta | undefined) {
   return "";
 }
 
-function statusTone(status: PlayerNodeState) {
-  if (status === "completed") {
-    return "success-surface";
-  }
-  if (status === "current") {
-    return "border-primary/25 bg-primary-container text-on-primary-container";
-  }
-  if (status === "available") {
-    return "border-outline-variant bg-surface-container-high text-on-surface";
-  }
-  if (status === "skipped") {
-    return "warning-surface-strong";
-  }
-  if (status === "error") {
-    return "danger-surface";
-  }
-  if (status === "decision-selected") {
-    return "border-secondary/25 bg-secondary-container text-on-secondary-container";
-  }
-  return "border-outline-variant bg-surface-container text-on-surface-variant";
-}
-
 function findOutgoingEdges(nodeId: string, edges: NarrativeGraphEdge[]) {
   return edges.filter((edge) => edge.source === nodeId);
 }
@@ -360,7 +338,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
-  const [showActivityDock] = useState(false);
   const [distancePresetId, setDistancePresetId] = useState<string>("max");
   const [playerViewMode, setPlayerViewMode] = useState<BoardViewMode>("simple");
   const [preferencesReady, setPreferencesReady] = useState(false);
@@ -794,32 +771,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const actionNodeIsCurrent = actionNode?.id === uiCurrentNodeId;
   const actionNodeIsInteractive = actionNodeIsCurrent && run?.status === "RUNNING";
   const outgoing = currentNode ? findOutgoingEdges(currentNode.id, executionEdges) : [];
-  const orderedNodes = useMemo(() => {
-    if (!nodes.length) return [];
-
-    const byId = new Map(nodes.map((node) => [node.id, node] as const));
-    const startingNode = nodes.find((node) => node.type === "START") ?? nodes[0];
-    const result: NodeMeta[] = [];
-    const visited = new Set<string>();
-    let currentId: string | undefined = startingNode?.id;
-
-    while (currentId && !visited.has(currentId)) {
-      const node = byId.get(currentId);
-      if (!node) break;
-      result.push(node);
-      visited.add(currentId);
-      const next = executionEdges.find((edge) => edge.source === currentId);
-      currentId = next?.target;
-    }
-
-    for (const node of nodes) {
-      if (!visited.has(node.id)) {
-        result.push(node);
-      }
-    }
-
-    return result;
-  }, [executionEdges, nodes]);
 
   const flowEdges = useMemo<Edge[]>(() => {
     const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
@@ -1343,7 +1294,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     );
   }
 
-  const eventLog = [...(run.events ?? [])].slice().reverse().slice(0, 10);
   const isDualView = playerViewMode === "dual";
 
   async function copyNodeText(nodeId: string) {
@@ -1599,127 +1549,82 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         }}
         className="hidden"
       />
-      <div
-        className={
-          isDualView
-            ? "grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start"
-            : "space-y-2"
-        }
-      >
-        <div className="min-w-0 w-full space-y-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {message ? (
-          <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
+          <div className="fixed left-4 right-4 top-4 z-40 mx-auto max-w-3xl rounded-2xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface shadow-elevation-2 lg:left-auto lg:right-6 lg:top-6 lg:mx-0">
             {message}
           </div>
         ) : null}
 
-        <section className="rounded-[22px] border border-outline-variant bg-surface-container px-3 py-2 shadow-elevation-1">
-          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
-                Llamadas / {run.narrative.title}
-              </p>
-              <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-on-surface">
-                {run.narrative.title}
-              </h1>
-            </div>
-            <div className="flex w-full items-center justify-start gap-1.5 overflow-x-auto pb-0.5 lg:w-auto lg:justify-end lg:overflow-visible">
-              <button
-                type="button"
-                onClick={() => centerCurrentNode()}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-              >
-                <Crosshair className="h-3.5 w-3.5" />
-                Centrar
-              </button>
-              <button
-                type="button"
-                onClick={() => void cancelRun()}
-                disabled={working || run.status !== "RUNNING"}
-                className="danger-surface inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition-colors disabled:opacity-50"
-              >
-                <StopCircle className="h-3.5 w-3.5" />
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => void finishRun()}
-                disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
-                className="success-surface inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition-colors disabled:opacity-50"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Finalizar
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/narratives")}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-              >
-                Volver
-              </button>
-            </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-[22px] border border-outline-variant bg-surface-container px-4 py-3 shadow-elevation-1">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
+              Llamadas / {run.narrative.title}
+            </p>
+            <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-on-surface">
+              {run.narrative.title}
+            </h1>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
-              {run.status}
-            </span>
-            <span className="rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
-              v{run.narrativeVersion.versionNumber}
-            </span>
-          </div>
-        </section>
-
-        {/* Banner de fin de flujo / estado de corrida */}
-        {currentNode?.type === "END" && run?.status === "RUNNING" && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-[24px] success-surface p-5 shadow-elevation-2 animate-fade-in">
-            <div className="flex items-center gap-3">
-              <div className="success-surface-strong flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
-              <div>
-                <h4 className="text-base font-semibold text-on-surface">Flujo Completado</h4>
-                <p className="text-sm text-on-surface-variant">Has alcanzado el nodo final. La ejecución puede ser finalizada de forma segura.</p>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => centerCurrentNode()}
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+              Centrar
+            </button>
+            <button
+              type="button"
+              onClick={() => void cancelRun()}
+              disabled={working || run.status !== "RUNNING"}
+              className="danger-surface inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              <StopCircle className="h-3.5 w-3.5" />
+              Cancelar
+            </button>
             <button
               type="button"
               onClick={() => void finishRun()}
-              disabled={working}
-              className="w-full sm:w-auto inline-flex h-11 items-center justify-center gap-2 rounded-2xl success-surface-strong px-5 text-sm font-semibold transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+              disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
+              className="success-surface inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition-colors disabled:opacity-50"
             >
-              <CheckCircle2 className="h-4 w-4" />
-              Finalizar Ejecución
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Finalizar
             </button>
+            <button
+              type="button"
+              onClick={() => router.push("/narratives")}
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+            >
+              Volver
+            </button>
+            <div className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface px-3 py-2">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
+                Cerca
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={PLAYER_DISTANCE_PRESETS.length - 1}
+                step={1}
+                value={PLAYER_DISTANCE_PRESETS.findIndex((preset) => preset.id === distancePreset.id)}
+                onChange={(event) => {
+                  const nextPreset = PLAYER_DISTANCE_PRESETS[Number(event.target.value)];
+                  if (nextPreset) setDistancePresetId(nextPreset.id);
+                }}
+                className="h-2 w-40 cursor-pointer appearance-none rounded-full bg-surface-variant/30 accent-primary sm:w-48"
+              />
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
+                Máximo
+              </span>
+            </div>
           </div>
-        )}
+        </div>
 
-        {run?.status === "COMPLETED" && (
-          <div className="flex items-center gap-3 rounded-[24px] success-surface p-5 shadow-elevation-2 animate-fade-in">
-            <div className="success-surface-strong flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
-              <CheckCircle2 className="h-6 w-6" />
-            </div>
-            <div>
-              <h4 className="text-base font-bold text-on-surface">Ejecución Completada</h4>
-              <p className="text-sm text-on-surface-variant">Esta corrida ha terminado y ha sido registrada como completada con éxito.</p>
-            </div>
-          </div>
-        )}
-
-        {run?.status === "CANCELLED" && (
-          <div className="danger-surface flex items-center gap-3 rounded-[24px] p-5 shadow-elevation-2 animate-fade-in">
-            <div className="danger-surface-strong flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
-              <StopCircle className="h-6 w-6" />
-            </div>
-            <div>
-              <h4 className="text-base font-semibold font-bold">Ejecución Cancelada</h4>
-              <p className="text-sm">Esta corrida fue cancelada por el operador.</p>
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-3">
-          <section className="flex flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1">
-            <div className="relative h-[calc(100vh-400px)] min-h-[360px] w-full overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container xl:h-[calc(100vh-410px)]">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <section className="flex min-h-0 flex-1 flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1">
+            <div className="relative min-h-[55vh] flex-1 overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container lg:min-h-0">
               <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-primary/20 bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
                   {nodeLabel(currentNode)}
@@ -2164,54 +2069,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               )}
             </div>
           </section>
-
-          <section className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 shadow-elevation-1">
-            {showActivityDock ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                      <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Actividad reciente</p>
-                        <div className="mt-3 max-h-[220px] space-y-2 overflow-y-auto pr-2">
-                          {eventLog.length > 0 ? eventLog.map((event) => (
-                            <div key={event.id} className="rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-semibold text-on-surface">{event.eventType}</p>
-                                <span className="text-[11px] text-on-surface-variant">{formatDateTime(event.createdAt)}</span>
-                              </div>
-                              <p className="mt-1 text-xs text-on-surface-variant">Nodo {event.nodeId}</p>
-                            </div>
-                          )) : (
-                            <p className="text-sm text-on-surface-variant">Todavía no hay eventos en esta ejecución.</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Ruta visible</p>
-                        <div className="mt-3 max-h-[220px] space-y-2 overflow-y-auto pr-2">
-                          {orderedNodes.map((node) => {
-                            const status = nodeStates.get(node.id) ?? "locked";
-                            return (
-                              <div key={node.id} className={`rounded-xl border px-3 py-2 text-xs ${statusTone(status)}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="font-semibold text-on-surface">{nodeLabel(node)}</span>
-                                  <span className="uppercase tracking-[0.18em]">{node.type}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-              </div>
-            ) : null}
-          </section>
         </div>
       </div>
-        {isDualView ? (
+      {isDualView ? (
           <aside className="min-w-0 w-full lg:sticky lg:top-4 lg:self-start">
             <NarrativeAudioLibraryPanel />
           </aside>
         ) : null}
-      </div>
     </ReactFlowProvider>
     </NarrativePlayerContext.Provider>
   );
