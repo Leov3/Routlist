@@ -275,7 +275,7 @@ export function AudioBoard() {
         : "sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {headerSlot
         ? createPortal(
             <div className="flex w-full min-w-0 items-center justify-center">
@@ -301,12 +301,7 @@ export function AudioBoard() {
         : null}
 
       {viewMode === "simple" ? (
-        <section
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-4 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)] sm:p-5"
-          style={{
-            minHeight: "0",
-          }}
-        >
+        <section className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-4 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)] sm:p-5">
           <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center">
             <AudioSearch
               value={sideA.search}
@@ -367,7 +362,7 @@ export function AudioBoard() {
           </div>
         </section>
       ) : (
-        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden xl:grid-cols-2 2xl:gap-5">
+        <div className="grid h-full min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-2 2xl:gap-5">
           <BoardSidePanel
             title="Lado A"
             subtitle="Audios del lado A"

@@ -78,10 +78,7 @@ export function BoardSidePanel({
 
   return (
     <section
-      className={`flex h-full flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 ${toneClasses.panel}`}
-      style={{
-        minHeight: 0,
-      }}
+      className={`flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 ${toneClasses.panel}`}
     >
       <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
@@ -137,7 +134,7 @@ export function BoardSidePanel({
 
       <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1 pb-1 overscroll-contain">
         <div
-          className={`grid min-h-0 max-h-full gap-3 ${
+          className={`grid min-h-0 gap-3 ${
             density === "compact"
               ? "md:grid-cols-3 xl:grid-cols-3"
               : density === "large"
