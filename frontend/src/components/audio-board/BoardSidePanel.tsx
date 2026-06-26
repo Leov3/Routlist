@@ -135,9 +135,9 @@ export function BoardSidePanel({
         onQuickFilterChange={updateQuickFilter}
       />
 
-      <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1 pb-1 overscroll-contain">
         <div
-          className={`grid gap-3 ${
+          className={`grid min-h-0 gap-3 ${
             density === "compact"
               ? "md:grid-cols-3 xl:grid-cols-3"
               : density === "large"
