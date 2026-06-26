@@ -275,7 +275,7 @@ export function AudioBoard() {
         : "sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6";
 
   return (
-    <div className="flex min-h-[calc(100dvh-10rem)] flex-1 flex-col overflow-hidden pb-[190px]">
+    <div className="flex min-h-[calc(100dvh-10rem)] flex-1 flex-col overflow-hidden">
       {headerSlot
         ? createPortal(
             <div className="flex w-full min-w-0 items-center justify-center">
