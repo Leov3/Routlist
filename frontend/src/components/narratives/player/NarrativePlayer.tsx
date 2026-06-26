@@ -102,6 +102,8 @@ type DynamicAudioClip = {
   text: string;
 };
 
+type RightPanelTab = "details" | "library";
+
 function mapBoardButtonToAudioButtonDetail(button: BoardAudioButton): AudioButtonDetail {
   return {
     id: button.id,
@@ -207,6 +209,29 @@ function nodeSummary(node: NodeMeta | undefined) {
   }
 
   return "";
+}
+
+function nodeDetailMeta(node: NodeMeta | undefined) {
+  if (!node) return "";
+  const data = node.data ?? {};
+  if (node.type === "AUDIO_BUTTON") {
+    return String(data.categoryName ?? data.category ?? "Botonera");
+  }
+  if (node.type === "AUDIO") {
+    return data.audioAssetId ? "Audio asociado" : "Sin audio";
+  }
+  if (node.type === "DYNAMIC_AUDIO") {
+    const parts = [data.voiceId ? "Voz definida" : "", data.modelId ? "Modelo definido" : ""].filter(Boolean);
+    return parts.length ? parts.join(" · ") : "Audio dinámico";
+  }
+  if (node.type === "PAUSE") {
+    return data.manual === false && data.durationSeconds ? `${String(data.durationSeconds)} s` : "Pausa manual";
+  }
+  if (node.type === "DECISION") {
+    const rawOptions = Array.isArray(data.options) ? data.options.length : readDecisionLabels(data.options).length;
+    return rawOptions ? `${rawOptions} opción${rawOptions === 1 ? "" : "es"}` : "Sin opciones";
+  }
+  return String(data.description ?? "").trim();
 }
 
 function findOutgoingEdges(nodeId: string, edges: NarrativeGraphEdge[]) {
@@ -333,6 +358,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
+  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>("details");
   const [distancePresetId, setDistancePresetId] = useState<string>("max");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 0.8 });
@@ -380,6 +406,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : undefined;
   const actionNode = selectedNode ?? currentNode;
   const uiCurrentNodeId = selectedNodeId ?? run?.currentNodeId ?? null;
+  const rightPanelNode = selectedNode ?? currentNode;
 
   const distancePreset = useMemo(
     () => PLAYER_DISTANCE_PRESETS.find((preset) => preset.id === distancePresetId) ?? PLAYER_DISTANCE_PRESETS[PLAYER_DISTANCE_PRESETS.length - 1],
@@ -573,6 +600,12 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       setSelectedNodeId(currentNode.id);
     }
   }, [currentNode?.id, selectedNodeId]);
+
+  useEffect(() => {
+    if (!selectedNodeId && rightPanelTab !== "details") {
+      setRightPanelTab("details");
+    }
+  }, [rightPanelTab, selectedNodeId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1437,12 +1470,131 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     );
   }
 
+  function renderNodeDetails(node?: NodeMeta) {
+    if (!node) {
+      return (
+        <div className="flex min-h-[320px] items-center justify-center rounded-[24px] border border-dashed border-outline-variant bg-surface-container px-4 py-8 text-sm text-on-surface-variant">
+          Selecciona un nodo para ver sus detalles.
+        </div>
+      );
+    }
+
+    const status = nodeStates.get(node.id) ?? "locked";
+    const isCurrentNode = node.id === run?.currentNodeId;
+    const data = node.data ?? {};
+    const title = nodeLabel(node);
+    const typeLabel = node.type;
+    const fullText = String(
+      data.body ??
+        data.instruction ??
+        data.template ??
+        data.question ??
+        data.description ??
+        data.label ??
+        "",
+    ).trim();
+    const audioAssetId = node.type === "AUDIO"
+      ? String(data.audioAssetId ?? "")
+      : node.type === "AUDIO_BUTTON"
+        ? String(data.audioButtonId ?? "")
+        : "";
+    const audioDetail = node.type === "AUDIO_BUTTON" && audioAssetId ? currentButtonDetails ?? audioButtonDetailsById[audioAssetId] ?? null : null;
+
+    return (
+      <div className="space-y-4">
+        <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">Detalles del nodo</p>
+              <h3 className="mt-1 truncate text-lg font-semibold text-on-surface">{title}</h3>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">{typeLabel}</p>
+            </div>
+            <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${status === "current" ? "border-primary/25 bg-primary-container text-on-primary-container" : status === "completed" ? "success-surface" : status === "available" ? "border-outline-variant bg-surface-container-high text-on-surface" : status === "error" ? "danger-surface" : "border-outline-variant bg-surface-container text-on-surface-variant"}`}>
+              {status}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-3 text-sm">
+            {fullText ? (
+              <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">Texto completo</p>
+                <p className="mt-2 whitespace-pre-wrap leading-6 text-on-surface">{fullText}</p>
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">Vista previa</p>
+              <p className="mt-2 leading-6 text-on-surface-variant">
+                {nodeSummary(node) || "Sin vista previa"}
+              </p>
+            </div>
+
+            <div className="grid gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-xs text-on-surface-variant">
+              {node.type === "AUDIO_BUTTON" ? (
+                <p>Audio asociado: <span className="font-semibold text-on-surface">{audioDetail?.audioAsset?.originalName ?? "Pendiente"}</span></p>
+              ) : node.type === "AUDIO" ? (
+                <p>Audio asociado: <span className="font-semibold text-on-surface">{audioAssetId || "Pendiente"}</span></p>
+              ) : node.type === "PAUSE" ? (
+                <p>Duración: <span className="font-semibold text-on-surface">{data.durationSeconds ? `${String(data.durationSeconds)}s` : "Manual"}</span></p>
+              ) : node.type === "DECISION" ? (
+                <p>Opciones: <span className="font-semibold text-on-surface">{nodeDetailMeta(node as NodeMeta)}</span></p>
+              ) : (
+                <p>Metadata: <span className="font-semibold text-on-surface">{nodeDetailMeta(node as NodeMeta) || "Sin datos"}</span></p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void copyNodeText(node.id)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+            >
+              <Copy className="h-4 w-4" />
+              Copiar texto
+            </button>
+            {node.type === "AUDIO" || node.type === "AUDIO_BUTTON" ? (
+              <button
+                type="button"
+                onClick={() => void startAudioPlayback(node.id)}
+                disabled={working || run?.status !== "RUNNING"}
+                className="inline-flex items-center gap-2 rounded-2xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Play className="h-4 w-4 fill-current" />
+                Reproducir audio
+              </button>
+            ) : null}
+            {isCurrentNode && node.type !== "START" && node.type !== "INSTRUCTION" ? (
+              <button
+                type="button"
+                onClick={() => void completeCurrentNode(false)}
+                className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+              >
+                <ArrowRight className="h-4 w-4" />
+                Avanzar
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {node.type === "AUDIO_BUTTON" || node.type === "AUDIO" ? (
+          <div className="rounded-[24px] border border-outline-variant bg-surface-container p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">Reproducción</p>
+            <div className="mt-3">{renderAudioControls("Reproducir audio")}</div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <NarrativePlayerContext.Provider
       value={{
         playbackState,
         working,
         currentNodeId: uiCurrentNodeId,
+        selectedNodeId,
+        zoom: canvasViewport.zoom,
         startAudioPlayback,
         pauseAudio,
         resumeAudio,
@@ -1454,13 +1606,19 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         setMessage,
         selectNode: (nodeId: string) => {
           setSelectedNodeId(nodeId);
+          setRightPanelTab("details");
           setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
         },
         openNodeMenu: (nodeId: string) => {
           setSelectedNodeId(nodeId);
+          setRightPanelTab("details");
           const x = typeof window !== "undefined" ? Math.max(24, window.innerWidth / 2 - 160) : 160;
           const y = typeof window !== "undefined" ? Math.max(100, window.innerHeight / 2 - 180) : 120;
           setContextMenu({ isOpen: true, x, y, nodeId });
+        },
+        openNodeDetails: (nodeId: string) => {
+          setSelectedNodeId(nodeId);
+          setRightPanelTab("details");
         },
       }}
     >
@@ -1532,6 +1690,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 nodeTypes={playerNodeTypes}
                 onNodeClick={(_, node) => {
                   setSelectedNodeId(node.id);
+                  setRightPanelTab("details");
                   setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
                   if (node.type === "AUDIO_BUTTON") {
                     void startAudioPlayback(node.id);
@@ -1956,7 +2115,40 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         </div>
         {isDualView ? (
           <aside className="min-w-0 self-stretch lg:sticky lg:top-4 lg:self-start">
-            <NarrativeAudioLibraryPanel />
+            <section className="flex h-full min-h-[560px] flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-4 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)]">
+              <div className="flex items-center gap-2 rounded-[20px] border border-outline-variant bg-surface p-1">
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab("details")}
+                  className={`flex-1 rounded-[16px] px-3 py-2 text-sm font-semibold transition-colors ${
+                    rightPanelTab === "details"
+                      ? "bg-primary text-on-primary"
+                      : "text-on-surface-variant hover:bg-surface-container"
+                  }`}
+                >
+                  Detalles del nodo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab("library")}
+                  className={`flex-1 rounded-[16px] px-3 py-2 text-sm font-semibold transition-colors ${
+                    rightPanelTab === "library"
+                      ? "bg-primary text-on-primary"
+                      : "text-on-surface-variant hover:bg-surface-container"
+                  }`}
+                >
+                  Botonera auxiliar
+                </button>
+              </div>
+
+              <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+                {rightPanelTab === "details" ? (
+                  renderNodeDetails(rightPanelNode)
+                ) : (
+                  <NarrativeAudioLibraryPanel />
+                )}
+              </div>
+            </section>
           </aside>
         ) : null}
       </div>
