@@ -1,12 +1,13 @@
 "use client";
 
 import { ArrowLeftRight } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { AudioButton } from "./AudioButton";
 import { AudioSearch } from "./AudioSearch";
 import { BoardFilterChips } from "./BoardFilterChips";
 import { BoardMoreFiltersMenu } from "./BoardMoreFiltersMenu";
 import { filterBoardButtons, type BoardButton, type BoardCategoryOption, type BoardSideState } from "./board-ui";
+import { useBoardListHeight } from "./useBoardListHeight";
 import type { BoardDensity } from "@/types/routlis";
 
 export function BoardSidePanel({
@@ -44,6 +45,8 @@ export function BoardSidePanel({
   onSideChange: (next: BoardSideState) => void;
   density: BoardDensity;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const listStyle = useBoardListHeight(listRef);
   const filteredButtons = useMemo(
     () =>
       filterBoardButtons({
@@ -132,7 +135,11 @@ export function BoardSidePanel({
         onQuickFilterChange={updateQuickFilter}
       />
 
-      <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1 pb-1 overscroll-contain">
+      <div
+        ref={listRef}
+        style={listStyle}
+        className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1 pb-1 overscroll-contain"
+      >
         <div
           className={`grid min-h-0 gap-3 ${
             density === "compact"

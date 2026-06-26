@@ -20,6 +20,7 @@ import { BoardFilterChips } from "./BoardFilterChips";
 import { BoardMoreFiltersMenu } from "./BoardMoreFiltersMenu";
 import { BoardSidePanel } from "./BoardSidePanel";
 import { BoardViewModeToggle } from "./BoardViewModeToggle";
+import { useBoardListHeight } from "./useBoardListHeight";
 import {
   createDefaultSideState,
   filterBoardButtons,
@@ -51,6 +52,8 @@ export function AudioBoard() {
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const playback = useAudioPlayback(volume);
   const saveTimerRef = useRef<number | null>(null);
+  const simpleListRef = useRef<HTMLDivElement>(null);
+  const simpleListStyle = useBoardListHeight(simpleListRef);
 
   useEffect(() => {
     setHeaderSlot(document.getElementById("board-header-slot"));
@@ -275,7 +278,7 @@ export function AudioBoard() {
         : "sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6";
 
   return (
-    <div className="flex h-[calc(100dvh-10rem)] min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {headerSlot
         ? createPortal(
             <div className="flex w-full min-w-0 items-center justify-center">
@@ -328,7 +331,11 @@ export function AudioBoard() {
             />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-1 overscroll-contain">
+          <div
+            ref={simpleListRef}
+            style={simpleListStyle}
+            className="min-h-0 flex-1 overflow-y-auto pr-1 pb-1 overscroll-contain"
+          >
             {simpleVisibleButtons.length ? (
               <div className={`grid min-h-0 gap-3 ${gridClass}`}>
                 {simpleVisibleButtons.map((button) => (

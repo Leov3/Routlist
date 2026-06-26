@@ -89,6 +89,7 @@ export function AudioPlayerBar({
 
   return (
     <div
+      data-audio-player-bar
       className={`fixed bottom-5 left-[calc(var(--routlis-sidebar-width)+20px)] right-5 z-50 overflow-hidden rounded-[26px] border border-outline-variant backdrop-blur-xl transition-all duration-300 ${
         active
           ? "shadow-[0_24px_70px_rgba(0,0,0,.36)]"
