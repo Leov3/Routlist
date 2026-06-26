@@ -7,6 +7,10 @@ Aplicación modular para gestionar y reproducir audios pregrabados desde una bot
 Routlis 1.1 alinea el flujo local y el VPS para que el deploy sea reproducible, seguro y sin perdida de datos persistentes.
 La rama `easypanel` queda reservada para el despliegue conectado a Easypanel.
 
+Politica de sincronizacion de ramas:
+
+- [docs/branch-alignment-policy.md](docs/branch-alignment-policy.md)
+
 Esta release deja listos:
 
 - login y autenticacion
