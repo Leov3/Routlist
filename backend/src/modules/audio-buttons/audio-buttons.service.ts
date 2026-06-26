@@ -32,6 +32,10 @@ export class AudioButtonsService {
     }).then((buttons) => buttons.map((button) => this.serializeButton(button)));
   }
 
+  findOne(user: AuthenticatedUser, id: string) {
+    return this.findSerializableButton(user, id);
+  }
+
   async board(user: AuthenticatedUser) {
     const favorites = await this.prisma.audioButtonFavorite.findMany({
       where: {
@@ -296,11 +300,17 @@ export class AudioButtonsService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.playbackEvent.deleteMany({
-        where: { audioButtonId: id },
+        where: {
+          audioButtonId: id,
+          organizationId: user.organizationId,
+        },
       });
 
-      await tx.audioButton.delete({
-        where: { id },
+      await tx.audioButton.deleteMany({
+        where: {
+          id,
+          organizationId: user.organizationId,
+        },
       });
     });
 

@@ -1,18 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
+  Background,
+  Controls,
+  Position,
+  ReactFlow,
+  ReactFlowProvider,
+  type Edge,
+  type Node,
+  type ReactFlowInstance,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+
+import {
   ArrowRight,
+  Copy,
   CheckCircle2,
+  Lock,
   Play,
   Pause,
-  RotateCcw,
   Square,
-  SkipForward,
-  StopCircle,
   TriangleAlert,
+  WandSparkles,
 } from "lucide-react";
 import { api, apiUrl } from "@/lib/api";
 import type {
@@ -23,24 +35,121 @@ import type {
   NarrativeRunDetail,
   NarrativeRunEventType,
 } from "@/types/narratives";
+import type { BoardAudioButton, BoardCategory } from "@/types/routlis";
 import { ApiError } from "@/lib/api";
+import { AudioButtonDetailsModal } from "@/components/audio-board/AudioButtonDetailsModal";
+import { NarrativeAudioLibraryPanel } from "./NarrativeAudioLibraryPanel";
+import {
+  NarrativePlayerContext,
+  playerNodeTypes,
+  type AudioButtonDetail,
+  type AudioPlaybackState,
+  type DecisionChoice,
+  type PlayerFlowNodeData,
+  type PlayerNodeState,
+} from "@/components/narratives/player/nodes/playerNodeTypes";
 
 type NarrativePlayerProps = {
   runId: string;
   onReloadRequest?: () => void;
 };
 
-type NodeActionState = {
-  label: string;
-  targetNodeId?: string;
-  eventType?: NarrativeRunEventType;
-};
-
-type StepStatus = "completed" | "current" | "pending";
+type PlayerEdgeState = "traversed" | "active" | "pending" | "not-taken";
 
 type NodeMeta = NarrativeGraphNode & {
   data?: Record<string, unknown>;
 };
+
+type ContextMenuState = {
+  isOpen: boolean;
+  x: number;
+  y: number;
+  nodeId: string | null;
+};
+
+type LayoutDistancePreset = {
+  id: string;
+  label: string;
+  xScale: number;
+  yScale: number;
+};
+
+type LayoutPosition = {
+  x: number;
+  y: number;
+};
+
+type NarrativePlayerPreferences = {
+  playerDistance?: string;
+  playerViewportX?: number;
+  playerViewportY?: number;
+  playerViewportZoom?: number;
+};
+
+type DynamicAudioGenerationResponse = {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  audioBase64: string;
+};
+
+type DynamicAudioClip = {
+  objectUrl: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  generatedAt: string;
+  text: string;
+};
+
+function mapBoardButtonToAudioButtonDetail(button: BoardAudioButton): AudioButtonDetail {
+  return {
+    id: button.id,
+    label: button.label,
+    category: button.category ? { name: button.category.name } : null,
+    shortcutKey: button.shortcutKey ?? null,
+    description: button.description ?? null,
+    color: button.color ?? null,
+    audioAsset: {
+      originalName: button.audioAsset.originalName,
+    },
+    audioAssetId: button.audioAsset.id,
+    imageUrl: button.imageUrl ?? null,
+    imagePublicUrl: button.imageUrl ?? null,
+  };
+}
+
+const DEFAULT_NARRATIVE_DISTANCE = "max";
+const PLAYER_DISTANCE_PRESETS: LayoutDistancePreset[] = [
+  { id: "compact", label: "Cerca", xScale: 0.92, yScale: 1.22 },
+  { id: "tight", label: "Tenso", xScale: 1.08, yScale: 1.42 },
+  { id: "normal", label: "Normal", xScale: 1.22, yScale: 1.68 },
+  { id: "wide", label: "Amplio", xScale: 1.35, yScale: 1.88 },
+  { id: "max", label: "Máximo", xScale: 1.45, yScale: 2.05 },
+];
+
+const PLAYER_NODE_SIZES: Record<string, { width: number; height: number }> = {
+  START: { width: 220, height: 88 },
+  END: { width: 220, height: 88 },
+  AUDIO: { width: 280, height: 150 },
+  AUDIO_BUTTON: { width: 280, height: 150 },
+  DYNAMIC_AUDIO: { width: 330, height: 190 },
+  SCRIPT_TEXT: { width: 320, height: 200 },
+  INSTRUCTION: { width: 300, height: 190 },
+  PAUSE: { width: 240, height: 120 },
+  DECISION: { width: 320, height: 180 },
+};
+
+const PLAYER_LAYOUT_GAP = {
+  x: 380,
+  y: 280,
+  annotationX: 340,
+  annotationY: 210,
+};
+
+function getPlayerNodeSize(node: NodeMeta) {
+  return PLAYER_NODE_SIZES[node.type] ?? { width: 280, height: 160 };
+}
 
 function readGraph(graphJson?: NarrativeGraphJson | null) {
   const nodes = Array.isArray(graphJson?.nodes) ? graphJson!.nodes : [];
@@ -57,6 +166,7 @@ function nodeLabel(node: NodeMeta | undefined) {
       START: "Inicio",
       AUDIO: "Audio",
       AUDIO_BUTTON: "Botón de Audio",
+      DYNAMIC_AUDIO: "Audio dinámico IA",
       SCRIPT_TEXT: "Texto / Guion",
       INSTRUCTION: "Instrucción",
       PAUSE: "Pausa",
@@ -78,6 +188,9 @@ function nodeSummary(node: NodeMeta | undefined) {
   if (nodeType === "AUDIO_BUTTON") {
     return data.audioButtonId ? `Botón ${String(data.audioButtonId)}` : "Sin botón asignado";
   }
+  if (nodeType === "DYNAMIC_AUDIO") {
+    return data.template ? String(data.template) : "Sin plantilla";
+  }
   if (nodeType === "SCRIPT_TEXT") {
     return data.body ? String(data.body) : "Sin texto";
   }
@@ -96,24 +209,45 @@ function nodeSummary(node: NodeMeta | undefined) {
   return "";
 }
 
-function nodeStatus(nodeId: string, completedIds: Set<string>, currentNodeId?: string | null) {
-  if (currentNodeId === nodeId) return "current" as const;
-  if (completedIds.has(nodeId)) return "completed" as const;
-  return "pending" as const;
-}
-
-function statusTone(status: StepStatus) {
-  if (status === "completed") {
-    return "border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:border-emerald-900/50 dark:text-emerald-300";
-  }
-  if (status === "current") {
-    return "border-primary/30 bg-primary/10 text-primary";
-  }
-  return "border-outline-variant bg-surface-container text-on-surface-variant";
-}
-
 function findOutgoingEdges(nodeId: string, edges: NarrativeGraphEdge[]) {
   return edges.filter((edge) => edge.source === nodeId);
+}
+
+function findIncomingEdges(nodeId: string, edges: NarrativeGraphEdge[]) {
+  return edges.filter((edge) => edge.target === nodeId);
+}
+
+function isAnnotationNodeType(type?: NarrativeNodeType) {
+  return type === "INSTRUCTION";
+}
+
+function isFlowNodeType(type?: NarrativeNodeType) {
+  return Boolean(type && !isAnnotationNodeType(type));
+}
+
+function getExecutionEdges(nodes: NodeMeta[], edges: NarrativeGraphEdge[]) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+  const annotationEdge = (edge: NarrativeGraphEdge) =>
+    isAnnotationNodeType(nodeById.get(edge.source)?.type as NarrativeNodeType | undefined) ||
+    isAnnotationNodeType(nodeById.get(edge.target)?.type as NarrativeNodeType | undefined);
+
+  const directFlowEdges = edges.filter((edge) => !annotationEdge(edge));
+  const bypassEdges = nodes
+    .filter((node) => isAnnotationNodeType(node.type as NarrativeNodeType))
+    .flatMap((node) => {
+      const incoming = edges.filter((edge) => edge.target === node.id && isFlowNodeType(nodeById.get(edge.source)?.type as NarrativeNodeType | undefined));
+      const outgoing = edges.filter((edge) => edge.source === node.id && isFlowNodeType(nodeById.get(edge.target)?.type as NarrativeNodeType | undefined));
+      return incoming.flatMap((input) =>
+        outgoing.map((output) => ({
+          id: `annotation-bypass:${input.id}:${output.id}`,
+          source: input.source,
+          target: output.target,
+          label: input.label,
+        })),
+      );
+    });
+
+  return [...directFlowEdges, ...bypassEdges];
 }
 
 function formatDateTime(value?: string | null) {
@@ -126,20 +260,101 @@ function formatDateTime(value?: string | null) {
   });
 }
 
+function readDecisionLabels(value: unknown) {
+  if (typeof value === "string") {
+    return value.split("|").map((item) => item.trim()).filter(Boolean);
+  }
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) =>
+      typeof item === "string"
+        ? item.trim()
+        : item && typeof item === "object" && "label" in item
+          ? String(item.label ?? "").trim()
+          : "",
+    )
+    .filter(Boolean);
+}
+
+function extractDynamicAudioVariables(template: string) {
+  const variables = new Set<string>();
+  const pattern = /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(template))) {
+    variables.add(match[1]);
+  }
+
+  return Array.from(variables);
+}
+
+function normalizeDynamicAudioTemplate(template: string) {
+  return template
+    .replace(/<\s*([A-Za-z][A-Za-z0-9_-]*)\s*>/g, "{{$1}}")
+    .replace(/{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g, "{{$1}}");
+}
+
+function resolveDynamicAudioTemplate(template: string, values: Record<string, string>) {
+  return normalizeDynamicAudioTemplate(template).replace(
+    /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g,
+    (_match, variable: string) => values[variable]?.trim() || `{{${variable}}}`,
+  );
+}
+
+function buildDynamicAudioObjectUrl(contentType: string, base64: string) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return URL.createObjectURL(new Blob([bytes], { type: contentType }));
+}
+
 export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const reactFlowRef = useRef<ReactFlowInstance<Node<PlayerFlowNodeData>, Edge> | null>(null);
+  const hasFitViewRef = useRef(false);
+  const [reactFlowReady, setReactFlowReady] = useState(false);
+  const dynamicAudioClipsRef = useRef<Record<string, DynamicAudioClip | null>>({});
   const [run, setRun] = useState<NarrativeRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [runCompleted, setRunCompleted] = useState(false);
-  const [selectedDecisionTarget, setSelectedDecisionTarget] = useState<string | null>(null);
-  const [currentButtonDetails, setCurrentButtonDetails] = useState<any>(null);
+  const [playbackState, setPlaybackState] = useState<AudioPlaybackState>("idle");
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [audioButtonDetailsById, setAudioButtonDetailsById] = useState<Record<string, AudioButtonDetail>>({});
+  const [currentButtonDetails, setCurrentButtonDetails] = useState<AudioButtonDetail | null>(null);
+  const [buttonBoardModalButton, setButtonBoardModalButton] = useState<BoardAudioButton | null>(null);
+  const [dynamicAudioDrafts, setDynamicAudioDrafts] = useState<Record<string, Record<string, string>>>({});
+  const [dynamicAudioClips, setDynamicAudioClips] = useState<Record<string, DynamicAudioClip | null>>({});
+  const [dynamicAudioGeneratingNodeId, setDynamicAudioGeneratingNodeId] = useState<string | null>(null);
+  const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
+  const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
+  const [distancePresetId, setDistancePresetId] = useState<string>("max");
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0, zoom: 0.8 });
+  const savePreferencesTimerRef = useRef<number | null>(null);
+  const selectedDecisionTargetRef = useRef<string | null>(null);
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
-  function handleApiError(error: unknown, fallbackMessage: string) {
+  useEffect(() => {
+    dynamicAudioClipsRef.current = dynamicAudioClips;
+  }, [dynamicAudioClips]);
+
+  useEffect(() => {
+    return () => {
+      for (const clip of Object.values(dynamicAudioClipsRef.current)) {
+        if (clip?.objectUrl) {
+          URL.revokeObjectURL(clip.objectUrl);
+        }
+      }
+    };
+  }, []);
+
+  const handleApiError = useCallback((error: unknown, fallbackMessage: string) => {
     if (error instanceof ApiError) {
       if (error.status === 401) {
         router.replace("/login");
@@ -152,25 +367,278 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
 
     return error instanceof Error ? error.message : fallbackMessage;
-  }
+  }, [router]);
 
   const { nodes, edges } = useMemo(() => readGraph(run?.narrativeVersion.graphJson ?? null), [run]);
   const nodeMap = useMemo(
     () => new Map(nodes.map((node) => [node.id, node] as const)),
     [nodes],
   );
+  const executionEdges = useMemo(() => getExecutionEdges(nodes, edges), [edges, nodes]);
 
   const currentNode = run?.currentNodeId ? nodeMap.get(run.currentNodeId) : undefined;
-  
+  const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : undefined;
+  const actionNode = selectedNode ?? currentNode;
+  const uiCurrentNodeId = selectedNodeId ?? run?.currentNodeId ?? null;
+
+  const distancePreset = useMemo(
+    () => PLAYER_DISTANCE_PRESETS.find((preset) => preset.id === distancePresetId) ?? PLAYER_DISTANCE_PRESETS[PLAYER_DISTANCE_PRESETS.length - 1],
+    [distancePresetId],
+  );
+
+  const layoutPositions = useMemo(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+    const root = nodes.find((node) => node.type === "START") ?? nodes[0];
+    const flowNodeIds = new Set(
+      nodes.filter((node) => node.type !== "INSTRUCTION").map((node) => node.id),
+    );
+    const childrenById = new Map<string, string[]>();
+    const parentsById = new Map<string, string[]>();
+    const depthById = new Map<string, number>();
+    const positions = new Map<string, LayoutPosition>();
+    const sortedNodeIds = [...flowNodeIds].sort((a, b) => a.localeCompare(b));
+
+    for (const nodeId of sortedNodeIds) {
+      childrenById.set(nodeId, []);
+      parentsById.set(nodeId, []);
+    }
+
+    for (const edge of executionEdges) {
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      if (!source || !target || source.type === "INSTRUCTION" || target.type === "INSTRUCTION") continue;
+      const children = childrenById.get(source.id) ?? [];
+      if (!children.includes(target.id)) children.push(target.id);
+      childrenById.set(source.id, children);
+      const parents = parentsById.get(target.id) ?? [];
+      if (!parents.includes(source.id)) parents.push(source.id);
+      parentsById.set(target.id, parents);
+    }
+
+    const assignDepth = (nodeId: string, nextDepth: number, trail = new Set<string>()) => {
+      const current = depthById.get(nodeId);
+      if (current === undefined || nextDepth > current) {
+        depthById.set(nodeId, nextDepth);
+      }
+      if (trail.has(nodeId)) return;
+      trail.add(nodeId);
+      for (const childId of childrenById.get(nodeId) ?? []) {
+        assignDepth(childId, nextDepth + 1, trail);
+      }
+      trail.delete(nodeId);
+    };
+
+    if (root) assignDepth(root.id, 0);
+    for (const nodeId of sortedNodeIds) {
+      if (!depthById.has(nodeId)) assignDepth(nodeId, 0);
+    }
+
+    const nodesByDepth = new Map<number, string[]>();
+    for (const nodeId of sortedNodeIds) {
+      const depth = depthById.get(nodeId) ?? 0;
+      const bucket = nodesByDepth.get(depth) ?? [];
+      bucket.push(nodeId);
+      nodesByDepth.set(depth, bucket);
+    }
+
+    const maxDepth = Math.max(...Array.from(nodesByDepth.keys()), 0);
+    const maxWidth = Math.max(...nodes.map((node) => getPlayerNodeSize(node).width), 320);
+    const minStepX = Math.max(maxWidth + 120, PLAYER_LAYOUT_GAP.x) * distancePreset.xScale;
+    const minStepY = Math.max(220, PLAYER_LAYOUT_GAP.y) * distancePreset.yScale;
+    const rowEntries = new Map<number, Array<{ nodeId: string; width: number; desiredX: number }>>();
+
+    for (let depth = maxDepth; depth >= 0; depth -= 1) {
+      const row = nodesByDepth.get(depth) ?? [];
+      row.sort((a, b) => a.localeCompare(b));
+
+      for (const nodeId of row) {
+        const node = nodeById.get(nodeId);
+        if (!node) continue;
+        const size = getPlayerNodeSize(node);
+        const children = (childrenById.get(nodeId) ?? []).filter((childId) => flowNodeIds.has(childId));
+        const entry = rowEntries.get(depth) ?? [];
+        rowEntries.set(depth, entry);
+
+        let desiredX = entry.length * minStepX;
+        if (children.length) {
+          const childCenters = children
+            .map((childId) => {
+              const childPosition = positions.get(childId);
+              const childNode = nodeById.get(childId);
+              if (!childPosition || !childNode) return null;
+              return childPosition.x + getPlayerNodeSize(childNode).width / 2;
+            })
+            .filter((value): value is number => value !== null);
+          if (childCenters.length) {
+            desiredX = childCenters.reduce((sum, value) => sum + value, 0) / childCenters.length - size.width / 2;
+          }
+        } else {
+          const parentCenters = (parentsById.get(nodeId) ?? [])
+            .map((parentId) => {
+              const parentPosition = positions.get(parentId);
+              const parentNode = nodeById.get(parentId);
+              if (!parentPosition || !parentNode) return null;
+              return parentPosition.x + getPlayerNodeSize(parentNode).width / 2;
+            })
+            .filter((value): value is number => value !== null);
+          if (parentCenters.length) {
+            desiredX = parentCenters.reduce((sum, value) => sum + value, 0) / parentCenters.length - size.width / 2;
+          }
+        }
+
+        entry.push({ nodeId, width: size.width, desiredX });
+      }
+    }
+
+    for (const [depth, row] of rowEntries.entries()) {
+      row.sort((a, b) => a.desiredX - b.desiredX || a.nodeId.localeCompare(b.nodeId));
+      let cursorX = 0;
+      for (const entry of row) {
+        const node = nodeById.get(entry.nodeId);
+        if (!node) continue;
+        const width = entry.width;
+        const x = Math.max(entry.desiredX, cursorX);
+        positions.set(entry.nodeId, { x, y: depth * minStepY });
+        cursorX = x + width + minStepX * 0.35;
+      }
+    }
+
+    const annotationBySource = new Map<string, NodeMeta[]>();
+    for (const node of nodes) {
+      if (node.type !== "INSTRUCTION") continue;
+      const incoming = findIncomingEdges(node.id, edges)
+        .map((edge) => nodeById.get(edge.source))
+        .filter((source): source is NodeMeta => Boolean(source && source.type !== "INSTRUCTION"));
+      const source = incoming[0] ?? root;
+      if (!source) continue;
+      const bucket = annotationBySource.get(source.id) ?? [];
+      bucket.push(node);
+      annotationBySource.set(source.id, bucket);
+    }
+
+    for (const [sourceId, instructionNodes] of annotationBySource.entries()) {
+      const sourcePosition = positions.get(sourceId);
+      if (!sourcePosition) continue;
+      const sourceNode = nodeById.get(sourceId);
+      const sourceWidth = sourceNode ? getPlayerNodeSize(sourceNode).width : maxWidth;
+      instructionNodes.sort((a, b) => a.id.localeCompare(b.id));
+      instructionNodes.forEach((node, index) => {
+        const sourceOriginal = nodeById.get(sourceId)?.position;
+        const instructionOriginal = node.position;
+        const relativeX = sourceOriginal && instructionOriginal ? instructionOriginal.x - sourceOriginal.x : sourceWidth + PLAYER_LAYOUT_GAP.annotationX;
+        const relativeY = sourceOriginal && instructionOriginal ? instructionOriginal.y - sourceOriginal.y : index * PLAYER_LAYOUT_GAP.annotationY;
+        positions.set(node.id, {
+          x: sourcePosition.x + relativeX * distancePreset.xScale,
+          y: sourcePosition.y + relativeY * distancePreset.yScale,
+        });
+      });
+    }
+
+    const rowWidths = Array.from(rowEntries.entries()).map(([depth, row]) => ({
+      depth,
+      width: row.reduce((sum, entry) => sum + entry.width, 0) + Math.max(0, row.length - 1) * minStepX * 0.35,
+    }));
+    const widestRow = Math.max(...rowWidths.map((row) => row.width), minStepX);
+    const centeredOffset = widestRow / 2;
+
+    const boxes = Array.from(positions.entries())
+      .map(([nodeId, position]) => {
+        const node = nodeById.get(nodeId);
+        if (!node) return null;
+        const size = getPlayerNodeSize(node);
+        return {
+          left: position.x,
+          right: position.x + size.width,
+        };
+      })
+      .filter((value): value is { left: number; right: number } => value !== null);
+    const minLeft = boxes.length ? Math.min(...boxes.map((box) => box.left)) : 0;
+    const maxRight = boxes.length ? Math.max(...boxes.map((box) => box.right)) : 0;
+    const centerOffsetX = (minLeft + maxRight) / 2;
+
+    if (boxes.length) {
+      for (const [nodeId, position] of positions.entries()) {
+        positions.set(nodeId, {
+          x: position.x - centerOffsetX + centeredOffset,
+          y: position.y,
+        });
+      }
+    }
+
+    return positions;
+  }, [distancePreset.xScale, distancePreset.yScale, edges, executionEdges, nodes]);
+
   useEffect(() => {
-    if (currentNode?.type === "AUDIO_BUTTON" && currentNode.data?.audioButtonId) {
-      api(`/audio-buttons/${currentNode.data.audioButtonId}`)
-        .then(res => setCurrentButtonDetails(res))
-        .catch(err => console.error("Error loading button details", err));
+    if (!selectedNodeId && currentNode?.id) {
+      setSelectedNodeId(currentNode.id);
+    }
+  }, [currentNode?.id, selectedNodeId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadButtonCatalog() {
+      if (!nodes.some((node) => node.type === "AUDIO_BUTTON")) {
+        setAudioButtonDetailsById({});
+        return;
+      }
+
+      try {
+        const boardData = await api<BoardCategory[]>("/audio-buttons/board");
+        if (cancelled) return;
+
+        const nextMap: Record<string, AudioButtonDetail> = {};
+
+        for (const category of boardData) {
+          for (const button of category.buttons ?? []) {
+            nextMap[button.id] = mapBoardButtonToAudioButtonDetail(button);
+          }
+        }
+
+        setAudioButtonDetailsById(nextMap);
+      } catch {
+        if (!cancelled) {
+          setAudioButtonDetailsById({});
+        }
+      }
+    }
+
+    void loadButtonCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nodes]);
+
+  useEffect(() => {
+    const actionData = actionNode?.data;
+    const audioButtonId = actionNode?.type === "AUDIO_BUTTON" && actionData?.audioButtonId
+      ? String(actionData.audioButtonId)
+      : "";
+
+    if (audioButtonId) {
+      const cachedDetails = audioButtonDetailsById[audioButtonId];
+      if (cachedDetails) {
+        setCurrentButtonDetails(cachedDetails);
+        return;
+      }
+
+      setCurrentButtonDetails({
+        id: audioButtonId,
+        label: String(actionData?.label ?? actionData?.title ?? "Botón de audio"),
+        category: null,
+        shortcutKey: null,
+        description: typeof actionData?.description === "string" ? actionData.description : null,
+        color: null,
+        audioAsset: null,
+        audioAssetId: typeof actionData?.audioAssetId === "string" ? actionData.audioAssetId : null,
+        imageUrl: null,
+        imagePublicUrl: null,
+      });
     } else {
       setCurrentButtonDetails(null);
     }
-  }, [currentNode]);
+  }, [actionNode, audioButtonDetailsById]);
 
   const completedIds = useMemo(() => {
     const ids = new Set<string>();
@@ -182,41 +650,172 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     return ids;
   }, [run?.events]);
 
-  const currentStatus = currentNode ? nodeStatus(currentNode.id, completedIds, run?.currentNodeId) : "pending";
-  const outgoing = currentNode ? findOutgoingEdges(currentNode.id, edges) : [];
-  const decisionChoices = currentNode?.type === "DECISION"
-    ? outgoing.map((edge) => ({
-        label: edge.label?.trim() || "Opción",
-        targetNodeId: edge.target,
-      }))
-    : [];
-
-  const orderedNodes = useMemo(() => {
-    if (!nodes.length) return [];
-
-    const byId = new Map(nodes.map((node) => [node.id, node] as const));
-    const startingNode = nodes.find((node) => node.type === "START") ?? nodes[0];
-    const result: NodeMeta[] = [];
-    const visited = new Set<string>();
-    let currentId: string | undefined = startingNode?.id;
-
-    while (currentId && !visited.has(currentId)) {
-      const node = byId.get(currentId);
-      if (!node) break;
-      result.push(node);
-      visited.add(currentId);
-      const next = edges.find((edge) => edge.source === currentId);
-      currentId = next?.target;
-    }
-
-    for (const node of nodes) {
-      if (!visited.has(node.id)) {
-        result.push(node);
+  const skippedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const event of run?.events ?? []) {
+      if (event.eventType === "NODE_SKIPPED") {
+        ids.add(event.nodeId);
       }
     }
+    return ids;
+  }, [run?.events]);
 
-    return result;
-  }, [edges, nodes]);
+  const selectedDecisionTargets = useMemo(() => {
+    const targets = new Map<string, string>();
+    for (const event of run?.events ?? []) {
+      if (event.eventType === "DECISION_SELECTED") {
+        const targetNodeId = typeof event.payload?.targetNodeId === "string" ? event.payload.targetNodeId : undefined;
+        if (targetNodeId) {
+          targets.set(event.nodeId, targetNodeId);
+        }
+      }
+    }
+    return targets;
+  }, [run?.events]);
+
+  const availableIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!currentNode) return ids;
+    ids.add(currentNode.id);
+    for (const edge of executionEdges) {
+      if (edge.source === currentNode.id) {
+        ids.add(edge.target);
+      }
+    }
+    return ids;
+  }, [currentNode, executionEdges]);
+
+  const nodeStates = useMemo(() => {
+    const states = new Map<string, PlayerNodeState>();
+    for (const node of nodes) {
+      const data = node.data ?? {};
+      const type = node.type as NarrativeNodeType;
+      let state: PlayerNodeState = "locked";
+
+      const hasError =
+        (type === "AUDIO" && !data.audioAssetId) ||
+        (type === "AUDIO_BUTTON" && !data.audioButtonId) ||
+        (type === "DYNAMIC_AUDIO" && !data.template) ||
+        (type === "SCRIPT_TEXT" && !data.body) ||
+        (type === "DECISION" && findOutgoingEdges(node.id, executionEdges).length === 0);
+
+      if (type === "INSTRUCTION") {
+        state = "available";
+      } else if (hasError) {
+        state = "error";
+      } else if (run?.currentNodeId === node.id) {
+        state = "current";
+      } else if (skippedIds.has(node.id)) {
+        state = "skipped";
+      } else if (completedIds.has(node.id)) {
+        state = "completed";
+      } else if (selectedDecisionTargets.has(node.id)) {
+        state = "decision-selected";
+      } else if (availableIds.has(node.id)) {
+        state = "available";
+      }
+
+      states.set(node.id, state);
+    }
+    return states;
+  }, [availableIds, completedIds, executionEdges, nodes, run?.currentNodeId, selectedDecisionTargets, skippedIds]);
+
+  const flowNodes = useMemo<Node<PlayerFlowNodeData>[]>(() => {
+    return nodes.map((node, index) => ({
+      id: node.id,
+      type: node.type || "narrativeNode",
+      position: layoutPositions.get(node.id)
+        ? { x: layoutPositions.get(node.id)!.x, y: layoutPositions.get(node.id)!.y }
+        : { x: index * PLAYER_LAYOUT_GAP.x, y: index * PLAYER_LAYOUT_GAP.y },
+      draggable: false,
+      selectable: true,
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
+      data: {
+        id: node.id,
+        label: nodeLabel(node),
+        summary: nodeSummary(node),
+        status: nodeStates.get(node.id) ?? "locked",
+        type: node.type,
+        nodeData: node.data,
+        audioButtonId: node.data?.audioButtonId as string | undefined,
+        audioAssetId: node.data?.audioAssetId as string | undefined,
+        template: node.data?.template as string | undefined,
+        variables: node.data?.variables as string[] | undefined,
+        voiceId: node.data?.voiceId as string | undefined,
+        modelId: node.data?.modelId as string | undefined,
+        outputFormat: node.data?.outputFormat as string | undefined,
+        stability: node.data?.stability as number | string | undefined,
+        similarityBoost: node.data?.similarityBoost as number | string | undefined,
+        style: node.data?.style as number | string | undefined,
+        speed: node.data?.speed as number | string | undefined,
+        speakerBoost: node.data?.speakerBoost as boolean | undefined,
+        audioButtonDetail: node.data?.audioButtonId ? audioButtonDetailsById[String(node.data.audioButtonId)] ?? null : null,
+        isRequired: node.data?.required !== false,
+        decisionChoices: node.type === "DECISION"
+          ? findOutgoingEdges(node.id, executionEdges).map((edge, choiceIndex) => ({
+              label: edge.label?.trim() || readDecisionLabels(node.data?.options)[choiceIndex] || "Opción",
+              targetNodeId: edge.target,
+            }))
+          : undefined,
+      },
+    }));
+  }, [audioButtonDetailsById, executionEdges, layoutPositions, nodeStates, nodes]);
+
+  const actionNodeIsCurrent = actionNode?.id === uiCurrentNodeId;
+  const actionNodeIsInteractive = actionNodeIsCurrent && run?.status === "RUNNING";
+  const outgoing = currentNode ? findOutgoingEdges(currentNode.id, executionEdges) : [];
+
+  const flowEdges = useMemo<Edge[]>(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+    const annotationEdge = (edge: NarrativeGraphEdge) =>
+      isAnnotationNodeType(nodeById.get(edge.source)?.type as NarrativeNodeType | undefined) ||
+      isAnnotationNodeType(nodeById.get(edge.target)?.type as NarrativeNodeType | undefined);
+    const edgeState = (edge: NarrativeGraphEdge): PlayerEdgeState => {
+      if (annotationEdge(edge)) return "pending";
+      const selectedTarget = selectedDecisionTargets.get(edge.source);
+      if (selectedTarget) {
+        return selectedTarget === edge.target ? "active" : "not-taken";
+      }
+      if (run?.currentNodeId === edge.source) return "active";
+      if (completedIds.has(edge.source) && (completedIds.has(edge.target) || run?.currentNodeId === edge.target)) {
+        return "traversed";
+      }
+      return "pending";
+    };
+
+    return edges.map((edge) => {
+      const isAnnotation = annotationEdge(edge);
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        label: edge.label ?? (isAnnotation ? "Nota" : undefined),
+        labelShowBg: Boolean(edge.label || isAnnotation),
+        labelBgPadding: [8, 4],
+        labelBgBorderRadius: 999,
+        labelBgStyle: isAnnotation
+          ? { fill: "rgba(42, 29, 13, 0.9)", stroke: "rgba(245, 158, 11, 0.3)", strokeWidth: 1 }
+          : {
+              fill: "rgba(15, 23, 42, 0.88)",
+              stroke: "rgba(148, 163, 184, 0.18)",
+              strokeWidth: 1,
+            },
+        animated: !isAnnotation && edgeState(edge) === "active",
+        selectable: false,
+        style: isAnnotation
+          ? { stroke: "rgba(245, 158, 11, 0.65)", strokeWidth: 1.5, strokeDasharray: "6 6" }
+          : edgeState(edge) === "traversed"
+            ? { stroke: "rgba(16, 185, 129, 0.85)", strokeWidth: 2.4 }
+            : edgeState(edge) === "active"
+              ? { stroke: "rgb(168, 139, 250)", strokeWidth: 2.8 }
+              : edgeState(edge) === "not-taken"
+                ? { stroke: "rgba(244, 114, 182, 0.4)", strokeWidth: 1.6, strokeDasharray: "6 4" }
+                : { stroke: "rgba(148, 163, 184, 0.28)", strokeWidth: 1.4 },
+        labelStyle: { fill: isAnnotation ? "rgb(251, 191, 36)" : "rgb(203, 213, 225)", fontSize: 10, fontWeight: 700 },
+      };
+    });
+  }, [completedIds, edges, nodes, run?.currentNodeId, selectedDecisionTargets]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -224,14 +823,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     try {
       const detail = await api<NarrativeRunDetail>(`/narrative-runs/${runId}`);
       setRun(detail);
-      setRunCompleted(detail.status !== "RUNNING");
     } catch (error) {
       setMessage(handleApiError(error, "No se pudo cargar la ejecución."));
       setRun(null);
     } finally {
       setLoading(false);
     }
-  }, [runId, router]);
+  }, [handleApiError, runId]);
 
   useEffect(() => {
     void load();
@@ -246,7 +844,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }, []);
 
   useEffect(() => {
-    setSelectedDecisionTarget(null);
+    selectedDecisionTargetRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.removeAttribute("src");
@@ -257,8 +855,158 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
     }
-    setIsPlaying(false);
+      setPlaybackState("idle");
   }, [run?.currentNodeId]);
+
+  useEffect(() => {
+    if (!actionNodeIsCurrent || actionNode?.type !== "PAUSE") {
+      setPauseRemainingSeconds(null);
+      return;
+    }
+
+    const isTimerPause = actionNode.data?.manual === false || actionNode.data?.pauseType === "timer";
+    const duration = Number(actionNode.data?.durationSeconds ?? 0);
+
+    if (!isTimerPause || !Number.isFinite(duration) || duration <= 0) {
+      setPauseRemainingSeconds(null);
+      return;
+    }
+
+    setPauseRemainingSeconds(duration);
+  }, [actionNode, actionNodeIsCurrent]);
+
+  useEffect(() => {
+    if (pauseRemainingSeconds === null || pauseRemainingSeconds <= 0 || !actionNodeIsCurrent) return;
+    const timer = window.setTimeout(() => {
+      setPauseRemainingSeconds((value) => (value === null ? value : Math.max(value - 1, 0)));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [actionNodeIsCurrent, pauseRemainingSeconds]);
+
+  useEffect(() => {
+    if (!actionNodeIsInteractive || actionNode?.type !== "AUDIO_BUTTON") return;
+    
+    const shortcut = currentButtonDetails?.shortcutKey?.toLowerCase();
+    if (!shortcut) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement ||
+        document.activeElement instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      if (e.key.toLowerCase() === shortcut) {
+        e.preventDefault();
+        void startAudioPlayback();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionNodeIsInteractive, actionNode, currentButtonDetails]);
+
+  useEffect(() => {
+    if (!contextMenu.isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [contextMenu.isOpen]);
+
+  useEffect(() => {
+    hasFitViewRef.current = false;
+    setReactFlowReady(false);
+  }, [runId]);
+
+  useEffect(() => {
+    hasFitViewRef.current = false;
+    setCanvasViewport({ x: 0, y: 0, zoom: 0.8 });
+    setReactFlowReady(false);
+  }, [runId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreferencesReady(false);
+
+    api<NarrativePlayerPreferences>("/me/narrative-preferences")
+      .then((preferences) => {
+        if (cancelled) return;
+        const backendDistance = PLAYER_DISTANCE_PRESETS.find((item) => item.id === preferences.playerDistance);
+        const backendViewport = {
+          x: typeof preferences.playerViewportX === "number" ? preferences.playerViewportX : 0,
+          y: typeof preferences.playerViewportY === "number" ? preferences.playerViewportY : 0,
+          zoom: typeof preferences.playerViewportZoom === "number" ? preferences.playerViewportZoom : 0.8,
+        };
+
+        setDistancePresetId(backendDistance?.id || DEFAULT_NARRATIVE_DISTANCE);
+        setCanvasViewport(backendViewport);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDistancePresetId(DEFAULT_NARRATIVE_DISTANCE);
+          setCanvasViewport({ x: 0, y: 0, zoom: 0.8 });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPreferencesReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setHeaderSlot(document.getElementById("board-header-slot"));
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesReady) return;
+    if (savePreferencesTimerRef.current) {
+      window.clearTimeout(savePreferencesTimerRef.current);
+    }
+
+    savePreferencesTimerRef.current = window.setTimeout(() => {
+      void api("/me/narrative-preferences", {
+        method: "PATCH",
+        body: JSON.stringify({
+          playerDistance: distancePresetId,
+          playerViewportX: canvasViewport.x,
+          playerViewportY: canvasViewport.y,
+          playerViewportZoom: canvasViewport.zoom,
+        }),
+      }).catch(() => {
+        // No bloqueamos la experiencia si falla la persistencia.
+      });
+    }, 250);
+
+    return () => {
+      if (savePreferencesTimerRef.current) {
+        window.clearTimeout(savePreferencesTimerRef.current);
+      }
+    };
+  }, [distancePresetId, canvasViewport, preferencesReady]);
+
+  useEffect(() => {
+    if (hasFitViewRef.current || !reactFlowReady || flowNodes.length === 0 || !preferencesReady) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      reactFlowRef.current?.fitView({
+        padding: 0.2,
+        minZoom: 0.2,
+        maxZoom: 2,
+        duration: 500,
+      });
+      hasFitViewRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [canvasViewport, flowNodes.length, preferencesReady, reactFlowReady, runId]);
 
   async function syncCurrentNode(nextNodeId: string, eventType: NarrativeRunEventType, payload?: Record<string, unknown>) {
     if (!run) return;
@@ -293,6 +1041,17 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   async function completeCurrentNode(skip = false) {
     if (!run || !currentNode) return;
 
+    if (currentNode.type === "INSTRUCTION") {
+      const nextFlowEdge = edges.find((edge) => {
+        const target = nodeMap.get(edge.target);
+        return edge.source === currentNode.id && isFlowNodeType(target?.type as NarrativeNodeType | undefined);
+      });
+      if (nextFlowEdge) {
+        await syncCurrentNode(nextFlowEdge.target, "NODE_COMPLETED", { annotationBypassed: true });
+        return;
+      }
+    }
+
     if (currentNode.type === "END") {
       await finishRun();
       return;
@@ -313,25 +1072,54 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
 
   async function handleDecision(targetNodeId: string, label: string) {
     if (!run) return;
-    setSelectedDecisionTarget(targetNodeId);
+    selectedDecisionTargetRef.current = targetNodeId;
     await syncCurrentNode(targetNodeId, "DECISION_SELECTED", {
       choiceLabel: label,
       targetNodeId,
     });
   }
 
-  async function startAudioPlayback() {
-    if (!run || !currentNode) return;
-    
+  async function startAudioPlayback(overrideNodeId?: string) {
+    const targetNode = overrideNodeId ? nodes.find(n => n.id === overrideNodeId) : actionNode;
+
+    if (!run || !targetNode) {
+      console.warn("[audio] abort: no run or targetNode", { run: !!run, targetNode: targetNode?.id });
+      return;
+    }
+
+    const hasUsableAudio = Boolean(
+      targetNode.type === "AUDIO" && targetNode.data?.audioAssetId ||
+      targetNode.type === "AUDIO_BUTTON" && targetNode.data?.audioButtonId
+    );
+
+    if (run?.status !== "RUNNING" || !hasUsableAudio) {
+      console.warn("[audio] abort: not usable", { targetNodeId: targetNode.id, currentNodeId: currentNode?.id, runStatus: run?.status });
+      setMessage("Este recurso no está disponible o no tiene contenido válido.");
+      return;
+    }
+
     let audioAssetIdToPlay: string | undefined;
-    
-    if (currentNode.type === "AUDIO") {
-      audioAssetIdToPlay = currentNode.data?.audioAssetId as string | undefined;
-    } else if (currentNode.type === "AUDIO_BUTTON") {
-      audioAssetIdToPlay = currentButtonDetails?.audioAssetId;
+
+    if (targetNode.type === "AUDIO") {
+      audioAssetIdToPlay = targetNode.data?.audioAssetId as string | undefined;
+      console.log("[audio] AUDIO node assetId:", audioAssetIdToPlay, "nodeData:", targetNode.data);
+    } else if (targetNode.type === "AUDIO_BUTTON") {
+      // Use already-loaded details, or fetch them on-demand if not available yet
+      let buttonDetails = currentButtonDetails;
+      if (!buttonDetails && targetNode.data?.audioButtonId) {
+        try {
+          buttonDetails = await api<any>(`/audio-buttons/${targetNode.data.audioButtonId}`);
+          setCurrentButtonDetails(buttonDetails);
+        } catch {
+          console.warn("[audio] failed to fetch button details on demand");
+        }
+      }
+      audioAssetIdToPlay = buttonDetails?.audioAssetId ?? (buttonDetails as any)?.audioAsset?.id ?? undefined;
+      console.log("[audio] AUDIO_BUTTON details:", buttonDetails, "assetId:", audioAssetIdToPlay);
     }
 
     if (!audioAssetIdToPlay) {
+      console.warn("[audio] abort: no audioAssetId. targetNode.type:", targetNode.type, "currentButtonDetails:", currentButtonDetails);
       setMessage("Este nodo no tiene audio asignado o aún se está cargando.");
       return;
     }
@@ -357,20 +1145,25 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
       const objectUrl = URL.createObjectURL(blob);
       objectUrlRef.current = objectUrl;
 
-      if (!audioRef.current) return;
+      if (!audioRef.current) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrlRef.current = null;
+        setMessage("No se pudo inicializar el reproductor de audio.");
+        return;
+      }
 
       audioRef.current.src = objectUrl;
       audioRef.current.volume = 1;
       await audioRef.current.play();
-      setIsPlaying(true);
+      setPlaybackState("playing");
 
       await api(`/narrative-runs/${run.id}/events`, {
         method: "POST",
         body: JSON.stringify({
           eventType: "AUDIO_PLAYED",
-          nodeId: currentNode.id,
-          payload: currentNode.type === "AUDIO_BUTTON" 
-            ? { audioButtonId: currentNode.data?.audioButtonId, audioAssetId: audioAssetIdToPlay }
+          nodeId: targetNode.id,
+          payload: targetNode.type === "AUDIO_BUTTON"
+            ? { audioButtonId: targetNode.data?.audioButtonId, audioAssetId: audioAssetIdToPlay }
             : { audioAssetId: audioAssetIdToPlay },
         }),
       });
@@ -384,20 +1177,20 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   async function pauseAudio() {
     if (!audioRef.current) return;
     audioRef.current.pause();
-    setIsPlaying(false);
+    setPlaybackState("paused");
   }
 
   async function resumeAudio() {
     if (!audioRef.current) return;
     await audioRef.current.play();
-    setIsPlaying(true);
+    setPlaybackState("playing");
   }
 
   async function stopAudio() {
     if (!audioRef.current) return;
     audioRef.current.pause();
     audioRef.current.currentTime = 0;
-    setIsPlaying(false);
+    setPlaybackState("idle");
   }
 
   async function finishRun() {
@@ -409,7 +1202,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         method: "POST",
       });
       await load();
-      setRunCompleted(true);
     } catch (error) {
       setMessage(handleApiError(error, "No se pudo finalizar la ejecución."));
     } finally {
@@ -417,31 +1209,22 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
   }
 
-  async function cancelRun() {
-    if (!run) return;
-    setWorking(true);
-    setMessage(null);
-    try {
-      await api(`/narrative-runs/${run.id}/cancel`, {
-        method: "POST",
-      });
-      await load();
-      setRunCompleted(true);
-    } catch (error) {
-      setMessage(handleApiError(error, "No se pudo cancelar la ejecución."));
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  const activeAudioNodeId = currentNode?.type === "AUDIO" || currentNode?.type === "AUDIO_BUTTON" ? currentNode.id : null;
-  const audioAssetId = currentNode?.type === "AUDIO" 
-    ? String(currentNode.data?.audioAssetId ?? "") 
-    : currentNode?.type === "AUDIO_BUTTON" 
+  const audioAssetId = actionNode?.type === "AUDIO" 
+    ? String(actionNode.data?.audioAssetId ?? "") 
+    : actionNode?.type === "AUDIO_BUTTON" 
       ? String(currentButtonDetails?.audioAssetId ?? "") 
       : "";
   const hasAudio = Boolean(audioAssetId);
-
+  const actionableNodes = useMemo(
+    () => nodes.filter((node) => node.type !== "START" && node.type !== "INSTRUCTION").length,
+    [nodes],
+  );
+  const progressedNodes = useMemo(
+    () =>
+      nodes.filter((node) => node.type !== "INSTRUCTION" && (completedIds.has(node.id) || skippedIds.has(node.id))).length +
+      (currentNode && currentNode.type !== "START" && currentNode.type !== "INSTRUCTION" ? 1 : 0),
+    [completedIds, currentNode, nodes, skippedIds],
+  );
   if (loading) {
     return (
       <div className="rounded-[28px] border border-outline-variant bg-surface-container p-6 text-sm text-on-surface-variant shadow-elevation-1">
@@ -454,13 +1237,13 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     return (
       <div className="rounded-[28px] border border-outline-variant bg-surface-container p-6 shadow-elevation-1">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600">
+          <div className="warning-surface-strong flex h-10 w-10 items-center justify-center rounded-2xl">
             <TriangleAlert className="h-4 w-4" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-on-surface">No se encontró la ejecución</h2>
             <p className="mt-1 text-sm text-on-surface-variant">
-              Vuelve a intentar desde el listado de narrativas.
+              Vuelve a intentar desde el listado de llamadas.
             </p>
           </div>
         </div>
@@ -468,378 +1251,716 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     );
   }
 
-  const eventLog = [...(run.events ?? [])].slice().reverse().slice(0, 10);
+  const isDualView = true;
+
+  async function copyNodeText(nodeId: string) {
+    const node = nodeMap.get(nodeId);
+    const text = String(
+      node?.data?.body ??
+        node?.data?.instruction ??
+        node?.data?.template ??
+        node?.data?.label ??
+        "",
+    );
+    if (!text) {
+      setMessage("Este nodo no tiene contenido para copiar.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("Contenido copiado al portapapeles.");
+    } catch {
+      setMessage("No se pudo copiar el contenido.");
+    }
+  }
+
+  async function generateDynamicAudio(nodeId: string) {
+    if (!run) return;
+    const node = nodeMap.get(nodeId);
+    if (!node || node.type !== "DYNAMIC_AUDIO") {
+      setMessage("Este nodo no es de audio dinámico.");
+      return;
+    }
+
+    const template = normalizeDynamicAudioTemplate(String(node.data?.template ?? "")).trim();
+    if (!template) {
+      setMessage("Este nodo no tiene plantilla configurada.");
+      return;
+    }
+
+    const variables = (() => {
+      const configured = Array.isArray(node.data?.variables)
+        ? node.data?.variables.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+        : [];
+      return configured.length > 0 ? configured : extractDynamicAudioVariables(template);
+    })();
+
+    const draftValues = (dynamicAudioDrafts[nodeId] ?? {}) as Record<string, string>;
+    const missingVariables = variables.filter((variable) => !String(draftValues[variable] ?? "").trim());
+
+    if (missingVariables.length > 0) {
+      setMessage(`Completa las variables: ${missingVariables.map((variable) => `{{${variable}}}`).join(", ")}.`);
+      return;
+    }
+
+    const resolvedText = resolveDynamicAudioTemplate(template, draftValues);
+
+    setDynamicAudioGeneratingNodeId(nodeId);
+    setMessage(null);
+    try {
+      const result = await api<DynamicAudioGenerationResponse>(`/narrative-runs/${run.id}/dynamic-audio`, {
+        method: "POST",
+        body: JSON.stringify({
+          text: resolvedText,
+          defaultVoiceId: String(node.data?.voiceId ?? "") || undefined,
+          defaultModelId: String(node.data?.modelId ?? "") || undefined,
+          defaultOutputFormat: String(node.data?.outputFormat ?? "") || undefined,
+          stability: node.data?.stability !== undefined ? Number(node.data.stability) : undefined,
+          similarityBoost: node.data?.similarityBoost !== undefined ? Number(node.data.similarityBoost) : undefined,
+          style: node.data?.style !== undefined ? Number(node.data.style) : undefined,
+          speed: node.data?.speed !== undefined ? Number(node.data.speed) : undefined,
+          speakerBoost: typeof node.data?.speakerBoost === "boolean" ? node.data.speakerBoost : undefined,
+        }),
+      });
+
+      const objectUrl = buildDynamicAudioObjectUrl(result.contentType, result.audioBase64);
+      setDynamicAudioClips((current) => {
+        const previousClip = current[nodeId];
+        if (previousClip?.objectUrl) {
+          URL.revokeObjectURL(previousClip.objectUrl);
+        }
+        return {
+          ...current,
+          [nodeId]: {
+            objectUrl,
+            fileName: result.fileName,
+            contentType: result.contentType,
+            sizeBytes: result.sizeBytes,
+            generatedAt: new Date().toISOString(),
+            text: resolvedText,
+          },
+        };
+      });
+      setMessage("Audio dinámico generado. Ya puedes reproducirlo cuando quieras.");
+    } catch (error) {
+      setMessage(handleApiError(error, "No se pudo generar el audio dinámico."));
+    } finally {
+      setDynamicAudioGeneratingNodeId(null);
+    }
+  }
+
+  async function playDynamicAudio(nodeId: string) {
+    const clip = dynamicAudioClips[nodeId];
+    if (!clip) {
+      setMessage("Primero genera el audio dinámico.");
+      return;
+    }
+
+    if (!audioRef.current) {
+      setMessage("No se pudo inicializar el reproductor de audio.");
+      return;
+    }
+
+    try {
+      if (audioRef.current.src) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      audioRef.current.src = clip.objectUrl;
+      audioRef.current.volume = 1;
+      await audioRef.current.play();
+      setPlaybackState("playing");
+      setMessage("Audio dinámico en reproducción.");
+    } catch (error) {
+      setMessage(handleApiError(error, "No se pudo reproducir el audio dinámico."));
+    }
+  }
+
+  function renderAudioControls(label: string) {
+    return (
+      <>
+        <div className="space-y-4">
+          {playbackState !== "idle" && playbackProgress.duration > 0 ? (
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] font-semibold text-on-surface-variant">
+                <span>{Math.floor(playbackProgress.current)}s</span>
+                <span>{Math.floor(playbackProgress.duration)}s</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-variant/30">
+                <div 
+                  className="h-full bg-primary transition-all duration-200 ease-linear" 
+                  style={{ width: `${(playbackProgress.current / playbackProgress.duration) * 100}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void startAudioPlayback()}
+              disabled={working || !hasAudio || playbackState === "playing" || run?.status !== "RUNNING"}
+              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Play className="h-4 w-4" />
+              {label}
+            </button>
+            <button
+              type="button"
+              onClick={() => void pauseAudio()}
+              disabled={playbackState !== "playing"}
+              className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Pause className="h-4 w-4" />
+              Pausar
+            </button>
+            <button
+              type="button"
+              onClick={() => void resumeAudio()}
+              disabled={playbackState !== "paused"}
+              className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Play className="h-4 w-4" />
+              Reanudar
+            </button>
+            <button
+              type="button"
+              onClick={() => void stopAudio()}
+              disabled={playbackState === "idle"}
+              className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Square className="h-4 w-4" />
+              Detener
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      {message ? (
-        <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-elevation-1">
-          {message}
-        </div>
+    <NarrativePlayerContext.Provider
+      value={{
+        playbackState,
+        working,
+        currentNodeId: uiCurrentNodeId,
+        startAudioPlayback,
+        pauseAudio,
+        resumeAudio,
+        stopAudio,
+        completeCurrentNode,
+        finishRun,
+        copyNodeText,
+        chooseDecision: handleDecision,
+        setMessage,
+        selectNode: (nodeId: string) => {
+          setSelectedNodeId(nodeId);
+          setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+        },
+        openNodeMenu: (nodeId: string) => {
+          setSelectedNodeId(nodeId);
+          const x = typeof window !== "undefined" ? Math.max(24, window.innerWidth / 2 - 160) : 160;
+          const y = typeof window !== "undefined" ? Math.max(100, window.innerHeight / 2 - 180) : 120;
+          setContextMenu({ isOpen: true, x, y, nodeId });
+        },
+      }}
+    >
+      {headerSlot ? createPortal(<div className="flex min-w-0 items-center justify-center" />, headerSlot) : null}
+
+    <ReactFlowProvider>
+      {buttonBoardModalButton ? (
+        <AudioButtonDetailsModal
+          button={buttonBoardModalButton}
+          onClose={() => setButtonBoardModalButton(null)}
+        />
       ) : null}
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
-        <section className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                Narrativa en ejecución
-              </p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-on-surface">
-                {run.narrative.title}
-              </h2>
-              <p className="mt-1 max-w-2xl text-sm text-on-surface-variant">
-                {run.narrative.description || "Sin descripción"}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.22em] text-on-surface-variant">Estado</p>
-              <p className="mt-1 text-sm font-semibold text-on-surface">{run.status}</p>
-              <p className="text-xs text-on-surface-variant">
-                Inicio: {formatDateTime(run.startedAt)}
-              </p>
-            </div>
+      <audio
+        ref={audioRef}
+        onPlay={() => setPlaybackState("playing")}
+        onPause={() => setPlaybackState("paused")}
+        onEnded={() => {
+          setPlaybackState("idle");
+          setPlaybackProgress({ current: 0, duration: 0 });
+          if (actionNodeIsCurrent && actionNode?.data?.required !== false && outgoing.length <= 1) {
+            void completeCurrentNode(false);
+          }
+        }}
+        onLoadedMetadata={(e) => {
+          setMessage(null);
+          const target = e.target as HTMLAudioElement | null;
+          if (target) {
+            setPlaybackProgress({ current: 0, duration: target.duration });
+          }
+        }}
+        onTimeUpdate={(e) => {
+          const target = e.target as HTMLAudioElement | null;
+          if (target) {
+            setPlaybackProgress(prev => ({ ...prev, current: target.currentTime }));
+          }
+        }}
+        className="hidden"
+      />
+      <div className={isDualView ? "grid min-h-0 flex-1 items-stretch gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(360px,.75fr)]" : "flex min-h-0 flex-1 flex-col gap-4"}>
+        {message ? (
+          <div className="fixed left-4 right-4 top-4 z-40 mx-auto max-w-3xl rounded-2xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface shadow-elevation-2 lg:left-auto lg:right-6 lg:top-6 lg:mx-0">
+            {message}
           </div>
+        ) : null}
 
-          <div className="grid gap-4 md:grid-cols-[1.1fr_.9fr]">
-            <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                Paso actual
-              </p>
-              <div className="mt-3 flex items-start gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-on-primary">
-                  {currentNode.type.slice(0, 2)}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-lg font-semibold tracking-tight text-on-surface">
-                    {nodeLabel(currentNode)}
-                  </h3>
-                  <p className="text-sm text-on-surface-variant">
-                    {currentNode.type}
-                    {currentNode.type === "AUDIO" && hasAudio ? ` · Audio ${audioAssetId}` : ""}
-                  </p>
-                </div>
+        <div className={isDualView ? "flex min-h-0 flex-col gap-4 self-stretch" : "flex min-h-0 flex-1 flex-col gap-4"}>
+          <section
+            className="flex h-full flex-1 flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1"
+            style={{
+              minHeight: "clamp(560px, calc(100dvh - 12rem), 980px)",
+            }}
+          >
+            <div className="relative h-full min-h-[520px] flex-1 overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container">
+              <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-primary/20 bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
+                  {nodeLabel(currentNode)}
+                </span>
+                <span className="rounded-full border border-outline-variant bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant backdrop-blur">
+                  {Math.min(progressedNodes, actionableNodes)} / {actionableNodes || 0}
+                </span>
+                <span className="rounded-full border border-outline-variant bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant backdrop-blur">
+                  Solo lectura
+                </span>
               </div>
+              <ReactFlow
+                key={runId}
+                nodes={flowNodes}
+                edges={flowEdges}
+                nodeTypes={playerNodeTypes}
+                onNodeClick={(_, node) => {
+                  setSelectedNodeId(node.id);
+                  setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+                  if (node.type === "AUDIO_BUTTON") {
+                    void startAudioPlayback(node.id);
+                  }
+                }}
+                onNodeContextMenu={(e, node) => {
+                  e.preventDefault();
+                  // Prevenir salirse de la pantalla aproximando el tamaño del popup.
+                  const popupWidth = 430;
+                  const popupHeight = 640;
+                  const safeX = Math.min(
+                    e.clientX,
+                    typeof window !== "undefined" ? window.innerWidth - popupWidth - 16 : e.clientX,
+                  );
+                  const safeY = Math.min(
+                    e.clientY,
+                    typeof window !== "undefined" ? window.innerHeight - popupHeight - 16 : e.clientY,
+                  );
+                  setContextMenu({ isOpen: true, x: safeX, y: safeY, nodeId: node.id });
+                  if (node.type === "AUDIO_BUTTON") {
+                    const audioButtonId = String(node.data?.audioButtonId ?? "");
+                    if (audioButtonId) {
+                      void api<BoardAudioButton>(`/audio-buttons/${audioButtonId}`)
+                        .then((res) => {
+                          setButtonBoardModalButton(res);
+                        })
+                        .catch(() => {
+                          setButtonBoardModalButton(null);
+                        });
+                    }
+                  } else {
+                    setButtonBoardModalButton(null);
+                  }
+                }}
+                onPaneClick={() => {
+                  setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null });
+                }}
+                onInit={(instance) => {
+                  reactFlowRef.current = instance;
+                  setReactFlowReady(true);
+                }}
+                onMoveEnd={(_, viewport) => {
+                  setCanvasViewport({
+                    x: viewport.x,
+                    y: viewport.y,
+                    zoom: viewport.zoom,
+                  });
+                }}
+                fitView={false}
+                fitViewOptions={{ padding: 0.2, minZoom: 0.2, maxZoom: 2 }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                minZoom={0.2}
+                maxZoom={2}
+                proOptions={{ hideAttribution: true }}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                nodesFocusable={false}
+                elementsSelectable={false}
+                zoomOnDoubleClick
+                zoomOnScroll
+                zoomOnPinch
+                panOnScroll={false}
+                panOnDrag
+                selectionOnDrag={false}
+                elevateNodesOnSelect={false}
+              >
+                <Controls
+                  showInteractive={false}
+                  className="narrative-flow-controls narrative-flow-controls-dark !left-auto !right-3 !top-3 !bottom-auto"
+                />
+                <Background color="rgba(148,163,184,0.16)" gap={20} size={1.1} />
+              </ReactFlow>
 
-              <div className="mt-4 rounded-2xl border border-dashed border-outline-variant bg-surface-container px-4 py-4">
-                {currentNode.type === "AUDIO" ? (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium text-on-surface">{nodeSummary(currentNode)}</p>
-                    <audio
-                      ref={audioRef}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      onEnded={() => setIsPlaying(false)}
-                      onLoadedMetadata={() => setMessage(null)}
-                      className="hidden"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void startAudioPlayback()}
-                        disabled={working || !hasAudio}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Play className="h-4 w-4" />
-                        Reproducir audio
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void pauseAudio()}
-                        disabled={!isPlaying}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Pause className="h-4 w-4" />
-                        Pausar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void resumeAudio()}
-                        disabled={isPlaying}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Play className="h-4 w-4" />
-                        Reanudar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void stopAudio()}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-                      >
-                        <Square className="h-4 w-4" />
-                        Detener
-                      </button>
-                    </div>
-                    <p className="text-xs text-on-surface-variant">
-                      {isPlaying ? "Reproducción activa" : "Audio listo para reproducirse"}
-                    </p>
-                  </div>
-                ) : currentNode.type === "AUDIO_BUTTON" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Botón de audio asignado</p>
-                    {currentButtonDetails ? (
-                      <div className="rounded-xl border border-outline-variant bg-surface p-3" style={{ borderLeftColor: currentButtonDetails.color, borderLeftWidth: 4 }}>
-                        <p className="font-semibold text-on-surface">{currentButtonDetails.label}</p>
-                        <p className="text-xs text-on-surface-variant">
-                          Categoría: {currentButtonDetails.category?.name || "Sin categoría"} | Acceso directo: {currentButtonDetails.shortcutKey || "Ninguno"}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-on-surface-variant">Cargando detalles del botón...</p>
-                    )}
-                    <audio
-                      ref={audioRef}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      onEnded={() => setIsPlaying(false)}
-                      onLoadedMetadata={() => setMessage(null)}
-                      className="hidden"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void startAudioPlayback()}
-                        disabled={working || !hasAudio}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Play className="h-4 w-4" />
-                        Reproducir botón
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void pauseAudio()}
-                        disabled={!isPlaying}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Pause className="h-4 w-4" />
-                        Pausar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void resumeAudio()}
-                        disabled={isPlaying}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Play className="h-4 w-4" />
-                        Reanudar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void stopAudio()}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-                      >
-                        <Square className="h-4 w-4" />
-                        Detener
-                      </button>
-                    </div>
-                    <p className="text-xs text-on-surface-variant">
-                      {isPlaying ? "Reproducción activa" : "Botón listo para ejecutarse"}
-                    </p>
-                  </div>
-                ) : currentNode.type === "SCRIPT_TEXT" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Texto para leer</p>
-                    <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-                      {String(currentNode.data?.body ?? "Sin contenido")}
-                    </p>
-                  </div>
-                ) : currentNode.type === "INSTRUCTION" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Instrucción operativa</p>
-                    <p className="whitespace-pre-wrap text-base leading-7 text-on-surface">
-                      {String(currentNode.data?.instruction ?? "Sin instrucción")}
-                    </p>
-                  </div>
-                ) : currentNode.type === "PAUSE" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Pausa</p>
-                    <p className="text-base leading-7 text-on-surface">
-                      {currentNode.data?.manual === false
-                        ? `Pausa temporizada de ${String(currentNode.data?.durationSeconds ?? "0")} segundos.`
-                        : "Pausa manual. Espera la señal para continuar."}
-                    </p>
-                  </div>
-                ) : currentNode.type === "DECISION" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Decisión</p>
-                    <p className="text-base leading-7 text-on-surface">
-                      {String(currentNode.data?.question ?? "¿Qué sigue?")}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {decisionChoices.length > 0 ? (
-                        decisionChoices.map((choice) => (
-                          <button
-                            key={`${choice.targetNodeId}-${choice.label}`}
-                            type="button"
-                            onClick={() => void handleDecision(choice.targetNodeId, choice.label)}
-                            disabled={working}
-                            className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                              selectedDecisionTarget === choice.targetNodeId
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-outline-variant bg-surface text-on-surface hover:border-primary"
-                            }`}
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                            {choice.label}
-                          </button>
-                        ))
-                      ) : (
-                        <p className="text-sm text-on-surface-variant">
-                          No hay salidas configuradas para esta decisión.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ) : currentNode.type === "END" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-on-surface-variant">Cierre</p>
-                    <p className="text-base leading-7 text-on-surface">
-                      La narrativa llegó al nodo final.
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-on-surface-variant">
-                    Sin contenido para mostrar.
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void completeCurrentNode(false)}
-                  disabled={working || run.status !== "RUNNING"}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+              {/* CONTEXTUAL POPOVER MENU */}
+              {contextMenu.isOpen && contextMenu.nodeId && (
+                <div
+                  className="fixed z-50 w-[430px] max-w-[calc(100vw-16px)] max-h-[calc(100vh-16px)] overflow-hidden rounded-[24px] border border-outline-variant bg-surface shadow-elevation-3 animate-fade-in"
+                  style={{ top: contextMenu.y, left: contextMenu.x }}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <SkipForward className="h-4 w-4" />
-                  Siguiente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void completeCurrentNode(true)}
-                  disabled={working || run.status !== "RUNNING" || currentNode.data?.required !== false}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Omitir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void finishRun()}
-                  disabled={working || run.status !== "RUNNING"}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Finalizar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void cancelRun()}
-                  disabled={working || run.status !== "RUNNING"}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300"
-                >
-                  <StopCircle className="h-4 w-4" />
-                  Cancelar
-                </button>
-              </div>
-
-              {currentStatus === "current" ? (
-                <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
-                  Estás en el paso actual de la narrativa.
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-[24px] border border-outline-variant bg-surface px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-                Resumen
-              </p>
-              <div className="mt-3 grid gap-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-on-surface-variant">Versión</span>
-                  <span className="font-semibold text-on-surface">v{run.narrativeVersion.versionNumber}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-on-surface-variant">Paso actual</span>
-                  <span className="font-semibold text-on-surface">{currentNode.type}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-on-surface-variant">Eventos</span>
-                  <span className="font-semibold text-on-surface">{run.events?.length ?? 0}</span>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-outline-variant bg-surface-container p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
-                  Ruta
-                </p>
-                <div className="mt-3 space-y-2">
-                  {orderedNodes.map((node) => {
-                    const status = nodeStatus(node.id, completedIds, run.currentNodeId);
+                  {(() => {
+                    const ctxNode = nodeMap.get(contextMenu.nodeId);
+                    if (!ctxNode) return null;
+                    const status = nodeStates.get(ctxNode.id) ?? "locked";
+                    
                     return (
-                      <div
-                        key={node.id}
-                        className={`rounded-2xl border px-3 py-3 text-xs ${statusTone(status)}`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-on-surface">{nodeLabel(node)}</span>
-                          <span className="uppercase tracking-[0.18em]">{node.type}</span>
+                      <div className="flex flex-col">
+                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant bg-surface-container/95 px-4 py-3 backdrop-blur">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${status === "current" ? "bg-primary animate-pulse" : status === "completed" ? "bg-emerald-400" : "bg-slate-500"}`} />
+                            <div>
+                              <p className="text-sm font-semibold text-on-surface">{nodeLabel(ctxNode)}</p>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
+                                {status === "current" ? "Paso actual" : status === "completed" ? "Ya completado" : status === "locked" ? "Bloqueado" : ctxNode.type}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null })}
+                            className="text-on-surface-variant hover:text-on-surface"
+                          >
+                            ×
+                          </button>
                         </div>
-                        <p className="mt-1 line-clamp-2 text-[11px] text-on-surface-variant">
-                          {nodeSummary(node)}
-                        </p>
+                        <div className="max-h-[calc(100vh-104px)] space-y-3 overflow-y-auto px-4 py-3 pr-3">
+                          {/* === AUDIO / AUDIO_BUTTON actions === */}
+                          {(ctxNode.type === "AUDIO" || ctxNode.type === "AUDIO_BUTTON") && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            const canAct = isCurrentNode;
+                            return (
+                              <div className="space-y-3">
+                                <div className="rounded-2xl border border-primary/15 bg-primary/10 px-3 py-3">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                                    {ctxNode.type === "AUDIO_BUTTON" ? "Botón de botonera" : "Recurso de audio"}
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-on-surface">{nodeSummary(ctxNode)}</p>
+                                </div>
+                                {/* Barra de progreso si está reproduciendo */}
+                                {isCurrentNode && playbackState !== "idle" && playbackProgress.duration > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] text-on-surface-variant">
+                                      <span>{Math.floor(playbackProgress.current)}s</span>
+                                      <span>{Math.floor(playbackProgress.duration)}s</span>
+                                    </div>
+                                    <div className="h-1.5 w-full rounded-full bg-on-surface/10">
+                                      <div
+                                        className="h-1.5 rounded-full bg-primary transition-all"
+                                        style={{ width: `${playbackProgress.duration > 0 ? (playbackProgress.current / playbackProgress.duration) * 100 : 0}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Audio element oculto — solo para el nodo actual */}
+                                {isCurrentNode && renderAudioControls(nodeLabel(ctxNode))}
+                                <div className="flex flex-wrap gap-2">
+                                  {canAct && playbackState === "idle" && (
+                                    <button type="button" onClick={() => { void startAudioPlayback(); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90">
+                                      <Play className="h-3.5 w-3.5 fill-current" /> Reproducir
+                                    </button>
+                                  )}
+                                  {canAct && playbackState === "playing" && (
+                                    <button type="button" onClick={() => { void pauseAudio(); }} className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-primary">
+                                      <Pause className="h-3.5 w-3.5 fill-current" /> Pausar
+                                    </button>
+                                  )}
+                                  {canAct && playbackState === "paused" && (
+                                    <button type="button" onClick={() => { void resumeAudio(); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90">
+                                      <Play className="h-3.5 w-3.5 fill-current" /> Reanudar
+                                    </button>
+                                  )}
+                                  {canAct && playbackState !== "idle" && (
+                                    <button type="button" onClick={() => { void stopAudio(); }} className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-red-400 hover:text-red-400">
+                                      <Square className="h-3.5 w-3.5 fill-current" /> Detener
+                                    </button>
+                                  )}
+                                  {canAct && (
+                                    <button type="button" onClick={() => { void completeCurrentNode(true); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="success-surface inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold">
+                                      <CheckCircle2 className="h-3.5 w-3.5" /> Marcar completado
+                                    </button>
+                                  )}
+                                  {!canAct && (
+                                    <p className="text-xs text-on-surface-variant">Disponible como acción cuando sea el paso actual.</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* === DYNAMIC_AUDIO actions === */}
+                          {ctxNode.type === "DYNAMIC_AUDIO" && (() => {
+                            const dynamicAudioData = ctxNode.data as any;
+                            const template = normalizeDynamicAudioTemplate(String(dynamicAudioData?.template ?? ""));
+                            const variables: string[] = (() => {
+                              const configured = Array.isArray(dynamicAudioData?.variables)
+                                ? dynamicAudioData.variables.filter((variable: unknown): variable is string => typeof variable === "string" && Boolean(variable.trim()))
+                                : [];
+                              return configured.length > 0 ? Array.from(new Set(configured)) : extractDynamicAudioVariables(template);
+                            })();
+                            const draftValues = (dynamicAudioDrafts[ctxNode.id] ?? {}) as Record<string, string>;
+                            const missingVariables = variables.filter((variable) => !String(draftValues[variable] ?? "").trim());
+                            const resolvedText = resolveDynamicAudioTemplate(template, draftValues);
+                            const generatedClip = dynamicAudioClips[ctxNode.id] ?? null;
+                            const canGenerate =
+                              run?.status === "RUNNING" &&
+                              Boolean(template.trim()) &&
+                              missingVariables.length === 0 &&
+                              dynamicAudioGeneratingNodeId !== ctxNode.id;
+                            return (
+                              <div className="space-y-3">
+                                <div className="grid gap-3 rounded-2xl border border-outline-variant bg-surface-container p-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Variables del run</p>
+                                      <p className="mt-1 text-[11px] text-on-surface-variant">Completa cada valor antes de generar el audio.</p>
+                                    </div>
+                                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${missingVariables.length ? "warning-surface-strong" : "success-surface"}`}>
+                                      {missingVariables.length ? `${missingVariables.length} pendiente(s)` : "Listo"}
+                                    </span>
+                                  </div>
+
+                                  {variables.length > 0 ? (
+                                    <div className="grid gap-2">
+                                      {variables.map((variable) => (
+                                        <label key={variable} className="grid gap-1.5">
+                                          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">{`{{${variable}}}`}</span>
+                                          <input
+                                            type="text"
+                                            value={dynamicAudioDrafts[ctxNode.id]?.[variable] ?? ""}
+                                            onChange={(event) => {
+                                              const value = event.target.value;
+                                              setDynamicAudioDrafts((current) => ({
+                                                ...current,
+                                                [ctxNode.id]: {
+                                                  ...(current[ctxNode.id] ?? {}),
+                                                  [variable]: value,
+                                                },
+                                              }));
+                                            }}
+                                            placeholder={`Valor para ${variable}`}
+                                            className="h-9 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                                          />
+                                        </label>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-on-surface-variant">
+                                      No hay variables detectadas en esta plantilla.
+                                    </p>
+                                  )}
+
+                                  <div className="rounded-2xl border border-outline-variant bg-surface px-3 py-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Texto resuelto</p>
+                                    <p className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-on-surface">{resolvedText || "Sin texto resuelto"}</p>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => { void copyNodeText(ctxNode.id); }}
+                                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-primary"
+                                    >
+                                      <Copy className="h-3.5 w-3.5" /> Copiar plantilla
+                                    </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { void generateDynamicAudio(ctxNode.id); }}
+                                    disabled={!canGenerate}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <WandSparkles className="h-3.5 w-3.5" />
+                                    {dynamicAudioGeneratingNodeId === ctxNode.id ? "Generando..." : "Generar audio"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { void playDynamicAudio(ctxNode.id); }}
+                                    disabled={!generatedClip}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-secondary/25 bg-secondary-container px-3 py-2 text-sm font-semibold text-on-secondary-container hover:border-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Play className="h-3.5 w-3.5 fill-current" />
+                                    Reproducir audio
+                                  </button>
+                                    {generatedClip ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => { void stopAudio(); }}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-red-400 hover:text-red-400"
+                                      >
+                                        <Square className="h-3.5 w-3.5 fill-current" />
+                                        Detener
+                                      </button>
+                                    ) : null}
+                                  </div>
+
+                                  {generatedClip ? (
+                                    <div className="rounded-2xl success-surface p-3 text-sm">
+                                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface">Audio generado</p>
+                                      <p className="mt-2 truncate font-semibold text-on-surface">{generatedClip.fileName}</p>
+                                      <p className="mt-1 text-xs text-on-surface-variant">
+                                        {generatedClip.sizeBytes.toLocaleString("es-CO")} bytes · {formatDateTime(generatedClip.generatedAt)}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-on-surface-variant">
+                                      Genera primero el audio para habilitar la reproducción manual.
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* === SCRIPT_TEXT actions === */}
+                          {ctxNode.type === "SCRIPT_TEXT" && (() => {
+                            const text = String((ctxNode.data as any)?.body ?? "");
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            return (
+                              <div className="space-y-3">
+                                <div className="max-h-56 overflow-y-auto rounded-2xl border border-outline-variant bg-surface-container-high p-4 text-sm text-on-surface">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Guion completo</p>
+                                  <p className="mt-3 whitespace-pre-wrap leading-7">"{text || "Sin contenido"}"</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <button type="button" onClick={() => { void copyNodeText(ctxNode.id); }} className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm font-semibold hover:border-primary">
+                                    <Copy className="h-3.5 w-3.5" /> Copiar texto
+                                  </button>
+                                  {isCurrentNode && (
+                                    <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary">
+                                      <ArrowRight className="h-3.5 w-3.5" /> Leído · Continuar
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* === INSTRUCTION actions === */}
+                          {ctxNode.type === "INSTRUCTION" && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            const instruction = String((ctxNode.data as any)?.instruction ?? "");
+                            return (
+                              <div className="space-y-3">
+                                <div className="warning-surface-strong rounded-2xl border-l-4 border-l-[color:var(--warning-icon)] p-4 text-sm">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--warning-text-muted)]">Instrucción operativa</p>
+                                  <p className="mt-3 whitespace-pre-wrap leading-7">{instruction || "Sin instrucción"}</p>
+                                </div>
+                                {isCurrentNode && (
+                                  <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="warning-surface-strong inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Entendido · Continuar
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* === PAUSE actions === */}
+                          {ctxNode.type === "PAUSE" && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            const pauseData = ctxNode.data as any;
+                            return (
+                              <div className="space-y-3">
+                                <div className="rounded-2xl border border-outline-variant bg-surface p-4 text-sm">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Pausa</p>
+                                  <p className="mt-2 text-on-surface-variant">Tipo: <span className="font-semibold text-on-surface">{pauseData?.pauseType === "timer" || pauseData?.manual === false ? "Temporizador" : "Manual"}</span></p>
+                                  {pauseData?.durationSeconds && <p className="text-on-surface-variant">Duración: <span className="font-semibold text-on-surface">{pauseData.durationSeconds}s</span></p>}
+                                </div>
+                                {isCurrentNode && (
+                                  <button type="button" onClick={() => { void completeCurrentNode(false); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-on-primary">
+                                    <ArrowRight className="h-3.5 w-3.5" /> Continuar
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* === DECISION actions === */}
+                          {ctxNode.type === "DECISION" && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            const choices: DecisionChoice[] = (() => {
+                              const raw = (ctxNode.data as any)?.options;
+                              return flowEdges
+                                .filter((e) => e.source === ctxNode.id)
+                                .map((e, index) => ({ label: (e.label as string) || readDecisionLabels(raw)[index] || "Continuar", targetNodeId: e.target }));
+                            })();
+                            return (
+                              <div className="space-y-3">
+                                <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--warning-text-muted)]">Pregunta</p>
+                                  <p className="mt-2 text-sm font-semibold text-on-surface">{(ctxNode.data as any)?.question ?? nodeLabel(ctxNode)}</p>
+                                </div>
+                                {isCurrentNode ? (
+                                  <div className="flex flex-col gap-2">
+                                    {choices.length > 0 ? choices.map((c) => (
+                                      <button
+                                        key={c.targetNodeId}
+                                        type="button"
+                                        onClick={() => { void handleDecision(c.targetNodeId, c.label); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }}
+                                        className="w-full rounded-xl border border-outline-variant bg-surface px-3 py-2.5 text-left text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                                      >
+                                        {c.label}
+                                      </button>
+                                    )) : <p className="text-xs text-on-surface-variant">No hay opciones configuradas.</p>}
+                                  </div>
+                                ) : <p className="text-xs text-on-surface-variant">Solo disponible en el paso actual.</p>}
+                              </div>
+                            );
+                          })()}
+
+                          {/* === END actions === */}
+                          {ctxNode.type === "END" && (() => {
+                            const isCurrentNode = ctxNode.id === run?.currentNodeId;
+                            return (
+                              <div className="space-y-3">
+                                <div className="rounded-2xl success-surface p-4 text-sm">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-on-surface">Cierre</p>
+                                  <p className="mt-2">{nodeLabel(ctxNode)} · Fin del flujo.</p>
+                                </div>
+                                {isCurrentNode && (
+                                  <button type="button" onClick={() => { void finishRun(); setContextMenu({ isOpen: false, x: 0, y: 0, nodeId: null }); }} className="success-surface-strong inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Finalizar ejecución
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Estado bloqueado */}
+                          {status === "locked" && (
+                            <div className="flex items-start gap-2 rounded-xl border border-outline-variant bg-surface-container px-3 py-2 text-xs text-on-surface-variant">
+                              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                              Este nodo no está disponible aún en la ruta actual.
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
-              </div>
+              )}
             </div>
-          </div>
-        </section>
-
-        <aside className="space-y-4 rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
-              Actividad
-            </p>
-            <h3 className="mt-1 text-lg font-semibold tracking-tight text-on-surface">
-              Eventos recientes
-            </h3>
-          </div>
-
-          <div className="space-y-2">
-            {eventLog.length > 0 ? (
-              eventLog.map((event) => (
-                <div key={event.id} className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-on-surface">{event.eventType}</p>
-                    <span className="text-[11px] text-on-surface-variant">
-                      {formatDateTime(event.createdAt)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-on-surface-variant">
-                    Nodo {event.nodeId}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-outline-variant px-4 py-8 text-center text-sm text-on-surface-variant">
-                Todavía no hay eventos en esta ejecución.
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-4 text-sm text-on-surface-variant">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <p>
-                El player avanza por la ruta publicada y mantiene la ejecución asociada a esta sesión.
-              </p>
-            </div>
-          </div>
-        </aside>
+          </section>
+        </div>
+        {isDualView ? (
+          <aside className="min-w-0 self-stretch lg:sticky lg:top-4 lg:h-[calc(100dvh-12rem)] lg:self-start">
+            <NarrativeAudioLibraryPanel />
+          </aside>
+        ) : null}
       </div>
-    </div>
+    </ReactFlowProvider>
+    </NarrativePlayerContext.Provider>
   );
 }

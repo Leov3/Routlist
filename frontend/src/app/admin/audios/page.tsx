@@ -1,18 +1,50 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type ChangeEvent, type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle, Music, Pencil, Trash2, Upload, XCircle } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api, formatBytes } from "@/lib/api";
-import type { AudioAsset } from "@/types/routlis";
+import { AudioCsvButtonCreationModal } from "@/components/audio-board/AudioCsvButtonCreationModal";
+import { AudioCsvImportModal } from "@/components/audio-board/AudioCsvImportModal";
+import { AudioManualCreationModal } from "@/components/audio-board/AudioManualCreationModal";
+import type { CsvImportQueueItem, CsvImportResult, CsvPreview, CsvPreviewRow } from "@/components/audio-board/audio-csv-types";
+import type { AudioAsset, AudioCategory } from "@/types/routlis";
 
 type SortKey = "originalName" | "mimeType" | "sizeBytes" | "isActive";
 type StatusFilter = "all" | "active" | "inactive";
+type LifecycleFilter = "all" | "temporary" | "permanent";
+
+function SortBtn({
+  sortKey,
+  sortDir,
+  onSort,
+  k,
+  label,
+}: {
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+  k: SortKey;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(k)}
+      className="inline-flex items-center gap-1 transition-colors hover:text-primary"
+    >
+      {label}{" "}
+      <span className="opacity-50">
+        {sortKey === k ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
+      </span>
+    </button>
+  );
+}
 
 const STATUS_OPTIONS = [
   { value: "all" as const, label: "Todos" },
@@ -20,24 +52,138 @@ const STATUS_OPTIONS = [
   { value: "inactive" as const, label: "Inactivos" },
 ];
 
+const LIFECYCLE_OPTIONS = [
+  { value: "all" as const, label: "Todos" },
+  { value: "temporary" as const, label: "Temporales" },
+  { value: "permanent" as const, label: "Permanentes" },
+];
+
 export default function AudiosPage() {
   const [audios, setAudios] = useState<AudioAsset[]>([]);
+  const [categories, setCategories] = useState<AudioCategory[]>([]);
+  const [importMode, setImportMode] = useState<"manual" | "csv">("manual");
   const [files, setFiles] = useState<File[]>([]);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvAudioFiles, setCsvAudioFiles] = useState<CsvAudioSelection[]>([]);
+  const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
+  const [csvQueue, setCsvQueue] = useState<CsvImportQueueItem[]>([]);
+  const [csvImporting, setCsvImporting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [lifecycleFilter, setLifecycleFilter] = useState<LifecycleFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("originalName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ originalName: "", durationSeconds: "", transcript: "" });
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualAssets, setManualAssets] = useState<AudioAsset[]>([]);
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [csvButtonOpen, setCsvButtonOpen] = useState(false);
+  const [csvButtonQueue, setCsvButtonQueue] = useState<CsvImportQueueItem[]>([]);
+  const debugModalWasOpened = useRef(false);
 
   async function load() {
     try { setAudios(await api<AudioAsset[]>("/audio-assets")); }
     finally { setLoading(false); }
   }
 
-  useEffect(() => { void load(); }, []);
+  async function loadCategories() {
+    try {
+      setCategories(await api<AudioCategory[]>("/audio-categories"));
+    } catch {
+      setCategories([]);
+    }
+  }
+
+  function downloadCsvTemplate() {
+    const template = [
+      "file_name,path,text,label,button_title,description,tag",
+      "audio-ejemplo.mp3,carpeta/audio-ejemplo.mp3,\"Texto completo del audio\",\"Etiqueta visible\",\"Título del botón\",\"Descripción corta\",\"tag-1\"",
+    ].join("\n");
+
+    const blob = new Blob([template], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "plantilla-audios-routlis.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function resetCsvDerivedState() {
+    setCsvPreview(null);
+    setCsvQueue([]);
+    setCsvButtonQueue([]);
+    setCsvOpen(false);
+    setCsvButtonOpen(false);
+  }
+
+  useEffect(() => {
+    void load();
+    void loadCategories();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function buildPreview() {
+      if (!csvFile) {
+        setCsvPreview(null);
+        return;
+      }
+
+      try {
+        const csvText = await csvFile.text();
+        const { preview, queue } = buildCsvImportQueue(csvText, csvAudioFiles);
+
+        if (!cancelled) {
+          setCsvPreview(preview);
+          setCsvQueue(queue);
+        }
+      } catch {
+        if (!cancelled) {
+          setCsvPreview({
+            totalRows: 0,
+            matchedCount: 0,
+            missingCount: 0,
+            duplicates: [],
+            rows: [],
+            error: "No se pudo leer el CSV.",
+          });
+          setCsvQueue([]);
+        }
+      }
+    }
+
+    void buildPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [csvAudioFiles, csvFile]);
+
+  useEffect(() => {
+    return () => {
+      revokeCsvAudioSelections(csvAudioFiles);
+    };
+  }, [csvAudioFiles]);
+
+  useEffect(() => {
+    const debugModal = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("debugModal");
+    if (debugModalWasOpened.current || loading || !audios.length) return;
+    if (debugModal !== "csv-buttons") return;
+
+    const debugQueue = buildDebugCsvButtonQueue(audios);
+    if (!debugQueue.length) return;
+
+    debugModalWasOpened.current = true;
+    setCsvButtonQueue(debugQueue);
+    setCsvButtonOpen(true);
+  }, [audios, loading]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -45,14 +191,18 @@ export default function AudiosPage() {
       .filter((a) => {
         const matchSearch = `${a.originalName} ${a.mimeType}`.toLowerCase().includes(term);
         const matchStatus = statusFilter === "all" || (statusFilter === "active" ? a.isActive : !a.isActive);
-        return matchSearch && matchStatus;
+        const isTemporary = a.lifecycleStatus === "TEMPORARY" || Boolean(a.expiresAt);
+        const matchLifecycle =
+          lifecycleFilter === "all" ||
+          (lifecycleFilter === "temporary" ? isTemporary : !isTemporary);
+        return matchSearch && matchStatus && matchLifecycle;
       })
       .sort((a, b) => {
         const l = a[sortKey]; const r = b[sortKey];
         const res = typeof l === "number" && typeof r === "number" ? l - r : String(l).localeCompare(String(r));
         return sortDir === "asc" ? res : -res;
       });
-  }, [audios, search, sortDir, sortKey, statusFilter]);
+  }, [audios, lifecycleFilter, search, sortDir, sortKey, statusFilter]);
 
   function sortBy(key: SortKey) {
     if (sortKey === key) { setSortDir((d) => (d === "asc" ? "desc" : "asc")); return; }
@@ -64,19 +214,82 @@ export default function AudiosPage() {
     if (!files.length) return;
     setUploading(true);
     try {
+      let createdAssets: AudioAsset[] = [];
       if (files.length === 1) {
         const fd = new FormData();
         fd.append("file", files[0]);
-        await api("/audio-assets", { method: "POST", body: fd, formData: true });
+        const created = await api<AudioAsset>("/audio-assets", { method: "POST", body: fd, formData: true });
+        createdAssets = [created];
       } else {
         const fd = new FormData();
         fd.append("action", "IMPORT");
         files.forEach((file) => fd.append("files", file));
-        await api("/audio-assets/bulk", { method: "POST", body: fd, formData: true });
+        const created = await api<{ assets?: AudioAsset[] }>("/audio-assets/bulk", { method: "POST", body: fd, formData: true });
+        createdAssets = created.assets ?? [];
       }
       setFiles([]);
+      if (createdAssets.length > 0) {
+        setManualAssets(createdAssets);
+        setManualOpen(true);
+      }
       await load();
     } finally { setUploading(false); }
+  }
+
+  async function importCsv(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!csvFile || !csvAudioFiles.length) return;
+
+    setCsvImporting(true);
+    try {
+      const csvText = await csvFile.text();
+      const { preview, queue } = buildCsvImportQueue(csvText, csvAudioFiles);
+      setCsvPreview(preview);
+      setCsvQueue(queue);
+      setCsvOpen(true);
+    } finally {
+      setCsvImporting(false);
+    }
+  }
+
+  async function confirmCsvImport() {
+    if (!csvFile || !csvAudioFiles.length) {
+      return {
+        createdCount: 0,
+        skippedCount: csvQueue.length,
+        duplicates: [],
+        unmatchedFiles: [],
+        rows: csvQueue,
+        assets: [],
+        queue: csvQueue,
+      };
+    }
+
+    setCsvImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("csv", csvFile);
+      fd.append("paths", JSON.stringify(csvAudioFiles.map((selection) => selection.path ?? selection.file.name)));
+      csvAudioFiles.forEach((selection) => fd.append("files", selection.file));
+
+      const result = await api<CsvImportResult>("/audio-assets/import-csv", {
+        method: "POST",
+        body: fd,
+        formData: true,
+      });
+
+      const mergedQueue = mergeCsvQueueItems(csvQueue, result.queue);
+      setCsvQueue(mergedQueue);
+      if (result.createdCount > 0) {
+        setCsvFile(null);
+        setCsvAudioFiles([]);
+        setCsvPreview(null);
+      }
+      await load();
+      return result;
+    } finally {
+      setCsvImporting(false);
+    }
   }
 
   function startEdit(a: AudioAsset) {
@@ -107,23 +320,198 @@ export default function AudiosPage() {
     await load();
   }
 
-  const SortBtn = ({ k, label }: { k: SortKey; label: string }) => (
-    <button type="button" onClick={() => sortBy(k)} className="inline-flex items-center gap-1 transition-colors hover:text-primary">
-      {label} <span className="opacity-50">{sortKey === k ? (sortDir === "asc" ? "↑" : "↓") : "↕"}</span>
-    </button>
-  );
-
   return (
-    <ProtectedPage requiredPermissions={["audio:create"]}>
+    <AdminProtectedPage>
       <PageHeader title="Audios" description="Biblioteca de archivos MP3 y WAV." />
 
-      {/* Upload panel */}
-      <form onSubmit={upload} className="mb-6 flex items-center gap-4 rounded-2xl border border-outline-variant bg-surface-container p-5">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Upload className="h-5 w-5" />
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-outline-variant bg-surface-container p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-on-surface">Modo de carga</p>
+          <p className="text-xs text-on-surface-variant">
+            Alterna entre subida manual e importación por CSV.
+          </p>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-on-surface">Archivo</p>
+        <div className="grid gap-2 rounded-2xl border border-outline-variant bg-surface-container-high p-1 sm:inline-flex sm:gap-0">
+          <button
+            type="button"
+            onClick={() => setImportMode("manual")}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+              importMode === "manual"
+                ? "bg-primary text-on-primary shadow-elevation-1"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            Carga manual
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportMode("csv")}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+              importMode === "csv"
+                ? "bg-primary text-on-primary shadow-elevation-1"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            Importación CSV
+          </button>
+        </div>
+      </div>
+
+      {importMode === "csv" ? (
+      <section className="mb-6 rounded-3xl border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
+        <div className="mb-5 flex flex-col gap-3 border-b border-outline-variant/60 pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-on-surface-variant sm:text-sm">Importación por CSV</p>
+            <h2 className="mt-1 text-lg font-semibold text-on-surface sm:text-xl">Carga audios en lote con texto, título y etiquetas</h2>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Selecciona el CSV. Los archivos de audio se emparejan por <code className="rounded bg-surface-container-high px-1 py-0.5">path</code> + <code className="rounded bg-surface-container-high px-1 py-0.5">file_name</code> o por nombre exacto.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={downloadCsvTemplate}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-outline-variant bg-surface-container-high px-4 py-3 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary lg:w-auto"
+          >
+            Descargar plantilla CSV
+          </button>
+        </div>
+
+        <form onSubmit={importCsv} className="grid gap-5">
+          <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr_auto]">
+            <FilePickerCard
+              label="CSV"
+              description="Selecciona el CSV"
+              helper={csvFile ? csvFile.name : "Sin CSV seleccionado"}
+              actionLabel="Elegir CSV"
+              accept=".csv,text/csv"
+              onChangeFile={(file) => {
+                setCsvFile(file);
+                resetCsvDerivedState();
+              }}
+            />
+            <FilePickerCard
+              label="Audios"
+              description="Carga uno o varios audios."
+              helper={
+                csvAudioFiles.length === 0
+                  ? "Sin archivos seleccionados"
+                  : csvAudioFiles.length === 1
+                    ? csvAudioFiles[0].file.name
+                    : `${csvAudioFiles.length} archivos seleccionados`
+              }
+              actionLabel="Elegir archivos"
+              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
+              multiple
+              directory
+              onChangeFiles={(files) => {
+                revokeCsvAudioSelections(csvAudioFiles);
+                resetCsvDerivedState();
+                setCsvAudioFiles(
+                  files.map((file) => ({
+                    file,
+                    path: getRelativeCsvPath(file),
+                    previewUrl: URL.createObjectURL(file),
+                  })),
+                );
+              }}
+            />
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={!csvFile || !csvAudioFiles.length || csvImporting}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {csvImporting ? "Revisando..." : "Revisar importación"}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <StatBox label="Filas detectadas" value={String(csvPreview?.totalRows ?? 0)} />
+            <StatBox label="Coincidencias" value={String(csvPreview?.matchedCount ?? 0)} />
+            <StatBox label="Pendientes" value={String(csvPreview?.missingCount ?? 0)} />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1fr_1.1fr]">
+            <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+              <p className="text-sm font-semibold text-on-surface">Estado de la importación</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <SummaryPill label="CSV" value={csvFile ? "Listo" : "Pendiente"} tone={csvFile ? "success" : "muted"} />
+                <SummaryPill label="Audios" value={csvAudioFiles.length ? `${csvAudioFiles.length}` : "Pendiente"} tone={csvAudioFiles.length ? "success" : "muted"} />
+                <SummaryPill label="Importar" value={csvPreview?.error ? "Revisar" : "Listo"} tone={csvPreview?.error ? "warning" : "muted"} />
+              </div>
+
+              {csvPreview?.error ? <p className="danger-surface mt-4 rounded-2xl px-4 py-3 text-sm">{csvPreview.error}</p> : null}
+              {csvPreview?.duplicates?.length ? (
+                <p className="warning-surface-strong mt-4 rounded-2xl px-4 py-3 text-sm">Duplicados detectados: {csvPreview.duplicates.join(", ")}</p>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4">
+              <p className="text-sm font-semibold text-on-surface">Vista previa</p>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                Revisa todas las filas detectadas antes de abrir el asistente.
+              </p>
+            </div>
+          </div>
+
+          {csvPreview?.rows?.length ? (
+            <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-high">
+              <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-on-surface">Preview del CSV</p>
+                  <p className="text-xs text-on-surface-variant">Archivo, texto, etiqueta y estado de match.</p>
+                </div>
+                <p className="text-xs text-on-surface-variant">{csvPreview.rows.length} filas</p>
+              </div>
+              <div className="max-h-[420px] overflow-auto">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead className="bg-surface-container text-xs uppercase text-on-surface-variant">
+                    <tr>
+                      <th className="px-4 py-3">Archivo</th>
+                      <th className="px-4 py-3">Título</th>
+                      <th className="px-4 py-3">Etiqueta</th>
+                      <th className="px-4 py-3">Texto</th>
+                      <th className="px-4 py-3">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csvPreview.rows.map((row) => (
+                      <tr key={`${row.rowNumber}-${row.fileName}`} className="border-t border-outline-variant/60">
+                        <td className="px-4 py-3 font-medium text-on-surface">{row.fileName}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">{row.buttonTitle || row.text || row.label || "—"}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">{row.tag || "—"}</td>
+                        <td className="px-4 py-3">
+                          <p className="max-w-[420px] truncate text-on-surface-variant" title={row.text}>{row.text}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={row.status === "MATCHED" ? "text-[color:var(--success-text-muted)]" : "text-[color:var(--warning-text-muted)]"}>
+                            {row.status === "MATCHED" ? `OK (${row.matchedFileName})` : "Pendiente"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </form>
+      </section>
+      ) : null}
+
+      {importMode === "manual" ? (
+      <form onSubmit={upload} className="mb-6 rounded-2xl border border-outline-variant bg-surface-container p-4 sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Upload className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-on-surface">Subida manual</p>
+              <p className="text-xs text-on-surface-variant">Importa uno o varios audios sin CSV.</p>
+            </div>
+          </div>
           <p className="text-xs text-on-surface-variant">
             {files.length === 0
               ? "Sin archivos seleccionados"
@@ -132,52 +520,80 @@ export default function AudiosPage() {
                 : `${files.length} archivos seleccionados`}
           </p>
         </div>
-        <label className="cursor-pointer rounded-xl border border-outline-variant bg-surface-container-high px-4 py-2 text-sm text-on-surface transition-all hover:border-primary hover:text-primary">
-          Seleccionar
-          <input
-            type="file"
-            multiple
-            accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-            className="sr-only"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={!files.length || uploading}
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Upload className="h-4 w-4" />
-          {uploading ? "Subiendo..." : files.length > 1 ? "Importar lote" : "Subir"}
-        </button>
+        <div className="grid gap-3 sm:flex sm:items-center">
+          <label className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container-high px-4 text-sm text-on-surface transition-all hover:border-primary hover:text-primary sm:w-auto">
+            Seleccionar archivos
+            <input
+              type="file"
+              multiple
+              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+              className="sr-only"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={!files.length || uploading}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-elevation-1 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            <Upload className="h-4 w-4" />
+            {uploading ? "Subiendo..." : files.length > 1 ? "Importar lote" : "Subir"}
+          </button>
+        </div>
       </form>
+      ) : null}
 
       {/* Filters row */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchBar value={search} onChange={setSearch} placeholder="Filtrar por nombre o tipo..." />
         <FilterBar value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
+        <FilterBar value={lifecycleFilter} onChange={setLifecycleFilter} options={LIFECYCLE_OPTIONS} />
       </div>
 
       {/* Table */}
       {loading ? (
         <DataState>Cargando audios...</DataState>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-outline-variant">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filtered.length === 0 ? (
+              <DataState>Sin resultados.</DataState>
+            ) : (
+              filtered.map((audio) => (
+                <AudioCard
+                  key={audio.id}
+                  audio={audio}
+                  editing={editingId === audio.id}
+                  editForm={editForm}
+                  onStartEdit={() => startEdit(audio)}
+                  onCancelEdit={() => setEditingId(null)}
+                  onSave={() => void saveEdit(audio.id)}
+                  onToggleActive={() => void setActive(audio.id, !audio.isActive)}
+                  onDelete={() => void remove(audio.id)}
+                  onEditName={(value) => setEditForm((current) => ({ ...current, originalName: value }))}
+                  onEditDuration={(value) => setEditForm((current) => ({ ...current, durationSeconds: value }))}
+                  onEditTranscript={(value) => setEditForm((current) => ({ ...current, transcript: value }))}
+                />
+              ))
+            )}
+          </div>
+          <div className="hidden overflow-hidden rounded-2xl border border-outline-variant md:block">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>
               <tr className="border-b border-outline-variant bg-surface-container-high">
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn k="originalName" label="Nombre" /></th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn k="mimeType" label="Tipo" /></th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn k="sizeBytes" label="Tamaño" /></th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="originalName" label="Nombre" /></th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="mimeType" label="Tipo" /></th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="sizeBytes" label="Tamaño" /></th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Duración</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn k="isActive" label="Estado" /></th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Lifecycle</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"><SortBtn sortKey={sortKey} sortDir={sortDir} onSort={sortBy} k="isActive" label="Estado" /></th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-on-surface-variant">Sin resultados.</td>
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-on-surface-variant">Sin resultados.</td>
                 </tr>
               ) : (
                 filtered.map((audio) => (
@@ -214,6 +630,19 @@ export default function AudiosPage() {
                         <span className="text-on-surface-variant">{audio.durationSeconds ? `${audio.durationSeconds}s` : "–"}</span>
                       )}
                     </td>
+                    {/* Lifecycle */}
+                    <td className="px-4 py-3.5">
+                      <div className="grid gap-1">
+                        <span className="text-on-surface-variant">
+                          {isTemporaryAudio(audio) ? "Temporal" : "Permanente"}
+                        </span>
+                        {isTemporaryAudio(audio) ? (
+                          <span className="text-xs text-on-surface-variant">
+                            {getRemainingTimeLabel(audio.expiresAt)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
                     {/* Status */}
                     <td className="px-4 py-3.5"><StatusBadge active={audio.isActive} /></td>
                     {/* Actions */}
@@ -249,8 +678,636 @@ export default function AudiosPage() {
               )}
             </tbody>
           </table>
+          </div>
+        </>
+      )}
+
+      <AudioCsvImportModal
+        open={csvOpen}
+        preview={csvPreview}
+        queue={csvQueue}
+        busy={csvImporting}
+        onConfirmImport={async () => {
+          const result = await confirmCsvImport();
+          const nextQueue = result.queue ?? [];
+          const importedQueue = nextQueue.filter((item) => Boolean(item.assetId));
+          setCsvQueue(nextQueue);
+          setCsvButtonQueue(importedQueue);
+          if (importedQueue.length > 0) {
+            setCsvButtonOpen(true);
+            setCsvOpen(false);
+          }
+          return result;
+        }}
+        onClose={() => setCsvOpen(false)}
+      />
+
+      <AudioCsvButtonCreationModal
+        open={csvButtonOpen}
+        queue={csvButtonQueue}
+        categories={categories}
+        onClose={() => {
+          setCsvButtonOpen(false);
+          setCsvButtonQueue([]);
+        }}
+        onFinished={() => {
+          setCsvButtonOpen(false);
+          setCsvButtonQueue([]);
+          void load();
+        }}
+      />
+
+      <AudioManualCreationModal
+        open={manualOpen}
+        assets={manualAssets}
+        categories={categories}
+        onClose={() => setManualOpen(false)}
+        onFinished={() => {
+          setManualOpen(false);
+          setManualAssets([]);
+          void load();
+        }}
+      />
+    </AdminProtectedPage>
+  );
+}
+
+function isTemporaryAudio(audio: AudioAsset) {
+  return audio.lifecycleStatus === "TEMPORARY" || Boolean(audio.expiresAt);
+}
+
+function getRemainingTimeLabel(expiresAt?: string | null) {
+  if (!expiresAt) return "Sin vencimiento";
+
+  const expiresAtDate = new Date(expiresAt);
+  const diffMs = expiresAtDate.getTime() - Date.now();
+
+  if (Number.isNaN(expiresAtDate.getTime())) return "Vencimiento inválido";
+  if (diffMs <= 0) return "Vencido";
+
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts = [
+    days > 0 ? `${days}d` : null,
+    hours > 0 ? `${hours}h` : null,
+    minutes > 0 ? `${minutes}m` : null,
+  ].filter(Boolean);
+
+  return `Le quedan ${parts.length ? parts.join(" ") : "menos de 1m"}`;
+}
+
+function mergeCsvQueueItems(
+  currentQueue: CsvImportQueueItem[],
+  nextQueue: CsvImportQueueItem[] | undefined,
+) {
+  if (!nextQueue?.length) {
+    return currentQueue;
+  }
+  if (!currentQueue.length) {
+    return nextQueue;
+  }
+
+  const nextByRow = new Map(nextQueue.map((item) => [item.rowNumber, item]));
+  return currentQueue.map((item) => ({
+    ...item,
+    ...Object.fromEntries(
+      Object.entries(nextByRow.get(item.rowNumber) ?? {}).filter(([, value]) => value !== null && value !== undefined),
+    ),
+  }));
+}
+
+function buildCsvImportQueue(csvText: string, audioFiles: CsvAudioSelection[]) {
+  const rows = parseCsvRows(csvText);
+  const fileIndex = new Map<string, CsvAudioSelection>();
+  const duplicates: string[] = [];
+
+  for (const selection of audioFiles) {
+    const keys = getCsvSelectionKeys(selection);
+    const primaryKey = getCsvSelectionPrimaryKey(selection);
+    if (fileIndex.has(primaryKey)) {
+      duplicates.push(selection.file.name);
+      continue;
+    }
+    for (const key of keys) {
+      if (!fileIndex.has(key)) {
+        fileIndex.set(key, selection);
+      }
+    }
+  }
+
+  const previewRows = rows.map((row) => {
+    const matched = resolvePreviewFile(fileIndex, row);
+    return {
+      ...row,
+      matchedFileName: matched?.file.name ?? null,
+      status: matched ? "MATCHED" : "MISSING_FILE",
+    } as CsvPreviewRow;
+  });
+
+  const queue = previewRows.map((row) => {
+    const matched = resolvePreviewFile(fileIndex, row);
+    return {
+      id: `csv-row-${row.rowNumber}`,
+      rowNumber: row.rowNumber,
+      originalName: row.text?.trim() || row.fileName,
+      fileName: row.fileName,
+      path: row.path,
+      text: row.text,
+      mimeType: matched?.file.type || null,
+      sizeBytes: typeof matched?.file.size === "number" ? matched.file.size : null,
+      audioBlobUrl: matched?.previewUrl ?? null,
+      transcript: row.text,
+      label: row.label,
+      buttonTitle: row.buttonTitle,
+      description: row.description,
+      tag: row.tag,
+      status: row.status,
+      matchedFileName: row.matchedFileName,
+      assetId: null,
+      errorMessage: row.status === "MISSING_FILE" ? "No se encontró un archivo para esta fila." : null,
+    } satisfies CsvImportQueueItem;
+  });
+
+  return {
+    preview: {
+      totalRows: previewRows.length,
+      matchedCount: previewRows.filter((row) => row.status === "MATCHED").length,
+      missingCount: previewRows.filter((row) => row.status !== "MATCHED").length,
+      duplicates,
+      rows: previewRows,
+    } satisfies CsvPreview,
+    queue,
+  };
+}
+
+function parseCsvRows(csvText: string) {
+  const lines = csvText.replace(/^\uFEFF/, "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return [];
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim().toLowerCase());
+  const indexOf = (name: string) => headers.findIndex((header) => header === name.toLowerCase());
+  const fileNameIndex = indexOf("file_name");
+  const textIndex = indexOf("text");
+  if (fileNameIndex === -1 || textIndex === -1) return [];
+
+  return lines.slice(1).map((line, rowIndex) => {
+    const values = parseCsvLine(line);
+    const get = (index: number) => (index >= 0 ? values[index]?.trim() ?? "" : "");
+
+    return {
+      rowNumber: rowIndex + 2,
+      fileName: get(fileNameIndex),
+      path: indexOf("path") >= 0 ? get(indexOf("path")) || null : null,
+      text: get(textIndex),
+      label: indexOf("label") >= 0 ? get(indexOf("label")) || null : null,
+      buttonTitle: indexOf("button_title") >= 0 ? get(indexOf("button_title")) || null : null,
+      description: indexOf("description") >= 0 ? get(indexOf("description")) || null : null,
+      tag: indexOf("tag") >= 0 ? get(indexOf("tag")) || null : null,
+    } satisfies Omit<CsvPreviewRow, "matchedFileName" | "status">;
+  });
+}
+
+function parseCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  cells.push(current);
+  return cells;
+}
+
+type CsvAudioSelection = {
+  file: File;
+  path: string | null;
+  previewUrl: string;
+};
+
+function normalizeCsvPath(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("/")
+    .toLowerCase();
+}
+
+function csvBasename(value: string | null | undefined) {
+  const normalized = normalizeCsvPath(value);
+  if (!normalized) return "";
+  return normalized.split("/").pop() ?? "";
+}
+
+function csvDirname(value: string | null | undefined) {
+  const normalized = normalizeCsvPath(value);
+  const index = normalized.lastIndexOf("/");
+  return index > 0 ? normalized.slice(0, index) : "";
+}
+
+function addCsvKey(keys: Set<string>, value: string | null | undefined) {
+  const key = normalizeCsvPath(value);
+  if (key) keys.add(key);
+}
+
+function addCsvSuffixKeys(keys: Set<string>, value: string | null | undefined) {
+  const normalized = normalizeCsvPath(value);
+  if (!normalized) return;
+
+  const parts = normalized.split("/");
+  for (let index = 0; index < parts.length; index += 1) {
+    addCsvKey(keys, parts.slice(index).join("/"));
+  }
+}
+
+function resolvePreviewFile(fileIndex: Map<string, CsvAudioSelection>, row: { fileName: string; path: string | null }) {
+  const candidates = new Set<string>();
+
+  if (row.path) {
+    addCsvKey(candidates, `${row.path}/${row.fileName}`);
+    addCsvKey(candidates, row.path);
+    const pathDirname = csvDirname(row.path);
+    if (pathDirname) {
+      addCsvKey(candidates, `${pathDirname}/${row.fileName}`);
+    }
+  }
+
+  addCsvKey(candidates, row.fileName);
+  addCsvKey(candidates, csvBasename(row.fileName));
+
+  for (const key of candidates) {
+    const matched = fileIndex.get(key);
+    if (matched) return matched;
+  }
+
+  return null;
+}
+
+function getCsvSelectionKeys(selection: CsvAudioSelection) {
+  const keys = new Set<string>();
+  const relativePath = getRelativeCsvPath(selection.file);
+  if (relativePath) {
+    addCsvSuffixKeys(keys, relativePath);
+    addCsvKey(keys, csvBasename(relativePath));
+  }
+
+  if (selection.path) {
+    addCsvSuffixKeys(keys, selection.path);
+    addCsvKey(keys, csvBasename(selection.path));
+    addCsvKey(keys, `${selection.path}/${selection.file.name}`);
+    const pathDirname = csvDirname(selection.path);
+    if (pathDirname) {
+      addCsvKey(keys, `${pathDirname}/${selection.file.name}`);
+    }
+  }
+
+  addCsvKey(keys, selection.file.name);
+  addCsvKey(keys, csvBasename(selection.file.name));
+
+  return Array.from(keys);
+}
+
+function getCsvSelectionPrimaryKey(selection: CsvAudioSelection) {
+  const relativePath = getRelativeCsvPath(selection.file);
+  if (relativePath) {
+    return normalizeCsvPath(relativePath);
+  }
+
+  if (selection.path) {
+    return normalizeCsvPath(`${selection.path}/${selection.file.name}`);
+  }
+
+  return normalizeCsvPath(selection.file.name);
+}
+
+function getRelativeCsvPath(file: File) {
+  const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath ?? "";
+  if (!relativePath) return null;
+  const trimmed = relativePath.trim();
+  if (!trimmed) return null;
+  return trimmed;
+}
+
+function revokeCsvAudioSelections(selections: CsvAudioSelection[]) {
+  selections.forEach((selection) => URL.revokeObjectURL(selection.previewUrl));
+}
+
+function AudioCard({
+  audio,
+  editing,
+  editForm,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  onToggleActive,
+  onDelete,
+  onEditName,
+  onEditDuration,
+  onEditTranscript,
+}: {
+  audio: AudioAsset;
+  editing: boolean;
+  editForm: { originalName: string; durationSeconds: string; transcript: string };
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  onEditName: (value: string) => void;
+  onEditDuration: (value: string) => void;
+  onEditTranscript: (value: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Music className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            {editing ? (
+              <input
+                value={editForm.originalName}
+                onChange={(event) => onEditName(event.target.value)}
+                className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm text-on-surface outline-none focus:border-primary"
+              />
+            ) : (
+              <p className="truncate text-sm font-semibold text-on-surface">{audio.originalName}</p>
+            )}
+            <p className="truncate text-xs text-on-surface-variant">{audio.mimeType}</p>
+          </div>
+        </div>
+        <StatusBadge active={audio.isActive} />
+      </div>
+
+      {editing ? (
+        <div className="mt-3 grid gap-3">
+          <input
+            value={editForm.durationSeconds}
+            onChange={(event) => onEditDuration(event.target.value)}
+            type="number"
+            min="0"
+            placeholder="Duración en segundos"
+            className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm text-on-surface outline-none focus:border-primary"
+          />
+          <textarea
+            value={editForm.transcript}
+            onChange={(event) => onEditTranscript(event.target.value)}
+            placeholder="Transcripción"
+            className="min-h-24 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 py-2 text-sm text-on-surface outline-none focus:border-primary"
+          />
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+          <div className="flex items-center justify-between gap-3">
+            <span>Tamaño</span>
+            <span className="font-medium text-on-surface">{formatBytes(audio.sizeBytes)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Duración</span>
+            <span className="font-medium text-on-surface">{audio.durationSeconds ? `${audio.durationSeconds}s` : "–"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Lifecycle</span>
+            <span className="font-medium text-on-surface">{isTemporaryAudio(audio) ? "Temporal" : "Permanente"}</span>
+          </div>
+          {isTemporaryAudio(audio) ? (
+            <div className="flex items-center justify-between gap-3">
+              <span>Vence</span>
+              <span className="font-medium text-on-surface">{getRemainingTimeLabel(audio.expiresAt)}</span>
+            </div>
+          ) : null}
         </div>
       )}
-    </ProtectedPage>
+
+      <div className="mt-4 grid gap-2">
+        {editing ? (
+          <>
+            <button type="button" onClick={onSave} className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary">
+              Guardar
+            </button>
+            <button type="button" onClick={onCancelEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={onStartEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+              Editar
+            </button>
+            <button type="button" onClick={onToggleActive} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">
+              {audio.isActive ? "Desactivar" : "Activar"}
+            </button>
+            <button type="button" onClick={onDelete} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-error/30 px-4 text-sm font-semibold text-error">
+              Eliminar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function buildDebugCsvButtonQueue(audios: AudioAsset[]): CsvImportQueueItem[] {
+  return audios.slice(0, 8).map((audio, index) => {
+    const metadata = audio.importMetadata && typeof audio.importMetadata === "object" ? audio.importMetadata as Record<string, unknown> : null;
+    const csvPath = typeof metadata?.csvPath === "string" ? metadata.csvPath : null;
+    const csvLabel = typeof metadata?.label === "string" ? metadata.label : null;
+    const csvButtonTitle = typeof metadata?.buttonTitle === "string" ? metadata.buttonTitle : null;
+    const csvDescription = typeof metadata?.description === "string" ? metadata.description : null;
+    const csvTag = typeof metadata?.tag === "string" ? metadata.tag : null;
+
+    return {
+      id: `debug-csv-row-${audio.id}`,
+      rowNumber: index + 1,
+      originalName: audio.originalName,
+      fileName: audio.fileName,
+      path: csvPath,
+      text: audio.transcript || audio.generatedText || audio.originalName,
+      mimeType: audio.mimeType || null,
+      sizeBytes: typeof audio.sizeBytes === "number" ? audio.sizeBytes : null,
+      transcript: audio.transcript || audio.generatedText || "",
+      label: csvLabel,
+      buttonTitle: csvButtonTitle,
+      description: csvDescription,
+      tag: csvTag,
+      status: "MATCHED",
+      matchedFileName: audio.fileName,
+      assetId: audio.id,
+      errorMessage: null,
+    };
+  });
+}
+
+function StatBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-outline-variant bg-surface-container-high px-4 py-3">
+      <p className="text-xs uppercase tracking-wider text-on-surface-variant">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-on-surface">{value}</p>
+    </div>
+  );
+}
+
+function SummaryPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "warning" | "muted";
+}) {
+  const toneClasses = {
+    success: "success-surface",
+    warning: "warning-surface-strong",
+    muted: "border-outline-variant bg-surface-container text-on-surface-variant",
+  } as const;
+
+  return (
+    <div className={`rounded-2xl border px-3 py-2 ${toneClasses[tone]}`}>
+      <p className="text-[10px] uppercase tracking-[0.22em]">{label}</p>
+      <p className="mt-1 text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function FilePickerCard({
+  label,
+  description,
+  helper,
+  actionLabel,
+  accept,
+  multiple,
+  directory,
+  onChangeFile,
+  onChangeFiles,
+}: {
+  label: string;
+  description: string;
+  helper: string;
+  actionLabel: string;
+  accept: string;
+  multiple?: boolean;
+  directory?: boolean;
+  onChangeFile?: (file: File | null) => void;
+  onChangeFiles?: (files: File[]) => void;
+}) {
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const directoryInputRef = useRef<HTMLInputElement | null>(null);
+
+  function handleFiles(selected: File[]) {
+    if (multiple) {
+      onChangeFiles?.(selected);
+      return;
+    }
+    onChangeFile?.(selected[0] ?? null);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    const selected = Array.from(event.dataTransfer.files ?? []);
+    handleFiles(selected);
+  }
+
+  function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files ?? []);
+    handleFiles(selected);
+    event.target.value = "";
+  }
+
+  return (
+    <div
+      className={`rounded-2xl border bg-surface-container-high p-4 transition-all ${
+        dragActive ? "border-primary bg-primary/5 shadow-elevation-1" : "border-outline-variant"
+      }`}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setDragActive(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragActive(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDragActive(false);
+      }}
+      onDrop={handleDrop}
+    >
+      <div className="mb-4">
+        <p className="text-sm font-semibold text-on-surface">{label}</p>
+        <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">{description}</p>
+      </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1 rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
+          <p className="truncate text-sm text-on-surface">{helper}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container px-4 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary"
+          >
+            {actionLabel}
+          </button>
+          {directory ? (
+            <button
+              type="button"
+              onClick={() => directoryInputRef.current?.click()}
+              className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-outline-variant bg-surface-container px-4 text-sm font-medium text-on-surface transition-all hover:border-primary hover:text-primary"
+            >
+              Elegir carpeta
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        onChange={handleInputChange}
+        className="sr-only"
+      />
+      {directory ? (
+        <input
+          ref={directoryInputRef}
+          type="file"
+          accept={accept}
+          multiple
+          {...{ webkitdirectory: "" }}
+          onChange={handleInputChange}
+          className="sr-only"
+        />
+      ) : null}
+      <div className="mt-3 rounded-xl border border-dashed border-outline-variant px-4 py-3 text-xs text-on-surface-variant">
+        {dragActive ? "Suelta los archivos aquí" : "También puedes arrastrar y soltar archivos en esta tarjeta"}
+      </div>
+    </div>
   );
 }

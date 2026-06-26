@@ -10,6 +10,7 @@ export function AudioButton({
   isFavorite,
   density = "medium",
   onPlay,
+  onStop,
   onToggleFavorite,
   onOpenDetails,
 }: {
@@ -18,6 +19,7 @@ export function AudioButton({
   isFavorite: boolean;
   density?: BoardDensity;
   onPlay: (button: BoardAudioButton) => void;
+  onStop?: () => void;
   onToggleFavorite: (button: BoardAudioButton) => void;
   onOpenDetails: (button: BoardAudioButton) => void;
 }) {
@@ -39,11 +41,15 @@ export function AudioButton({
     <div
       role="button"
       tabIndex={0}
-      onClick={() => onPlay(button)}
+      onClick={() => (active ? onStop?.() : onPlay(button))}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onPlay(button);
+          if (active) {
+            onStop?.();
+          } else {
+            onPlay(button);
+          }
         }
       }}
       onContextMenu={(event) => {
@@ -57,7 +63,7 @@ export function AudioButton({
       }`}
     >
       <div className="flex items-start gap-3 px-3 pt-3">
-        <div className={`relative shrink-0 overflow-hidden rounded-[14px] border border-white/8 bg-surface-container ${thumbSize}`}>
+        <div className={`relative shrink-0 overflow-hidden rounded-[14px] border border-outline-variant bg-surface-container ${thumbSize}`}>
           {button.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -76,7 +82,11 @@ export function AudioButton({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            onPlay(button);
+            if (active) {
+              onStop?.();
+            } else {
+              onPlay(button);
+            }
           }}
           className={`mt-0.5 flex shrink-0 items-center justify-center rounded-full shadow-elevation-2 transition-all duration-200 active:scale-95 ${playSize} ${
             active

@@ -29,7 +29,7 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - Hito 4 completado y respaldado en feature + `dev`.
 - Hito 5 completado y respaldado en feature + `dev`.
 - Hito 6 completado y respaldado en feature + `dev`.
-- Hito 7 implementado en la rama feature, pendiente de commit e integración a `dev`.
+- Hito 7 completado y respaldado en feature + `dev`.
 - Checks ejecutados sobre el estado actual:
   - `npm --prefix frontend run build`
   - `npm --prefix frontend run lint -- src/components/narratives/builder/NarrativeBuilderCanvas.tsx`
@@ -221,7 +221,7 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 - Se reduce ambigüedad en el contrato del builder sin romper datos legacy.
 
 ## Trabajo en progreso
-- Commit, push e integración a `dev` del Hito 7.
+- Verificación final para posible promoción a `principal`.
 
 ## Pendientes
 - Formalizar panel de validación con errores, advertencias y sugerencias.
@@ -270,15 +270,15 @@ Mejorar el editor/builder de Narratives para administradores por hitos pequeños
 5. Antes de commitear, actualizar ambos documentos con el estado real.
 
 ## Último commit realizado
-- `197edbe` - `feat(narratives-builder): add editor productivity actions` en feature
-- `47fb969` - `feat(narratives-builder): add editor productivity actions` en `dev`
+- `6ac69b2` - `refactor(narratives): clarify builder node data contracts` en feature
+- `04f63e6` - `refactor(narratives): clarify builder node data contracts` en `dev`
 
 ## Último push realizado
-- `feature/narratives-builder-upgrade` actualizada hasta `197edbe`.
-- `dev` actualizado hasta `47fb969`.
+- `feature/narratives-builder-upgrade` actualizada hasta `6ac69b2`.
+- `dev` actualizado hasta `04f63e6`.
 
 ## Próximo hito recomendado
-- Cerrar Hito 7 y dejar la base lista para siguiente fase funcional.
+- Base del builder lista para promoción tras validación final.
 
 ## Comandos útiles para correr el proyecto
 - `npm --prefix frontend run dev`
@@ -296,3 +296,20 @@ Nota: el lint de backend usa `--fix`, así que no se toma como check pasivo est�
 ## Comandos útiles para build
 - `npm --prefix frontend run build`
 - `npm --prefix backend run build`
+
+## Instruction Annotation Semantics
+- `INSTRUCTION` ahora se trata como anotación operativa, no como paso de ejecución.
+- Flow nodes: `START`, `AUDIO`, `AUDIO_BUTTON`, `SCRIPT_TEXT`, `PAUSE`, `DECISION`, `END`.
+- Annotation nodes: `INSTRUCTION`.
+- Builder:
+  - La paleta separa `INSTRUCTION` en `Anotaciones`.
+  - `INSTRUCTION` se renderiza como post-it/nota operativa.
+  - Las conexiones hacia/desde `INSTRUCTION` se renderizan punteadas como asociaciones visuales.
+  - Auto-layout ubica instrucciones al costado del nodo asociado o en zona lateral.
+- Validación:
+  - `INSTRUCTION` no participa en alcanzabilidad, ciclos ni requisitos de entrada/salida.
+  - `INSTRUCTION` desconectada no bloquea publicación.
+  - Si `INSTRUCTION` queda entre dos nodos de flujo, se muestra advertencia de bypass.
+- Compatibilidad:
+  - No se eliminan conexiones legacy.
+  - Grafos `A -> INSTRUCTION -> B` se validan y ejecutan con bypass virtual `A -> B`.

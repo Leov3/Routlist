@@ -5,11 +5,13 @@ export function CategorySection({
   category,
   activeButtonId,
   onPlay,
+  onStop,
   onOpenDetails,
 }: {
   category: BoardCategory;
   activeButtonId: string | null;
   onPlay: (button: BoardAudioButton) => void;
+  onStop: () => void;
   onOpenDetails: (button: BoardAudioButton) => void;
 }) {
   return (
@@ -39,6 +41,7 @@ export function CategorySection({
             active={activeButtonId === button.id}
             isFavorite={false}
             onPlay={onPlay}
+            onStop={onStop}
             onToggleFavorite={() => undefined}
             onOpenDetails={onOpenDetails}
           />

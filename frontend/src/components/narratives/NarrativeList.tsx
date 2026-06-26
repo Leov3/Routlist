@@ -10,6 +10,7 @@ type NarrativeListProps = {
   onRefresh: () => void;
   onDuplicate: (id: string) => Promise<void>;
   canCreate: boolean;
+  currentOrganizationId?: string;
 };
 
 function narrativeStatusLabel(status: NarrativeListItem["status"]) {
@@ -44,13 +45,19 @@ export function NarrativeList({
   onRefresh,
   onDuplicate,
   canCreate,
+  currentOrganizationId,
 }: NarrativeListProps) {
+  const visibleNarratives = currentOrganizationId
+    ? narratives.filter((narrative) => narrative.organizationId === currentOrganizationId)
+    : narratives;
+  const hiddenCount = narratives.length - visibleNarratives.length;
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-on-surface">
-            Narrativas
+            Llamadas
           </h2>
           <p className="text-sm text-on-surface-variant">
             Diseña flujos operativos y ejecútalos desde el player guiado.
@@ -60,27 +67,98 @@ export function NarrativeList({
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-4 text-sm font-medium text-on-surface transition-colors hover:border-primary"
+          className="btn-surface-base btn-secondary-surface h-10 w-full rounded-2xl px-4 text-sm sm:w-auto"
         >
           <RefreshCw className="h-4 w-4" />
           Recargar
         </button>
       </div>
 
-      {narratives.length > 0 ? (
-        <div className="overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container shadow-elevation-1">
+      {hiddenCount > 0 ? (
+        <div className="warning-surface rounded-2xl px-4 py-3 text-sm">
+          Se ocultaron {hiddenCount} llamada(s) que no pertenecen a la organización activa.
+        </div>
+      ) : null}
+
+      {visibleNarratives.length > 0 ? (
+        <>
+          <div className="space-y-3 md:hidden">
+            {visibleNarratives.map((narrative) => (
+              <div
+                key={narrative.id}
+                className="rounded-[24px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-on-surface">{narrative.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-on-surface-variant">
+                      {narrative.description || "Sin descripción"}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-outline-variant bg-surface px-2.5 py-1 text-[10px] font-semibold text-on-surface">
+                    {narrativeStatusLabel(narrative.status)}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Organización</span>
+                    <span className="truncate font-medium text-on-surface">
+                      {narrative.organization?.name ?? "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Versiones</span>
+                    <span className="font-medium text-on-surface">{narrative._count?.versions ?? 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Actualizada</span>
+                    <span className="font-medium text-on-surface">{formatRelativeDate(narrative.updatedAt)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2">
+                  <Link
+                    href={`/admin/narratives/${narrative.id}/builder`}
+                    className="btn-surface-base btn-secondary-surface inline-flex h-10 w-full items-center justify-center rounded-2xl px-3 text-xs"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Builder
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void onDuplicate(narrative.id)}
+                    className="btn-surface-base btn-secondary-surface inline-flex h-10 w-full items-center justify-center rounded-2xl px-3 text-xs"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Duplicar
+                  </button>
+                  <Link
+                    href={`/narratives/${narrative.id}/run`}
+                    className="btn-surface-base btn-primary-surface inline-flex h-10 w-full items-center justify-center rounded-2xl px-3 text-xs"
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                    Ejecutar
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container shadow-elevation-1 md:block">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase tracking-widest text-on-surface-variant">
               <tr>
-                <th className="px-5 py-3">Narrativa</th>
+                <th className="px-5 py-3">Llamada</th>
                 <th className="px-5 py-3">Estado</th>
+                <th className="px-5 py-3">Organización</th>
                 <th className="px-5 py-3">Versiones</th>
                 <th className="px-5 py-3">Actualizada</th>
                 <th className="px-5 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {narratives.map((narrative) => (
+              {visibleNarratives.map((narrative) => (
                 <tr key={narrative.id} className="border-t border-outline-variant">
                   <td className="px-5 py-4">
                     <div className="space-y-1">
@@ -94,6 +172,16 @@ export function NarrativeList({
                     <span className="inline-flex rounded-full border border-outline-variant bg-surface px-3 py-1 text-xs font-semibold text-on-surface">
                       {narrativeStatusLabel(narrative.status)}
                     </span>
+                  </td>
+                  <td className="px-5 py-4 text-sm text-on-surface-variant">
+                    <div className="space-y-1">
+                      <p className="font-medium text-on-surface">
+                        {narrative.organization?.name ?? "—"}
+                      </p>
+                      <p className="text-xs">
+                        {narrative.organizationId ?? narrative.organization?.id ?? "—"}
+                      </p>
+                    </div>
                   </td>
                   <td className="px-5 py-4 text-sm text-on-surface-variant">
                     {narrative._count?.versions ?? 0} versiones
@@ -110,7 +198,7 @@ export function NarrativeList({
                     <div className="flex justify-end gap-2">
                       <Link
                         href={`/admin/narratives/${narrative.id}/builder`}
-                        className="inline-flex h-9 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        className="btn-surface-base btn-secondary-surface h-9 rounded-2xl px-3 text-xs"
                       >
                         <Edit3 className="h-3.5 w-3.5" />
                         Builder
@@ -118,14 +206,14 @@ export function NarrativeList({
                       <button
                         type="button"
                         onClick={() => void onDuplicate(narrative.id)}
-                        className="inline-flex h-9 items-center gap-2 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        className="btn-surface-base btn-secondary-surface h-9 rounded-2xl px-3 text-xs"
                       >
                         <Copy className="h-3.5 w-3.5" />
                         Duplicar
                       </button>
                       <Link
                         href={`/narratives/${narrative.id}/run`}
-                        className="inline-flex h-9 items-center gap-2 rounded-2xl bg-primary px-3 text-xs font-semibold text-on-primary transition-transform hover:scale-[1.01]"
+                        className="btn-surface-base btn-primary-surface h-9 rounded-2xl px-3 text-xs"
                       >
                         <ArrowUpRight className="h-3.5 w-3.5" />
                         Ejecutar
@@ -136,11 +224,12 @@ export function NarrativeList({
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>
           <div className="flex flex-col items-center gap-2 text-center">
-            <p>No hay narrativas todavía.</p>
+            <p>No hay llamadas todavía.</p>
             {canCreate ? (
               <p className="text-xs text-on-surface-variant">
                 Crea la primera para empezar a construir el flujo.

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowUpDown, CheckCircle, Pencil, Plus, Search, Trash2, XCircle } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
@@ -10,6 +10,11 @@ import type { AudioCategory } from "@/types/routlis";
 
 type SortKey = "name" | "sortOrder" | "isActive";
 type StatusFilter = "all" | "active" | "inactive";
+type CategoryFormState = {
+  name: string;
+  description: string;
+  sortOrder: string;
+};
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<AudioCategory[]>([]);
@@ -21,7 +26,7 @@ export default function CategoriesPage() {
   const [sortKey, setSortKey] = useState<SortKey>("sortOrder");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", description: "", sortOrder: "0" });
+  const [editForm, setEditForm] = useState<CategoryFormState>({ name: "", description: "", sortOrder: "0" });
 
   async function load() {
     try {
@@ -124,9 +129,9 @@ export default function CategoriesPage() {
   }
 
   return (
-    <ProtectedPage requiredPermissions={["category:create"]}>
+    <AdminProtectedPage>
       <PageHeader title="Categorias" description="Agrupaciones visibles en la botonera." />
-      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_1fr_120px_auto]">
+      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 sm:grid-cols-2 md:grid-cols-[1fr_1fr_120px_auto]">
         <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nombre" className="h-10 rounded-xl border border-outline px-3 text-sm" required />
         <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Descripcion" className="h-10 rounded-xl border border-outline px-3 text-sm" />
         <input value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} type="number" min="0" className="h-10 rounded-xl border border-outline px-3 text-sm" />
@@ -146,7 +151,24 @@ export default function CategoriesPage() {
       </div>
 
       {filteredCategories.length ? (
-        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filteredCategories.map((category) => (
+              <CategoryCard
+                key={category.id}
+                category={category}
+                editing={editingId === category.id}
+                editForm={editForm}
+                onStartEdit={() => startEdit(category)}
+                onCancelEdit={() => setEditingId(null)}
+                onSave={() => void saveEdit(category.id)}
+                onToggleActive={() => void setActive(category.id, !category.isActive)}
+                onDelete={() => void remove(category.id)}
+                onEdit={(field, value) => setEditForm((current) => ({ ...current, [field]: value }))}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-xl border border-outline-variant bg-surface-container md:block">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
@@ -175,7 +197,7 @@ export default function CategoriesPage() {
                         <>
                           <button onClick={() => startEdit(category)} className="rounded-xl border border-outline p-2" title="Editar"><Pencil className="h-4 w-4" /></button>
                           <button onClick={() => void setActive(category.id, !category.isActive)} className="rounded-xl border border-outline p-2" title={category.isActive ? "Desactivar" : "Activar"}>{category.isActive ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}</button>
-                          <button onClick={() => void remove(category.id)} className="rounded-xl border border-red-200 p-2 text-red-700" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                          <button onClick={() => void remove(category.id)} className="danger-surface inline-flex items-center justify-center rounded-xl p-2" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
                         </>
                       )}
                     </div>
@@ -184,10 +206,78 @@ export default function CategoriesPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>No hay categorias.</DataState>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
+  );
+}
+
+function CategoryCard({
+  category,
+  editing,
+  editForm,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  onToggleActive,
+  onDelete,
+  onEdit,
+}: {
+  category: AudioCategory;
+  editing: boolean;
+  editForm: CategoryFormState;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  onEdit: <K extends keyof CategoryFormState>(field: K, value: CategoryFormState[K]) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-on-surface">{category.name}</p>
+          <p className="mt-1 line-clamp-2 text-xs text-on-surface-variant">{category.description ?? "Sin descripción"}</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${category.isActive ? "success-surface" : "bg-outline-variant/30 text-on-surface-variant"}`}>
+          {category.isActive ? "Activa" : "Inactiva"}
+        </span>
+      </div>
+
+      {editing ? (
+        <div className="mt-4 grid gap-3">
+          <input value={editForm.name} onChange={(event) => onEdit("name", event.target.value)} className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm" />
+          <input value={editForm.description} onChange={(event) => onEdit("description", event.target.value)} className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm" />
+          <input value={editForm.sortOrder} onChange={(event) => onEdit("sortOrder", event.target.value)} type="number" min="0" className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm" />
+          <div className="grid gap-2">
+            <button type="button" onClick={onSave} className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary">Guardar</button>
+            <button type="button" onClick={onCancelEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-2 text-xs text-on-surface-variant">
+          <div className="flex items-center justify-between gap-3">
+            <span>Orden</span>
+            <span className="font-medium text-on-surface">{category.sortOrder}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>ID</span>
+            <span className="max-w-[180px] truncate font-medium text-on-surface">{category.id}</span>
+          </div>
+        </div>
+      )}
+
+      {!editing ? (
+        <div className="mt-4 grid gap-2">
+          <button type="button" onClick={onStartEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">Editar</button>
+          <button type="button" onClick={onToggleActive} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">{category.isActive ? "Desactivar" : "Activar"}</button>
+          <button type="button" onClick={onDelete} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-error/30 px-4 text-sm font-semibold text-error">Eliminar</button>
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -26,14 +26,16 @@ services:
       DATABASE_URL: postgresql://routlis:${POSTGRES_PASSWORD:-routlis}@postgres:5432/routlis?schema=public
       JWT_SECRET: ${JWT_SECRET:-change-me-in-development}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-change-me-in-development-integrations}
       COOKIE_NAME: ${COOKIE_NAME:-routlis_token}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
-      LOCAL_STORAGE_PATH: ${LOCAL_STORAGE_PATH:-/var/www/routlis/storage}
-      LOCAL_AUDIO_PATH: ${LOCAL_AUDIO_PATH:-/var/www/routlis/storage/audio-assets}
+      LOCAL_STORAGE_PATH: ${LOCAL_STORAGE_PATH:-/app/storage}
+      LOCAL_AUDIO_PATH: ${LOCAL_AUDIO_PATH:-/app/storage/audio-assets}
+      LOCAL_BACKUP_PATH: ${LOCAL_BACKUP_PATH:-/app/storage/backups}
       PUBLIC_AUDIO_BASE_URL: ${PUBLIC_AUDIO_BASE_URL:-http://localhost:4000/files/audio-assets}
-      FRONTEND_URL: http://localhost:3001
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
       PORT: ${PORT:-4000}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin123*}
     depends_on:
@@ -42,7 +44,7 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - routlis_storage:/var/www/routlis/storage
+      - routlis_storage:/app/storage
     healthcheck:
       test:
         ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
@@ -54,8 +56,8 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
-        NEXT_PUBLIC_MEDIA_URL: ${NEXT_PUBLIC_MEDIA_URL:-http://localhost:4000}
+        NEXT_PUBLIC_API_URL: __AUTO__
+        NEXT_PUBLIC_MEDIA_URL: __AUTO__
     container_name: routlis-frontend
     restart: unless-stopped
     depends_on:

@@ -10,6 +10,8 @@ export type StoredFile = {
 
 export type StoredImage = StoredFile;
 
+export type StorageAssetKind = 'audio-temporary' | 'audio-persisted' | 'video-temporary' | 'video-persisted';
+
 export const ALLOWED_AUDIO_MIME_TYPES = [
   'audio/mpeg',
   'audio/mp3',

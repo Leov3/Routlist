@@ -1,15 +1,24 @@
-const DEFAULT_API_URL = "http://localhost:4000";
-
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, "");
 }
 
-const API_URL = normalizeBaseUrl(
-  process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL,
-);
+function runtimeBaseUrl() {
+  if (typeof window === "undefined") {
+    return "http://localhost:4000";
+  }
+  return `${window.location.protocol}//${window.location.hostname}:4000`;
+}
 
-const MEDIA_BASE_URL = normalizeBaseUrl(
-  process.env.NEXT_PUBLIC_MEDIA_URL || API_URL,
+function resolveBaseUrl(value: string | undefined, fallback: string) {
+  const resolved = value && value !== "__AUTO__" ? value : fallback;
+  return normalizeBaseUrl(resolved);
+}
+
+const API_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL, runtimeBaseUrl());
+
+const MEDIA_BASE_URL = resolveBaseUrl(
+  process.env.NEXT_PUBLIC_MEDIA_URL,
+  API_URL,
 );
 
 type ApiOptions = RequestInit & {
@@ -24,6 +33,43 @@ export class ApiError extends Error {
     super(message);
   }
 }
+
+export type AccessPolicy = {
+  id: string;
+  moduleKey: string;
+  organizationId: string | null;
+  userId: string | null;
+  roleName: string | null;
+  allowed: boolean;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccessModuleDefinition = {
+  key: string;
+  label: string;
+  description: string;
+  category: 'panel' | 'admin' | 'workspace';
+  ownerOnly?: boolean;
+};
+
+export type AccessOverview = {
+  modules: AccessModuleDefinition[];
+  organizations: { id: string; name: string; status: string }[];
+  users: { id: string; fullName: string; email: string; status: string }[];
+  roles: { id: string; name: string; description: string | null }[];
+  policies: AccessPolicy[];
+};
+
+export type AccessSettings = {
+  id: string;
+  roleDefaults: Record<string, Record<string, boolean>>;
+  organizationOverrides: Record<string, Record<string, boolean>>;
+  organizationRoleDefaults: Record<string, Record<string, Record<string, boolean>>>;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export function apiUrl(path: string) {
   return `${API_URL}${path}`;

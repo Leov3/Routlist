@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Play } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 import { ProtectedPage } from "@/components/layout/ProtectedPage";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
 import { NarrativePlayer } from "@/components/narratives/player/NarrativePlayer";
 
@@ -24,16 +22,22 @@ export default function NarrativeRunPage() {
   const [runId, setRunId] = useState<string | null>(existingRunId);
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const startAttemptedRef = useRef(false);
 
   useEffect(() => {
     setRunId(existingRunId);
+    if (existingRunId) {
+      startAttemptedRef.current = true;
+      setStarting(false);
+    }
   }, [existingRunId]);
 
   useEffect(() => {
-    if (!narrativeId || runId || starting) return;
+    if (!narrativeId || runId || starting || startAttemptedRef.current) return;
 
     let cancelled = false;
     async function start() {
+      startAttemptedRef.current = true;
       setStarting(true);
       setMessage(null);
       try {
@@ -46,7 +50,8 @@ export default function NarrativeRunPage() {
         router.replace(`/narratives/${narrativeId}/run?run=${result.id}`);
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "No se pudo iniciar la narrativa.");
+          startAttemptedRef.current = false;
+          setMessage(error instanceof Error ? error.message : "No se pudo iniciar la llamada.");
         }
       } finally {
         if (!cancelled) setStarting(false);
@@ -62,21 +67,7 @@ export default function NarrativeRunPage() {
 
   return (
     <ProtectedPage requiredPermissions={["narratives:run"]}>
-      <div className="space-y-6">
-        <PageHeader
-          title="Player narrativo"
-          description="Ejecuta el flujo guiado paso a paso para la operación diaria."
-          action={
-            <Link
-              href="/narratives"
-              className="inline-flex h-11 items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Volver
-            </Link>
-          }
-        />
-
+      <div className="space-y-3">
         {message ? (
           <div className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
             {message}
@@ -99,7 +90,7 @@ export default function NarrativeRunPage() {
                 <Play className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-on-surface">Inicia la narrativa</h2>
+                <h2 className="text-lg font-semibold text-on-surface">Inicia la llamada</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
                   Se abrirá una nueva ejecución cuando el player termine de preparar el flujo.
                 </p>

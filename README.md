@@ -5,6 +5,7 @@ Aplicación modular para gestionar y reproducir audios pregrabados desde una bot
 ## Release 1.1
 
 Routlis 1.1 alinea el flujo local y el VPS para que el deploy sea reproducible, seguro y sin perdida de datos persistentes.
+La rama `easypanel` queda reservada para el despliegue conectado a Easypanel.
 
 Esta release deja listos:
 
@@ -68,6 +69,26 @@ Estado funcional actual:
 - En modo dual, cada lado tiene búsqueda, filtros y scroll independientes.
 - Cuando hay muchas tarjetas, el contenido usa scroll interno sin mover el player.
 - El encabezado de `/board` quedó simplificado y muestra solo `/Botonera` junto al selector de vista.
+- Existe `/admin/integraciones` para configurar ElevenLabs por organización.
+- Existe `/admin/mail` como módulo de correo transaccional con navegación interna por sidebar:
+  - `/admin/mail/smtp`
+  - `/admin/mail/test`
+  - `/admin/mail/templates`
+  - `/admin/mail/events`
+  - `/admin/mail/logs`
+- El módulo de correo incluye:
+  - configuración SMTP persistente
+  - envíos de prueba
+  - editor de plantillas HTML, CSS y texto plano
+  - eventos activables o desactivables
+  - historial de correos con logs SMTP
+  - cola preparada para estados y reintentos
+- Las plantillas de correo comparten un catálogo de variables entre frontend y backend.
+- La vista de plantillas expone el catálogo de variables desde backend y permite restaurar las plantillas base de forma manual con un botón.
+- Las invitaciones de organización ya guardan `inviteeName` para alinear el nombre del invitado con el correo y la UI de admin.
+- Existe `/admin/maintenance` para revisar migraciones Prisma, crear backups y restaurar snapshots de base de datos y storage.
+- La API key de ElevenLabs se guarda cifrada en backend y nunca se expone completa al frontend.
+- La configuración de ElevenLabs es persistente por organización en PostgreSQL.
 - La opción y la pantalla de almacenamiento en el dashboard solo se muestran a `OWNER`.
 - `OWNER` funciona como super admin global y puede cambiar la organización activa desde `/admin/organizations`.
 - `ADMIN`, `SUPERVISOR` y `OPERATOR` siguen limitados a su organización activa.
@@ -100,12 +121,15 @@ Prueba funcional frontend realizada:
 - `/board` permite alternar entre modo simple y modo 2 columnas.
 - `/admin/buttons` muestra la interfaz compacta actual.
 - `OWNER` ve almacenamiento en el sidebar y en `/admin`; otros roles no.
+- `/admin/organizations` y `/admin/users` incluyen nombre del invitado al crear invitaciones.
+- `/admin/mail/templates` consume el catálogo de variables desde backend y permite insertar/copiar etiquetas con la misma fuente de verdad.
 
 Entorno local recomendado:
 
 - Docker Engine + Compose Plugin.
 - PostgreSQL, backend y frontend en contenedores.
 - Volumen persistente para la base de datos y el storage.
+- El storage de backups vive en `/var/www/routlis/storage/backups` por defecto.
 - El flujo principal ahora es `docker compose` en la raiz del proyecto.
 
 ## Arranque local
@@ -208,19 +232,21 @@ Si vas a mover la app a un VPS con Docker Compose y un proxy externo, este es el
 docker compose -f docker-compose.prod.yml -p routlis up -d --build
 ```
 
-4. Aplica migraciones:
+4. El script de despliegue aplica migraciones antes de levantar el backend. Si necesitas ejecutarlas a mano:
 
 ```bash
-docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:deploy
+docker compose -f docker-compose.prod.yml -p routlis run --rm --no-deps backend npm run prisma:deploy
 ```
 
-5. Solo en el bootstrap inicial o si quieres resembrar datos demo:
+5. Si necesitas crear o validar la columna nueva de invitaciones en una base existente, la migración pendiente es la de `inviteeName` en `OrganizationInvite`.
+
+6. Solo en el bootstrap inicial o si quieres resembrar datos demo:
 
 ```bash
 docker compose -f docker-compose.prod.yml -p routlis exec -T backend npm run prisma:seed
 ```
 
-6. Verifica salud y acceso publico:
+7. Verifica salud y acceso publico:
 
 ```bash
 curl -fsS https://api.tudominio.com/health
@@ -241,6 +267,30 @@ Si solo quieres sembrar datos demo en el bootstrap inicial:
 ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh seed
 ```
 
+Limpieza conservadora de Docker en el VPS:
+
+```bash
+ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh prune
+```
+
+Limpieza completa y segura del VPS, incluyendo cache de Docker y backups viejos:
+
+```bash
+ENV_FILE=/opt/routlis/.env KEEP_BACKUPS=3 bash scripts/deploy-vps.sh cleanup
+```
+
+Puedes programarlo, por ejemplo, una vez por semana con cron:
+
+```cron
+0 4 * * 0 cd /opt/routlis/app && ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh prune >/var/log/routlis-prune.log 2>&1
+```
+
+Si quieres también purgar backups antiguos, usa:
+
+```cron
+0 4 * * 0 cd /opt/routlis/app && ENV_FILE=/opt/routlis/.env KEEP_BACKUPS=3 bash scripts/deploy-vps.sh cleanup >/var/log/routlis-cleanup.log 2>&1
+```
+
 El seed no debe ejecutarse en cada despliegue automatico.
 
 Flujo de ramas:
@@ -251,6 +301,36 @@ Flujo de ramas:
 ### VPS con proxy externo
 
 El VPS actual usa un proxy externo fuera del compose de la app. La aplicación solo necesita levantar `postgres`, `backend` y `frontend`, y el proxy externo apunta a los puertos internos de esos contenedores.
+
+### Instalador de una sola linea
+
+Puedes instalar y desplegar el VPS directamente desde GitHub con:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Leov3/Routlist/principal/scripts/install-vps.sh | bash
+```
+
+El instalador:
+
+- clona el repositorio en `/opt/routlis/app`
+- crea `/opt/routlis/.env`
+- puede instalar Docker y Compose en Debian/Ubuntu si faltan
+- pide o recibe por variables los dominios y secretos
+- deja configurados `FRONTEND_URL`, `PUBLIC_AUDIO_BASE_URL` y `CORS_ORIGINS` con HTTPS
+- ejecuta el deploy con `scripts/deploy-vps.sh`
+
+Tambien puedes pasar valores por variables de entorno para automatizarlo sin prompts:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Leov3/Routlist/principal/scripts/install-vps.sh | bash -s -- \
+  --frontend-host routlis.tudominio.com \
+  --api-host api.tudominio.com \
+  --email admin@tudominio.com \
+  --postgres-password una-clave-larga \
+  --jwt-secret otro-secreto-largo \
+  --integration-key clave-integradora-larga \
+  --seed-password Admin123*
+```
 
 ### Estado estable del login
 
@@ -279,6 +359,7 @@ Estos datos deben sobrevivir a commits, pulls, builds y redeploys normales:
 - favoritos
 - historial de reproduccion
 - configuraciones operativas del panel
+- configuraciones de integraciones externas por organización, como ElevenLabs
 
 Lo unico que debe cambiar en un deploy normal es el codigo. Si una tarea requiere borrar datos, debe hacerse de forma manual y deliberada, nunca por el flujo de despliegue.
 
@@ -319,6 +400,8 @@ ENV_FILE=/opt/routlis/.env bash scripts/deploy-vps.sh rollback
 
 ## Documentacion relacionada
 
+- [`docs/manual-usuario.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/docs/manual-usuario.md)
+- [`docs/integrations-elevenlabs.md`](/home/leonardo/Documentos/Proyectos/ROUTLIS/docs/integrations-elevenlabs.md)
 - `backend/README.md`
 - `frontend/README.md`
 - `frontend/AGENTS.md`

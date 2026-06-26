@@ -22,13 +22,74 @@ function isGraphNode(value: unknown): value is NarrativeGraphNode {
   );
 }
 
-function isGraphEdge(value: unknown) {
+function isGraphEdge(value: unknown): value is NarrativeGraphJson['edges'][number] {
   return (
     isRecord(value) &&
     typeof value.id === 'string' &&
     typeof value.source === 'string' &&
     typeof value.target === 'string'
   );
+}
+
+export function isAnnotationNodeType(type: NarrativeGraphNode['type']) {
+  return type === 'INSTRUCTION';
+}
+
+export function isFlowNodeType(type: NarrativeGraphNode['type']) {
+  return !isAnnotationNodeType(type);
+}
+
+function extractDynamicAudioVariables(template: string) {
+  const variables = new Set<string>();
+  const pattern = /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(template))) {
+    variables.add(match[1]);
+  }
+
+  return Array.from(variables);
+}
+
+function containsInvalidDynamicAudioPlaceholder(template: string) {
+  const stripped = template.replace(/{{\s*[A-Za-z][A-Za-z0-9_-]*\s*}}/g, '');
+  return stripped.includes('{') || stripped.includes('}') || /<\s*[^<>]+\s*>/.test(template);
+}
+
+function executionEdges(
+  nodes: NarrativeGraphNode[],
+  edges: NarrativeGraphJson['edges'],
+) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+  const isAnnotationEdge = (edge: { source: string; target: string }) => {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    return Boolean(source && isAnnotationNodeType(source.type)) || Boolean(target && isAnnotationNodeType(target.type));
+  };
+
+  const directFlowEdges = edges.filter((edge) => !isAnnotationEdge(edge));
+  const virtualBypassEdges = nodes
+    .filter((node) => isAnnotationNodeType(node.type))
+    .flatMap((node) => {
+      const incoming = edges.filter((edge) => {
+        const source = nodeById.get(edge.source);
+        return edge.target === node.id && Boolean(source && isFlowNodeType(source.type));
+      });
+      const outgoing = edges.filter((edge) => {
+        const target = nodeById.get(edge.target);
+        return edge.source === node.id && Boolean(target && isFlowNodeType(target.type));
+      });
+      return incoming.flatMap((input) =>
+        outgoing.map((output) => ({
+          id: `annotation-bypass:${input.id}:${output.id}`,
+          source: input.source,
+          target: output.target,
+          label: input.label,
+        })),
+      );
+    });
+
+  return [...directFlowEdges, ...virtualBypassEdges];
 }
 
 export function cloneGraphJson(graph: NarrativeGraphJson): NarrativeGraphJson {
@@ -95,8 +156,10 @@ export function validateNarrativeGraph(
     edgeIds.add(edge.id);
   }
 
-  const startNodes = typedNodes.filter((node) => node.type === 'START');
-  const endNodes = typedNodes.filter((node) => node.type === 'END');
+  const flowNodes = typedNodes.filter((node) => isFlowNodeType(node.type));
+  const startNodes = flowNodes.filter((node) => node.type === 'START');
+  const endNodes = flowNodes.filter((node) => node.type === 'END');
+  const typedExecutionEdges = executionEdges(typedNodes, typedEdges);
 
   if (options.strict) {
     if (startNodes.length !== 1) {
@@ -139,9 +202,22 @@ export function validateNarrativeGraph(
   }
 
   if (options.strict) {
-    for (const node of typedNodes) {
-      const incoming = incomingByNode.get(node.id) ?? [];
-      const outgoing = outgoingByNode.get(node.id) ?? [];
+    const executionOutgoingByNode = new Map<string, typeof typedExecutionEdges>();
+    const executionIncomingByNode = new Map<string, typeof typedExecutionEdges>();
+
+    for (const node of flowNodes) {
+      executionOutgoingByNode.set(node.id, []);
+      executionIncomingByNode.set(node.id, []);
+    }
+
+    for (const edge of typedExecutionEdges) {
+      executionOutgoingByNode.get(edge.source)?.push(edge);
+      executionIncomingByNode.get(edge.target)?.push(edge);
+    }
+
+    for (const node of flowNodes) {
+      const incoming = executionIncomingByNode.get(node.id) ?? [];
+      const outgoing = executionOutgoingByNode.get(node.id) ?? [];
 
       if (node.type === 'START') {
         if (incoming.length > 0) {
@@ -169,6 +245,22 @@ export function validateNarrativeGraph(
           }
         }
       }
+
+      if (node.type === 'DYNAMIC_AUDIO') {
+        const template = typeof node.data?.template === 'string' ? node.data.template.trim() : '';
+        if (!template) {
+          errors.push(`DYNAMIC_AUDIO node ${node.id} requires a non-empty template`);
+        } else {
+          if (containsInvalidDynamicAudioPlaceholder(template)) {
+            errors.push(`DYNAMIC_AUDIO node ${node.id} contains invalid variable placeholders`);
+          }
+
+          const variables = extractDynamicAudioVariables(template);
+          if (variables.length === 0) {
+            errors.push(`DYNAMIC_AUDIO node ${node.id} requires at least one {{variable}} placeholder`);
+          }
+        }
+      }
     }
 
     if (startNodes.length === 1) {
@@ -189,7 +281,7 @@ export function validateNarrativeGraph(
         reachable.add(nodeId);
         visiting.add(nodeId);
 
-        for (const edge of outgoingByNode.get(nodeId) ?? []) {
+        for (const edge of executionOutgoingByNode.get(nodeId) ?? []) {
           visit(edge.target);
         }
 
@@ -202,7 +294,7 @@ export function validateNarrativeGraph(
         errors.push('Narrative graph cannot contain cycles in the MVP');
       }
 
-      const unreachableNodes = typedNodes.filter((node) => !reachable.has(node.id));
+      const unreachableNodes = flowNodes.filter((node) => !reachable.has(node.id));
       if (unreachableNodes.length > 0) {
         errors.push(
           `Narrative contains unreachable nodes: ${unreachableNodes.map((node) => node.id).join(', ')}`,

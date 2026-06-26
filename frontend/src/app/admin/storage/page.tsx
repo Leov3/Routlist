@@ -9,13 +9,14 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api, formatBytes } from "@/lib/api";
 import type { AudioAsset } from "@/types/routlis";
 
 type StatusFilter = "all" | "active" | "inactive";
+type LifecycleFilter = "all" | "temporary" | "permanent";
 type SortKey = "originalName" | "sizeBytes" | "mimeType" | "isActive";
 type BulkAction = "ACTIVATE" | "DEACTIVATE" | "DELETE";
 
@@ -43,6 +44,7 @@ export default function StoragePage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [lifecycleFilter, setLifecycleFilter] = useState<LifecycleFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("sizeBytes");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [loading, setLoading] = useState(true);
@@ -76,8 +78,13 @@ export default function StoragePage() {
           statusFilter === "all" ||
           (statusFilter === "active" && audio.isActive) ||
           (statusFilter === "inactive" && !audio.isActive);
+        const isTemporary = audio.lifecycleStatus === "TEMPORARY" || Boolean(audio.expiresAt);
+        const matchesLifecycle =
+          lifecycleFilter === "all" ||
+          (lifecycleFilter === "temporary" && isTemporary) ||
+          (lifecycleFilter === "permanent" && !isTemporary);
 
-        return matchesSearch && matchesStatus;
+        return matchesSearch && matchesStatus && matchesLifecycle;
       })
       .sort((a, b) => {
         const left = a[sortKey];
@@ -89,7 +96,7 @@ export default function StoragePage() {
 
         return sortDirection === "asc" ? result : -result;
       });
-  }, [audios, search, sortDirection, sortKey, statusFilter]);
+  }, [audios, lifecycleFilter, search, sortDirection, sortKey, statusFilter]);
 
   const selectedAudios = useMemo(
     () => audios.filter((audio) => selectedIds.includes(audio.id)),
@@ -143,13 +150,13 @@ export default function StoragePage() {
   }
 
   return (
-    <ProtectedPage allowedRoles={["OWNER"]}>
+    <AdminProtectedPage>
       <PageHeader
         title="Almacenamiento de audios"
         description="Gestion masiva de audios, estado y consumo de disco."
       />
 
-      <section className="mb-5 grid gap-3 md:grid-cols-4">
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StorageCard
           label="Audios"
           value={formatBytes(storage?.usage.audioAssetsBytes ?? 0)}
@@ -176,7 +183,7 @@ export default function StoragePage() {
         />
       </section>
 
-      <section className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 xl:grid-cols-[1fr_180px_auto_auto_auto]">
+      <section className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 sm:grid-cols-2 xl:grid-cols-[1fr_180px_180px_auto_auto_auto]">
         <label className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
           <input
@@ -195,11 +202,20 @@ export default function StoragePage() {
           <option value="active">Activos</option>
           <option value="inactive">Inactivos</option>
         </select>
+        <select
+          value={lifecycleFilter}
+          onChange={(event) => setLifecycleFilter(event.target.value as LifecycleFilter)}
+          className="h-10 rounded-xl border border-outline px-3 text-sm"
+        >
+          <option value="all">Todos</option>
+          <option value="temporary">Temporales</option>
+          <option value="permanent">Permanentes</option>
+        </select>
         <button
           type="button"
           disabled={!selectedIds.length || working}
           onClick={() => void runBulk("ACTIVATE")}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-outline px-3 text-sm font-semibold disabled:opacity-50"
+          className="btn-surface-base btn-secondary-surface h-10 rounded-xl px-3 text-sm disabled:opacity-50"
         >
           <CheckCircle className="h-4 w-4" />
           Activar
@@ -208,7 +224,7 @@ export default function StoragePage() {
           type="button"
           disabled={!selectedIds.length || working}
           onClick={() => void runBulk("DEACTIVATE")}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-outline px-3 text-sm font-semibold disabled:opacity-50"
+          className="btn-surface-base btn-secondary-surface h-10 rounded-xl px-3 text-sm disabled:opacity-50"
         >
           <XCircle className="h-4 w-4" />
           Desactivar
@@ -217,7 +233,7 @@ export default function StoragePage() {
           type="button"
           disabled={!selectedIds.length || working}
           onClick={() => void runBulk("DELETE")}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-red-700 px-3 text-sm font-semibold text-on-primary disabled:opacity-50"
+          className="btn-surface-base btn-destructive-surface h-10 rounded-xl px-3 text-sm disabled:opacity-50"
         >
           <Trash2 className="h-4 w-4" />
           Eliminar
@@ -227,7 +243,18 @@ export default function StoragePage() {
       {loading ? (
         <DataState>Cargando almacenamiento...</DataState>
       ) : filteredAudios.length ? (
-        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filteredAudios.map((audio) => (
+              <StorageAudioCard
+                key={audio.id}
+                audio={audio}
+                selected={selectedIds.includes(audio.id)}
+                onToggle={() => toggleSelection(audio.id)}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-xl border border-outline-variant bg-surface-container md:block">
           <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
@@ -242,29 +269,30 @@ export default function StoragePage() {
                   />
                 </th>
                 <th className="px-4 py-3">
-                  <button onClick={() => sortBy("originalName")} className="inline-flex items-center gap-1">
+                  <button onClick={() => sortBy("originalName")} className="btn-ghost-surface inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-widest">
                     <ArrowUpDown className="h-3 w-3" />
                     Audio
                   </button>
                 </th>
                 <th className="px-4 py-3">
-                  <button onClick={() => sortBy("mimeType")} className="inline-flex items-center gap-1">
+                  <button onClick={() => sortBy("mimeType")} className="btn-ghost-surface inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-widest">
                     <ArrowUpDown className="h-3 w-3" />
                     Tipo
                   </button>
                 </th>
                 <th className="px-4 py-3">
-                  <button onClick={() => sortBy("sizeBytes")} className="inline-flex items-center gap-1">
+                  <button onClick={() => sortBy("sizeBytes")} className="btn-ghost-surface inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-widest">
                     <ArrowUpDown className="h-3 w-3" />
                     Tamano
                   </button>
                 </th>
                 <th className="px-4 py-3">
-                  <button onClick={() => sortBy("isActive")} className="inline-flex items-center gap-1">
+                  <button onClick={() => sortBy("isActive")} className="btn-ghost-surface inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-widest">
                     <ArrowUpDown className="h-3 w-3" />
                     Estado
                   </button>
                 </th>
+                <th className="px-4 py-3">Lifecycle</th>
                 <th className="px-4 py-3">Creado</th>
               </tr>
             </thead>
@@ -282,6 +310,16 @@ export default function StoragePage() {
                   <td className="px-4 py-3 text-on-surface-variant">{audio.mimeType}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{formatBytes(audio.sizeBytes)}</td>
                   <td className="px-4 py-3">{audio.isActive ? "Activo" : "Inactivo"}</td>
+                  <td className="px-4 py-3">
+                    <div className="grid gap-1">
+                      <span>{isTemporaryAudio(audio) ? "Temporal" : "Permanente"}</span>
+                      {isTemporaryAudio(audio) ? (
+                        <span className="text-xs text-on-surface-variant">
+                          {getRemainingTimeLabel(audio.expiresAt)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-on-surface-variant">
                     {new Date(audio.createdAt).toLocaleString()}
                   </td>
@@ -289,12 +327,40 @@ export default function StoragePage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>No hay audios para gestionar.</DataState>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
+}
+
+function isTemporaryAudio(audio: AudioAsset) {
+  return audio.lifecycleStatus === "TEMPORARY" || Boolean(audio.expiresAt);
+}
+
+function getRemainingTimeLabel(expiresAt?: string | null) {
+  if (!expiresAt) return "Sin vencimiento";
+
+  const expiresAtDate = new Date(expiresAt);
+  const diffMs = expiresAtDate.getTime() - Date.now();
+
+  if (Number.isNaN(expiresAtDate.getTime())) return "Vencimiento inválido";
+  if (diffMs <= 0) return "Vencido";
+
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts = [
+    days > 0 ? `${days}d` : null,
+    hours > 0 ? `${hours}h` : null,
+    minutes > 0 ? `${minutes}m` : null,
+  ].filter(Boolean);
+
+  return `Le quedan ${parts.length ? parts.join(" ") : "menos de 1m"}`;
 }
 
 function StorageCard({
@@ -307,15 +373,71 @@ function StorageCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+    <div className="rounded-xl border border-outline-variant bg-surface-container p-3 shadow-sm sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-on-surface-variant">{label}</p>
         <HardDrive className="h-4 w-4 text-primary" />
       </div>
-      <p className="text-2xl font-semibold text-on-surface">{value}</p>
+      <p className="text-xl font-semibold text-on-surface sm:text-2xl">{value}</p>
       <p className="mt-2 truncate text-xs text-on-surface-variant" title={detail}>
         {detail}
       </p>
+    </div>
+  );
+}
+
+function StorageAudioCard({
+  audio,
+  selected,
+  onToggle,
+}: {
+  audio: AudioAsset;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const temporary = isTemporaryAudio(audio);
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 transition ${
+        selected
+          ? "border-primary bg-primary/10 shadow-elevation-1"
+          : "border-outline-variant bg-surface-container"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <label className="flex items-start gap-3">
+          <input type="checkbox" checked={selected} onChange={onToggle} className="mt-1" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-on-surface">{audio.originalName}</p>
+            <p className="truncate text-xs text-on-surface-variant">{audio.mimeType}</p>
+          </div>
+        </label>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${audio.isActive ? "success-surface" : "bg-outline-variant/30 text-on-surface-variant"}`}>
+          {audio.isActive ? "Activo" : "Inactivo"}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+        <div className="flex items-center justify-between gap-3">
+          <span>Tamaño</span>
+          <span className="font-medium text-on-surface">{formatBytes(audio.sizeBytes)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>Lifecycle</span>
+          <span className="font-medium text-on-surface">{temporary ? "Temporal" : "Permanente"}</span>
+        </div>
+        {temporary ? (
+          <div className="flex items-center justify-between gap-3">
+            <span>Vence</span>
+            <span className="font-medium text-on-surface">{getRemainingTimeLabel(audio.expiresAt)}</span>
+          </div>
+        ) : null}
+        <div className="flex items-center justify-between gap-3">
+          <span>Creado</span>
+          <span className="font-medium text-on-surface">{new Date(audio.createdAt).toLocaleString()}</span>
+        </div>
+      </div>
     </div>
   );
 }

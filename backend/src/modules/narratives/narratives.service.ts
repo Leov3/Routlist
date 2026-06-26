@@ -3,11 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type NarrativeStatus, type NarrativeVersionStatus } from '@prisma/client';
+import {
+  Prisma,
+  type NarrativeStatus,
+  type NarrativeVersionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
 import { CreateNarrativeDto } from './dto/create-narrative.dto';
-import { PublishNarrativeDto } from './dto/publish-narrative.dto';
 import { SaveNarrativeGraphDto } from './dto/save-narrative-graph.dto';
 import { UpdateNarrativeDto } from './dto/update-narrative.dto';
 import {
@@ -33,6 +36,12 @@ export class NarrativesService {
       where: { organizationId: user.organizationId },
       orderBy: [{ createdAt: 'desc' }],
       include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             versions: true,
@@ -74,6 +83,12 @@ export class NarrativesService {
       },
       orderBy: [{ updatedAt: 'desc' }],
       include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         publishedVersion: {
           select: {
             id: true,
@@ -172,7 +187,11 @@ export class NarrativesService {
 
   async duplicate(user: AuthenticatedUser, id: string) {
     const narrative = await this.getNarrativeOrThrow(user, id);
-    const sourceVersion = await this.getEditableVersion(narrative.id, false);
+    const sourceVersion = await this.getEditableVersion(
+      narrative.id,
+      user.organizationId,
+      false,
+    );
     const sourceGraph = cloneGraphJson(
       (sourceVersion?.graphJson ??
         narrative.publishedVersion?.graphJson ??
@@ -206,17 +225,27 @@ export class NarrativesService {
 
   async getBuilderState(user: AuthenticatedUser, id: string) {
     const narrative = await this.getNarrativeOrThrow(user, id);
-    const draftVersion = await this.getEditableVersion(narrative.id, true);
+    const draftVersion = await this.getEditableVersion(
+      narrative.id,
+      user.organizationId,
+      true,
+    );
     const publishedVersion = narrative.publishedVersionId
       ? await this.prisma.narrativeVersion.findFirst({
           where: {
             id: narrative.publishedVersionId,
             narrativeId: narrative.id,
+            narrative: {
+              organizationId: user.organizationId,
+            },
           },
         })
       : null;
 
-    const validation = validateNarrativeGraph(draftVersion?.graphJson ?? emptyGraphJson(), { strict: true });
+    const validation = validateNarrativeGraph(
+      draftVersion?.graphJson ?? emptyGraphJson(),
+      { strict: true },
+    );
 
     return {
       narrative,
@@ -238,7 +267,11 @@ export class NarrativesService {
       throw new BadRequestException(validation.errors);
     }
 
-    const draftVersion = await this.getEditableVersion(narrative.id, true);
+    const draftVersion = await this.getEditableVersion(
+      narrative.id,
+      user.organizationId,
+      true,
+    );
 
     if (!draftVersion) {
       throw new NotFoundException('Editable narrative version not found');
@@ -266,14 +299,24 @@ export class NarrativesService {
     });
   }
 
-  async validate(user: AuthenticatedUser, id: string, graphJson?: Record<string, unknown>) {
+  async validate(
+    user: AuthenticatedUser,
+    id: string,
+    graphJson?: Record<string, unknown>,
+  ) {
     await this.getNarrativeOrThrow(user, id);
 
-    const payload = graphJson ?? (await this.getEditableVersion(id, false))?.graphJson ?? emptyGraphJson();
+    const payload =
+      graphJson ??
+      (await this.getEditableVersion(id, user.organizationId, false))?.graphJson ??
+      emptyGraphJson();
     const validation = validateNarrativeGraph(payload);
-    
+
     if (validation.valid) {
-      const resourceValidation = await this.validateNarrativeResources(user, payload as NarrativeGraphJson);
+      const resourceValidation = await this.validateNarrativeResources(
+        user,
+        payload as NarrativeGraphJson,
+      );
       if (!resourceValidation.valid) {
         validation.valid = false;
         validation.errors.push(...resourceValidation.errors);
@@ -283,13 +326,13 @@ export class NarrativesService {
     return validation;
   }
 
-  async publish(
-    user: AuthenticatedUser,
-    id: string,
-    _dto: PublishNarrativeDto,
-  ) {
+  async publish(user: AuthenticatedUser, id: string) {
     const narrative = await this.getNarrativeOrThrow(user, id);
-    const draftVersion = await this.getEditableVersion(narrative.id, true);
+    const draftVersion = await this.getEditableVersion(
+      narrative.id,
+      user.organizationId,
+      true,
+    );
 
     if (!draftVersion) {
       throw new NotFoundException('Editable narrative version not found');
@@ -300,7 +343,10 @@ export class NarrativesService {
       throw new BadRequestException(validation.errors);
     }
 
-    const resourceValidation = await this.validateNarrativeResources(user, draftVersion.graphJson as NarrativeGraphJson);
+    const resourceValidation = await this.validateNarrativeResources(
+      user,
+      draftVersion.graphJson as NarrativeGraphJson,
+    );
     if (!resourceValidation.valid) {
       throw new BadRequestException(resourceValidation.errors);
     }
@@ -355,6 +401,9 @@ export class NarrativesService {
       where: {
         id: narrative.publishedVersionId,
         narrativeId: narrative.id,
+        narrative: {
+          organizationId: user.organizationId,
+        },
       },
     });
 
@@ -377,6 +426,12 @@ export class NarrativesService {
         },
         updatedBy: {
           select: { id: true, fullName: true, email: true },
+        },
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
         publishedVersion: {
           select: {
@@ -418,12 +473,16 @@ export class NarrativesService {
 
   private async getEditableVersion(
     narrativeId: string,
+    organizationId: string,
     createIfMissing: boolean,
   ) {
     const draftVersion = await this.prisma.narrativeVersion.findFirst({
       where: {
         narrativeId,
         status: DRAFT_STATUS,
+        narrative: {
+          organizationId,
+        },
       },
       orderBy: {
         versionNumber: 'desc',
@@ -435,7 +494,12 @@ export class NarrativesService {
     }
 
     const latestVersion = await this.prisma.narrativeVersion.findFirst({
-      where: { narrativeId },
+      where: {
+        narrativeId,
+        narrative: {
+          organizationId,
+        },
+      },
       orderBy: {
         versionNumber: 'desc',
       },
@@ -493,7 +557,9 @@ export class NarrativesService {
       const validAudioIds = new Set(validAudios.map((a) => a.id));
       for (const id of audioIds) {
         if (!validAudioIds.has(id)) {
-          errors.push(`Audio asset ${id} is invalid, inactive, or belongs to another organization`);
+          errors.push(
+            `Audio asset ${id} is invalid, inactive, or belongs to another organization`,
+          );
         }
       }
     }
@@ -510,7 +576,9 @@ export class NarrativesService {
       const validButtonIds = new Set(validButtons.map((b) => b.id));
       for (const id of buttonIds) {
         if (!validButtonIds.has(id)) {
-          errors.push(`Audio button ${id} is invalid, inactive, or belongs to another organization`);
+          errors.push(
+            `Audio button ${id} is invalid, inactive, or belongs to another organization`,
+          );
         }
       }
     }

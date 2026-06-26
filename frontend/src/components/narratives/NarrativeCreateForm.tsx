@@ -10,7 +10,7 @@ type NarrativeCreateFormProps = {
 
 export function NarrativeCreateForm({
   onCreate,
-  submitLabel = "Crear narrativa",
+  submitLabel = "Crear llamada",
 }: NarrativeCreateFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -30,7 +30,7 @@ export function NarrativeCreateForm({
       setTitle("");
       setDescription("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear la narrativa.");
+      setError(err instanceof Error ? err.message : "No se pudo crear la llamada.");
     } finally {
       setSaving(false);
     }
@@ -39,7 +39,7 @@ export function NarrativeCreateForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1"
+      className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5"
     >
       <div className="mb-4 flex items-start gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-on-primary">
@@ -47,7 +47,7 @@ export function NarrativeCreateForm({
         </div>
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-on-surface">
-            Nueva narrativa
+            Nueva llamada
           </h2>
           <p className="text-sm text-on-surface-variant">
             Crea un borrador para diseñar el flujo por nodos.
@@ -63,7 +63,7 @@ export function NarrativeCreateForm({
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Narrativa de apertura"
+            placeholder="Llamada de apertura"
             className="h-11 rounded-2xl border border-outline-variant bg-surface px-4 text-sm text-on-surface outline-none transition-colors focus:border-primary"
             required
             minLength={3}
@@ -84,7 +84,7 @@ export function NarrativeCreateForm({
       </div>
 
       {error && (
-        <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+        <p className="danger-surface mt-4 rounded-2xl px-4 py-3 text-sm">
           {error}
         </p>
       )}
@@ -93,7 +93,7 @@ export function NarrativeCreateForm({
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           {saving ? "Creando..." : submitLabel}

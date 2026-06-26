@@ -1,12 +1,13 @@
 "use client";
 
 import { ArrowLeftRight } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { AudioButton } from "./AudioButton";
 import { AudioSearch } from "./AudioSearch";
 import { BoardFilterChips } from "./BoardFilterChips";
 import { BoardMoreFiltersMenu } from "./BoardMoreFiltersMenu";
 import { filterBoardButtons, type BoardButton, type BoardCategoryOption, type BoardSideState } from "./board-ui";
+import { useBoardListHeight } from "./useBoardListHeight";
 import type { BoardDensity } from "@/types/routlis";
 
 export function BoardSidePanel({
@@ -20,6 +21,7 @@ export function BoardSidePanel({
   recentIds,
   activeButtonId,
   onPlay,
+  onStop,
   onToggleFavorite,
   onOpenDetails,
   onSwapSides,
@@ -36,12 +38,15 @@ export function BoardSidePanel({
   recentIds: string[];
   activeButtonId: string | null;
   onPlay: (button: BoardButton) => void;
+  onStop: () => void;
   onToggleFavorite: (button: BoardButton) => void;
   onOpenDetails: (button: BoardButton) => void;
-  onSwapSides: () => void;
+  onSwapSides?: () => void;
   onSideChange: (next: BoardSideState) => void;
   density: BoardDensity;
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+  const panelStyle = useBoardListHeight(panelRef);
   const filteredButtons = useMemo(
     () =>
       filterBoardButtons({
@@ -62,7 +67,7 @@ export function BoardSidePanel({
         }
       : {
           dot: "bg-emerald-400",
-          badge: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
+          badge: "success-surface",
           panel: "shadow-[0_0_0_1px_rgba(52,211,153,.08),0_28px_60px_rgba(0,0,0,.12)]",
       };
 
@@ -76,7 +81,9 @@ export function BoardSidePanel({
 
   return (
     <section
-      className={`flex max-h-[calc(100dvh-18rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 ${toneClasses.panel}`}
+      ref={panelRef}
+      style={panelStyle}
+      className={`grid min-h-0 flex-1 overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 [grid-template-rows:auto_auto_auto_minmax(0,1fr)] ${toneClasses.panel}`}
     >
       <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
@@ -88,18 +95,20 @@ export function BoardSidePanel({
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onSwapSides}
-            className={`inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors hover:bg-surface-container ${
-              tone === "violet"
-                ? "border-primary/25 bg-primary/10 text-on-surface"
-                : "border-emerald-400/20 bg-emerald-400/10 text-on-surface"
-            }`}
-          >
-            <ArrowLeftRight className="h-4 w-4" />
-            Intercambiar lados
-          </button>
+          {onSwapSides ? (
+            <button
+              type="button"
+              onClick={onSwapSides}
+              className={`inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors hover:bg-surface-container ${
+                tone === "violet"
+                  ? "border-primary/25 bg-primary/10 text-on-surface"
+                  : "success-surface text-on-surface"
+              }`}
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              Intercambiar lados
+            </button>
+          ) : null}
           <span className={`rounded-full border px-3 py-1 text-xs font-medium ${toneClasses.badge}`}>
             {filteredButtons.length} audio{filteredButtons.length !== 1 ? "s" : ""}
           </span>
@@ -128,9 +137,9 @@ export function BoardSidePanel({
         onQuickFilterChange={updateQuickFilter}
       />
 
-      <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="mt-5 min-h-0 overflow-y-auto pr-1 pb-1 overscroll-contain">
         <div
-          className={`grid gap-3 ${
+          className={`grid min-h-0 gap-3 ${
             density === "compact"
               ? "md:grid-cols-3 xl:grid-cols-3"
               : density === "large"
@@ -147,6 +156,7 @@ export function BoardSidePanel({
                 isFavorite={favoriteIds.includes(button.id)}
                 density={density}
                 onPlay={onPlay}
+                onStop={onStop}
                 onToggleFavorite={onToggleFavorite}
                 onOpenDetails={onOpenDetails}
               />

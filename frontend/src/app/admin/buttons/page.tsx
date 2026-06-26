@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowUpDown, CheckCircle, Copy, Pencil, Plus, Search, Trash2, XCircle } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api, apiUrl } from "@/lib/api";
@@ -259,14 +259,14 @@ export default function ButtonsPage() {
   }
 
   return (
-    <ProtectedPage requiredPermissions={["button:create"]}>
+    <AdminProtectedPage>
       <PageHeader title="Botones" description="Accesos operativos asociados a audios." />
       {errorMessage ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="danger-surface mb-4 rounded-xl px-4 py-3 text-sm">
           {errorMessage}
         </div>
       ) : null}
-      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_110px_100px_220px_auto]">
+      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_110px_100px_220px_auto]">
         <input value={form.label} onChange={(event) => setForm((current) => ({ ...current, label: event.target.value }))} placeholder="Etiqueta" className="h-10 w-full min-w-0 rounded-xl border border-outline px-3 text-sm" required />
         <input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Texto del botón" className="h-10 w-full min-w-0 rounded-xl border border-outline px-3 text-sm" />
         <select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))} className="h-10 w-full min-w-0 rounded-xl border border-outline px-3 text-sm" required>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
@@ -293,7 +293,29 @@ export default function ButtonsPage() {
       </div>
 
       {filteredButtons.length ? (
-        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filteredButtons.map((button) => (
+              <ButtonCard
+                key={button.id}
+                button={button}
+                editing={editingId === button.id}
+                editForm={editForm}
+                editImageFile={editImageFile}
+                categories={categories}
+                audios={audios}
+                onStartEdit={() => startEdit(button)}
+                onCancelEdit={() => setEditingId(null)}
+                onSave={() => void saveEdit(button.id)}
+                onToggleActive={() => void setActive(button.id, !button.isActive)}
+                onDuplicate={() => void duplicate(button.id)}
+                onDelete={() => void remove(button.id)}
+                onEdit={(field, value) => setEditForm((current) => ({ ...current, [field]: value }))}
+                onEditImage={(file) => setEditImageFile(file)}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-xl border border-outline-variant bg-surface-container md:block">
           <table className="w-full min-w-[1120px] table-fixed text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
@@ -348,7 +370,7 @@ export default function ButtonsPage() {
                           <button type="button" onClick={() => startEdit(button)} className="rounded-xl border border-outline p-2" title="Editar"><Pencil className="h-4 w-4" /></button>
                           <button type="button" onClick={() => void duplicate(button.id)} className="rounded-xl border border-outline p-2" title="Duplicar"><Copy className="h-4 w-4" /></button>
                           <button type="button" onClick={() => void setActive(button.id, !button.isActive)} className="rounded-xl border border-outline p-2" title={button.isActive ? "Desactivar" : "Activar"}>{button.isActive ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}</button>
-                          <button type="button" onClick={() => void remove(button.id)} className="rounded-xl border border-red-200 p-2 text-red-700" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => void remove(button.id)} className="danger-surface inline-flex items-center justify-center rounded-xl p-2" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
                         </>
                       )}
                     </div>
@@ -357,10 +379,130 @@ export default function ButtonsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>No hay botones.</DataState>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
+  );
+}
+
+function ButtonCard({
+  button,
+  editing,
+  editForm,
+  editImageFile,
+  categories,
+  audios,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  onToggleActive,
+  onDuplicate,
+  onDelete,
+  onEdit,
+  onEditImage,
+}: {
+  button: AudioButton;
+  editing: boolean;
+  editForm: ButtonForm;
+  editImageFile: File | null;
+  categories: AudioCategory[];
+  audios: AudioAsset[];
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onToggleActive: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onEdit: <K extends keyof ButtonForm>(field: K, value: ButtonForm[K]) => void;
+  onEditImage: (file: File | null) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-on-surface">{button.label}</p>
+          <p className="mt-1 truncate text-xs text-on-surface-variant">{button.category.name} · {button.audioAsset.originalName}</p>
+        </div>
+        <span
+          className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+            button.isActive ? "success-surface" : "bg-outline-variant/30 text-on-surface-variant"
+          }`}
+        >
+          {button.isActive ? "Activo" : "Inactivo"}
+        </span>
+      </div>
+
+      {editing ? (
+        <div className="mt-4 grid gap-3">
+          <input value={editForm.label} onChange={(event) => onEdit("label", event.target.value)} placeholder="Etiqueta" className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm" />
+          <input value={editForm.description} onChange={(event) => onEdit("description", event.target.value)} placeholder="Texto del botón" className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm" />
+          <select value={editForm.categoryId} onChange={(event) => onEdit("categoryId", event.target.value)} className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm">
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <select value={editForm.audioAssetId} onChange={(event) => onEdit("audioAssetId", event.target.value)} className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm">
+            {audios.map((audio) => <option key={audio.id} value={audio.id}>{audio.originalName}</option>)}
+          </select>
+          <div className="grid grid-cols-2 gap-3">
+            <input value={editForm.color} onChange={(event) => onEdit("color", event.target.value)} type="color" className="h-10 w-full rounded-xl border border-outline-variant px-2" />
+            <input value={editForm.sortOrder} onChange={(event) => onEdit("sortOrder", event.target.value)} type="number" min="0" className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm" />
+          </div>
+          <input value={editForm.shortcutKey} onChange={(event) => onEdit("shortcutKey", event.target.value)} placeholder="Shortcut" className="h-10 w-full rounded-xl border border-outline-variant bg-surface-container-high px-3 text-sm" />
+          <label className="flex h-10 cursor-pointer items-center justify-center rounded-xl border border-dashed border-outline-variant px-3 text-sm text-on-surface-variant">
+            <input type="file" accept="image/*" className="sr-only" onChange={(event) => onEditImage(event.target.files?.[0] ?? null)} />
+            <span className="truncate">{editImageFile ? editImageFile.name : "Cambiar imagen"}</span>
+          </label>
+          <div className="grid gap-2">
+            <button type="button" onClick={onSave} className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary">Guardar</button>
+            <button type="button" onClick={onCancelEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-2 text-xs text-on-surface-variant">
+          <div className="flex items-center justify-between gap-3">
+            <span>Audio</span>
+            <span className="truncate font-medium text-on-surface">{button.audioAsset.originalName}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Orden</span>
+            <span className="font-medium text-on-surface">{button.sortOrder}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Shortcut</span>
+            <span className="font-medium text-on-surface">{button.shortcutKey ?? "-"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span>Color</span>
+            <span className="inline-flex items-center gap-2 font-medium text-on-surface">
+              <span className="inline-flex h-4 w-4 rounded-full border border-outline-variant" style={{ backgroundColor: button.color ?? "#047857" }} />
+              {button.color ?? "-"}
+            </span>
+          </div>
+          {button.description ? (
+            <p className="line-clamp-2 text-[11px] text-on-surface-variant">{button.description}</p>
+          ) : null}
+          {button.imageUrl ? (
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={apiUrl(button.imageUrl)} alt={button.label} className="h-10 w-10 rounded-xl object-cover" />
+              <span className="text-[11px] text-on-surface-variant">Imagen disponible</span>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-2">
+        {editing ? null : (
+          <>
+            <button type="button" onClick={onStartEdit} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">Editar</button>
+            <button type="button" onClick={onDuplicate} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">Duplicar</button>
+            <button type="button" onClick={onToggleActive} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-outline-variant px-4 text-sm font-semibold text-on-surface">{button.isActive ? "Desactivar" : "Activar"}</button>
+            <button type="button" onClick={onDelete} className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-error/30 px-4 text-sm font-semibold text-error">Eliminar</button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

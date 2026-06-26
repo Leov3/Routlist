@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { NarrativeBuilderCanvasShell } from "@/components/narratives/builder/NarrativeBuilderCanvas";
 
 export default function AdminNarrativeBuilderPage() {
@@ -10,14 +10,14 @@ export default function AdminNarrativeBuilderPage() {
   const narrativeId = Array.isArray(rawId) ? rawId[0] : rawId;
 
   return (
-    <ProtectedPage requiredPermissions={["narratives:update"]}>
+    <AdminProtectedPage>
       {!narrativeId ? (
         <div className="rounded-2xl border border-outline-variant bg-surface-container p-6 text-sm text-on-surface-variant shadow-elevation-1">
-          No se encontró el identificador de la narrativa.
+          No se encontró el identificador de la llamada.
         </div>
       ) : (
         <NarrativeBuilderCanvasShell narrativeId={narrativeId} />
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }

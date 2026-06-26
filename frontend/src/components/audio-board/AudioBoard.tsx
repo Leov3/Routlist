@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { useAudioPlayback } from "@/modules/audio-board/useAudioPlayback";
@@ -18,9 +18,9 @@ import { AudioSearch } from "./AudioSearch";
 import { BoardDensityToggle } from "./BoardDensityToggle";
 import { BoardFilterChips } from "./BoardFilterChips";
 import { BoardMoreFiltersMenu } from "./BoardMoreFiltersMenu";
-import { BoardRecentStrip } from "./BoardRecentStrip";
 import { BoardSidePanel } from "./BoardSidePanel";
 import { BoardViewModeToggle } from "./BoardViewModeToggle";
+import { useBoardListHeight } from "./useBoardListHeight";
 import {
   createDefaultSideState,
   filterBoardButtons,
@@ -52,6 +52,8 @@ export function AudioBoard() {
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const playback = useAudioPlayback(volume);
   const saveTimerRef = useRef<number | null>(null);
+  const simplePanelRef = useRef<HTMLElement>(null);
+  const simplePanelStyle = useBoardListHeight(simplePanelRef);
 
   useEffect(() => {
     setHeaderSlot(document.getElementById("board-header-slot"));
@@ -163,13 +165,13 @@ export function AudioBoard() {
     [detailsButtonId, flattenedButtons],
   );
 
-  const playButtonById = async (buttonId: string) => {
+  const playButtonById = useCallback(async (buttonId: string) => {
     const button = flattenedButtons.find((entry) => entry.id === buttonId);
     if (!button) return;
 
     await playback.playButton(button, volume);
     await refreshRecent();
-  };
+  }, [flattenedButtons, playback, volume]);
 
   async function refreshRecent() {
     const recentData = await api<RecentPlaybackEvent[]>(
@@ -255,7 +257,7 @@ export function AudioBoard() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [flattenedButtons, playback, volume]);
+  }, [flattenedButtons, playback, playButtonById]);
 
   if (loading) {
     return (
@@ -270,37 +272,43 @@ export function AudioBoard() {
 
   const gridClass =
     density === "compact"
-      ? "md:grid-cols-4 xl:grid-cols-6"
+      ? "sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7"
       : density === "large"
-        ? "md:grid-cols-2 xl:grid-cols-3"
-        : "md:grid-cols-3 xl:grid-cols-5";
+        ? "sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+        : "sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6";
 
   return (
-    <div className="pb-[190px]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {headerSlot
         ? createPortal(
             <div className="flex w-full min-w-0 items-center justify-center">
-              <div className="flex max-w-full flex-wrap items-center justify-center gap-3 rounded-full border border-outline-variant/70 bg-surface-container/80 px-4 py-2 shadow-[0_10px_30px_rgba(0,0,0,.14)] backdrop-blur-md">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(124,58,237,.14)]">
-                  <span className="text-sm font-bold">B</span>
+              <div className="flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto rounded-[20px] border border-outline-variant bg-surface-container/75 px-3 py-2 shadow-[0_10px_24px_rgba(0,0,0,.08)] backdrop-blur-md">
+                <div className="flex min-w-0 shrink-0 items-center gap-2 pr-1">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container">
+                    <span className="text-sm font-bold">B</span>
+                  </div>
+                  <h1 className="truncate text-sm font-semibold tracking-tight text-on-surface sm:text-[15px]">
+                    /Botonera
+                  </h1>
                 </div>
 
-                <h1 className="truncate text-[15px] font-semibold tracking-tight text-on-surface sm:text-base">
-                  /Botonera
-                </h1>
+                <div className="h-8 w-px shrink-0 bg-outline-variant/80" />
 
-                <BoardViewModeToggle value={viewMode} onChange={changeViewMode} />
-                <BoardDensityToggle value={density} onChange={setDensity} />
+                <BoardViewModeToggle value={viewMode} onChange={changeViewMode} compact />
+
+                <BoardDensityToggle value={density} onChange={setDensity} compact />
               </div>
             </div>,
             headerSlot,
           )
         : null}
 
-      <BoardRecentStrip events={recentEvents} onPlay={(buttonId) => void playButtonById(buttonId)} />
-
       {viewMode === "simple" ? (
-        <section className="flex max-h-[calc(100dvh-20rem)] flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)]">
+        <section
+          ref={simplePanelRef}
+          style={simplePanelStyle}
+          className="grid min-h-0 flex-1 overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-4 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)] [grid-template-rows:auto_minmax(0,1fr)] sm:p-5"
+        >
           <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center">
             <AudioSearch
               value={sideA.search}
@@ -327,9 +335,9 @@ export function AudioBoard() {
             />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="min-h-0 overflow-y-auto pr-1 pb-1 overscroll-contain">
             {simpleVisibleButtons.length ? (
-              <div className={`grid gap-3 ${gridClass}`}>
+              <div className={`grid min-h-0 gap-3 ${gridClass}`}>
                 {simpleVisibleButtons.map((button) => (
                   <AudioButton
                     key={button.id}
@@ -349,6 +357,7 @@ export function AudioBoard() {
                       void toggleFavorite(currentButton.id);
                     }}
                     onOpenDetails={(currentButton) => setDetailsButtonId(currentButton.id)}
+                    onStop={() => void playback.stop()}
                   />
                 ))}
               </div>
@@ -360,7 +369,7 @@ export function AudioBoard() {
           </div>
         </section>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid h-full min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-2 2xl:gap-5">
           <BoardSidePanel
             title="Lado A"
             subtitle="Audios del lado A"
@@ -386,6 +395,7 @@ export function AudioBoard() {
             onOpenDetails={(currentButton) => setDetailsButtonId(currentButton.id)}
             onSwapSides={swapSides}
             onSideChange={setSideA}
+            onStop={() => void playback.stop()}
           />
 
           <BoardSidePanel
@@ -413,6 +423,7 @@ export function AudioBoard() {
             onOpenDetails={(currentButton) => setDetailsButtonId(currentButton.id)}
             onSwapSides={swapSides}
             onSideChange={setSideB}
+            onStop={() => void playback.stop()}
           />
         </div>
       )}

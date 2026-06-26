@@ -10,6 +10,8 @@ STORAGE_VOLUME="${STORAGE_VOLUME:-routlis_storage}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/routlis/backups}"
 COMMAND="${1:-deploy}"
 SKIP_BACKUP="${SKIP_BACKUP:-0}"
+KEEP_BACKUPS="${KEEP_BACKUPS:-3}"
+RUN_CLEANUP_AFTER_DEPLOY="${RUN_CLEANUP_AFTER_DEPLOY:-1}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing env file: $ENV_FILE" >&2
@@ -64,6 +66,39 @@ verify_deploy() {
     "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 }
 
+run_migrations() {
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" run --rm --no-deps --build backend npm run prisma:deploy
+}
+
+prune_safe_docker() {
+  docker container prune -f
+  docker image prune -af
+  docker builder prune -af
+  docker network prune -f
+}
+
+cleanup_backups() {
+  if [[ ! -d "$BACKUP_DIR" ]]; then
+    return 0
+  fi
+
+  mapfile -t backup_dirs < <(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+  local total="${#backup_dirs[@]}"
+  if (( total <= KEEP_BACKUPS )); then
+    return 0
+  fi
+
+  local keep_from=$((total - KEEP_BACKUPS))
+  for ((i = 0; i < keep_from; i++)); do
+    rm -rf "${backup_dirs[$i]}"
+  done
+}
+
+cleanup_vps() {
+  prune_safe_docker
+  cleanup_backups
+}
+
 rollback() {
   local backup_root="${1:-}"
   mkdir -p "$BACKUP_DIR"
@@ -100,13 +135,18 @@ deploy() {
   else
     backup_root="$(backup)"
   fi
-  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d --build
-  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" exec -T backend npm run prisma:deploy
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d postgres
+  run_migrations
+  docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT_NAME" up -d --build backend frontend
   verify_deploy || {
     echo "Deploy verification failed, rolling back from $backup_root" >&2
     rollback "$backup_root"
     exit 1
   }
+
+  if [[ "$RUN_CLEANUP_AFTER_DEPLOY" == "1" ]]; then
+    cleanup_vps
+  fi
 }
 
 seed() {
@@ -124,6 +164,12 @@ case "$COMMAND" in
   seed)
     seed
     ;;
+  prune)
+    prune_safe_docker
+    ;;
+  cleanup)
+    cleanup_vps
+    ;;
   preflight)
     preflight
     ;;
@@ -137,7 +183,7 @@ case "$COMMAND" in
     rollback "${2:-}"
     ;;
   *)
-    echo "Usage: $(basename "$0") [deploy|seed|preflight|backup|verify|rollback [backup_dir]]" >&2
+    echo "Usage: $(basename "$0") [deploy|seed|prune|cleanup|preflight|backup|verify|rollback [backup_dir]]" >&2
     exit 1
     ;;
 esac

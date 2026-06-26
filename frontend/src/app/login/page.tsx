@@ -1,8 +1,11 @@
 "use client";
 
 import { FormEvent, useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api, apiUrl, ApiError } from "@/lib/api";
+import { ThemeToggleButton } from "@/components/layout/ThemeToggleButton";
+import type { PlatformBranding } from "@/types/routlis";
 
 type LoginStatsResponse = {
   activeAudios: number;
@@ -20,12 +23,12 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(true);
-  const [previewPlaying, setPreviewPlaying] = useState(false);
   const [toast, setToast] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [recoverEmail, setRecoverEmail] = useState("");
   const [stats, setStats] = useState<LoginStatsResponse | null>(null);
   const [statsError, setStatsError] = useState(false);
+  const [branding, setBranding] = useState<PlatformBranding | null>(null);
 
   const toastTimer = useRef<undefined | ReturnType<typeof setTimeout>>(undefined);
   const spotlightRef = useRef<HTMLDivElement>(null);
@@ -51,10 +54,22 @@ export default function LoginPage() {
   useEffect(() => {
     const body = document.body;
     const originalBg = body.style.background;
-    body.style.background = "#0c0e14";
+    body.style.background = "var(--md-sys-color-surface)";
     return () => {
       body.style.background = originalBg;
     };
+  }, []);
+
+  useEffect(() => {
+    async function loadBranding() {
+      try {
+        const data = await api<PlatformBranding>("/platform-branding/public");
+        setBranding(data);
+      } catch {
+        setBranding(null);
+      }
+    }
+    void loadBranding();
   }, []);
 
   useEffect(() => {
@@ -105,14 +120,28 @@ export default function LoginPage() {
     }
   }
 
-  function handleDemo() {
-    setEmail("admin@routlis.local");
-    setPassword("Admin123*");
-    showToast("Acceso demo rellenado.");
+  async function handleForgotPassword() {
+    if (!recoverEmail.trim()) {
+      showToast("Escribe un correo para continuar.");
+      return;
+    }
+
+    try {
+      await api("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: recoverEmail.trim() }),
+      });
+      showToast("Si el correo existe, se enviará un enlace de recuperación.");
+      setModalOpen(false);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "No se pudo enviar el enlace.");
+    }
   }
 
   return (
     <>
+      <ThemeToggleButton behavior="binary" className="fixed right-3 top-3 z-20 sm:right-4 sm:top-4" />
+
       <div className="login-grid" aria-hidden="true" />
       <div className="login-spotlight" ref={spotlightRef} aria-hidden="true" />
       <div className="login-spotlight-ring" ref={spotlightRingRef} aria-hidden="true" />
@@ -147,43 +176,6 @@ export default function LoginPage() {
             Organiza, reproduce y distribuye tu audio en vivo o por programación. Simple, rápido y confiable.
           </p>
 
-          <div className={`login-audio-preview${previewPlaying ? " playing" : ""}`} id="audioPreview">
-            <button
-              className="login-play-tile"
-              type="button"
-              aria-label="Reproducir vista previa"
-              onClick={() => {
-                setPreviewPlaying(!previewPlaying);
-                showToast(previewPlaying ? "Vista previa pausada." : "Vista previa reproduciendo.");
-              }}
-            >
-              {previewPlaying ? (
-                <svg viewBox="0 0 48 48" fill="none">
-                  <path d="M17 13h6v22h-6V13Zm10 0h6v22h-6V13Z" fill="currentColor" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 48 48" fill="none">
-                  <path d="M17 13v22l20-11-20-11Z" fill="currentColor" />
-                </svg>
-              )}
-            </button>
-            <div>
-              <div className="login-track-title">
-                <span>Ident Promocional 2024</span>
-                <small>00:28</small>
-              </div>
-              <div className="login-track-meta">00:28 · MP3 · 320 kbps</div>
-              <div className="login-wave" aria-hidden="true">
-                {Array.from({ length: 20 }).map((_, i) => {
-                  const heights = [14, 22, 16, 28, 21, 26, 18, 30, 20, 24, 15, 27, 18, 25, 17, 29, 20, 26, 15, 22];
-                  return (
-                    <span key={i} style={{ "--h": `${heights[i]}px`, "--i": i + 1 } as React.CSSProperties} />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
           <div className="login-metrics">
             <div className="login-metric">
               <div className="login-metric-icon">▥</div>
@@ -207,7 +199,7 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-          <p className="mt-4 text-xs leading-5 text-[#aeb4c2]">
+          <p className="mt-4 text-xs leading-5 text-on-surface-variant">
             {statsError
               ? "No se pudieron cargar los datos públicos en tiempo real."
               : `Categorías activas: ${stats?.activeCategories?.toLocaleString() ?? "0"} · Reproducciones totales: ${stats?.totalPlaybacks?.toLocaleString() ?? "0"}`
@@ -224,7 +216,7 @@ export default function LoginPage() {
               <div>
                 <label className="login-label" htmlFor="email">Email</label>
                 <div className="login-field">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] text-[#b7bdca] flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] flex-shrink-0">
                     <path
                       d="M4 7.8A2.8 2.8 0 0 1 6.8 5h10.4A2.8 2.8 0 0 1 20 7.8v8.4a2.8 2.8 0 0 1-2.8 2.8H6.8A2.8 2.8 0 0 1 4 16.2V7.8Z"
                       stroke="currentColor"
@@ -248,7 +240,7 @@ export default function LoginPage() {
               <div>
                 <label className="login-label" htmlFor="password">Contraseña</label>
                 <div className="login-field">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] text-[#b7bdca] flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] flex-shrink-0">
                     <path
                       d="M7 10V8a5 5 0 0 1 10 0v2M6.8 10h10.4A1.8 1.8 0 0 1 19 11.8v6.4a1.8 1.8 0 0 1-1.8 1.8H6.8A1.8 1.8 0 0 1 5 18.2v-6.4A1.8 1.8 0 0 1 6.8 10Z"
                       stroke="currentColor"
@@ -313,11 +305,6 @@ export default function LoginPage() {
             <button type="submit" className="login-primary-btn" id="submitBtn" disabled={loading}>
               → {loading ? "Validando acceso..." : "Entrar al panel"}
             </button>
-            <button type="button" className="login-secondary-btn" id="demoBtn" onClick={handleDemo}>
-              ✦ Rellenar acceso demo
-            </button>
-
-            <div className="login-auth-note">Mockup limpio · sin marco de navegador, con spotlight ligero y clickeable.</div>
           </form>
         </div>
       </section>
@@ -338,7 +325,7 @@ export default function LoginPage() {
           <h2 id="modalTitle">Recuperar contraseña</h2>
           <p>En producción se enviaría un enlace temporal al email registrado del owner u operador.</p>
           <div className="login-field">
-            <svg viewBox="0 0 24 24" fill="none" className="w-[19px] h-[19px] text-[#b7bdca] flex-shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" className="h-[19px] w-[19px] flex-shrink-0 text-on-surface-variant">
               <path
                 d="M4 7.8A2.8 2.8 0 0 1 6.8 5h10.4A2.8 2.8 0 0 1 20 7.8v8.4a2.8 2.8 0 0 1-2.8 2.8H6.8A2.8 2.8 0 0 1 4 16.2V7.8Z"
                 stroke="currentColor"
@@ -362,14 +349,18 @@ export default function LoginPage() {
             <button
               type="button"
               className="login-send"
-              onClick={() => {
-                setModalOpen(false);
-                showToast("Enlace de recuperación simulado.");
-              }}
+              onClick={handleForgotPassword}
             >
               Enviar enlace
             </button>
           </div>
+          <p className="mt-4 text-center text-xs text-on-surface-variant">
+            También puedes abrir el flujo completo en{" "}
+            <Link href="/forgot-password" className="text-primary underline underline-offset-4">
+              /forgot-password
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </>

@@ -67,16 +67,25 @@ export class CategoriesService {
     await this.prisma.$transaction(async (tx) => {
       if (buttonIds.length) {
         await tx.playbackEvent.deleteMany({
-          where: { audioButtonId: { in: buttonIds } },
+          where: {
+            audioButtonId: { in: buttonIds },
+            organizationId: user.organizationId,
+          },
         });
 
         await tx.audioButton.deleteMany({
-          where: { id: { in: buttonIds } },
+          where: {
+            id: { in: buttonIds },
+            organizationId: user.organizationId,
+          },
         });
       }
 
-      await tx.audioCategory.delete({
-        where: { id },
+      await tx.audioCategory.deleteMany({
+        where: {
+          id,
+          organizationId: user.organizationId,
+        },
       });
     });
 

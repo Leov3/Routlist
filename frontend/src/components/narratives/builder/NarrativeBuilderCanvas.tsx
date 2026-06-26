@@ -66,6 +66,21 @@ type AudioButtonOption = {
   };
 };
 
+type ElevenLabsVoiceOption = {
+  voiceId: string;
+  name: string;
+  category?: string | null;
+  labels?: Record<string, string> | null;
+  previewUrl?: string | null;
+};
+
+type ElevenLabsModelOption = {
+  modelId: string;
+  name: string;
+  description?: string | null;
+  languages?: string[] | null;
+};
+
 type ApiCollection<T> = T[] | { data?: T[]; items?: T[] };
 
 type FlowNodeData = NarrativeBuilderNodeData;
@@ -78,15 +93,118 @@ type NodePaletteItem = {
 };
 
 const NODE_PALETTE: NodePaletteItem[] = [
-  { type: "START", label: "Inicio", description: "Punto de arranque único.", accent: "from-emerald-500 to-teal-500" },
-  { type: "AUDIO", label: "Audio", description: "Reproduce un audio existente.", accent: "from-violet-500 to-fuchsia-500" },
-  { type: "AUDIO_BUTTON", label: "Botón de Audio", description: "Reproduce audio asociado a un botón.", accent: "from-indigo-500 to-blue-500" },
-  { type: "SCRIPT_TEXT", label: "Texto / Guion", description: "Texto para leer al aire.", accent: "from-sky-500 to-cyan-500" },
-  { type: "INSTRUCTION", label: "Instrucción", description: "Paso operativo interno.", accent: "from-amber-500 to-orange-500" },
-  { type: "PAUSE", label: "Pausa", description: "Esperar o pausar manualmente.", accent: "from-slate-500 to-slate-700" },
-  { type: "DECISION", label: "Decisión", description: "Ramificación con opciones.", accent: "from-pink-500 to-rose-500" },
-  { type: "END", label: "Fin", description: "Cierre del flujo.", accent: "from-red-500 to-rose-500" },
+  { type: "START", label: "Inicio", description: "Punto de arranque único.", accent: "from-emerald-500 to-emerald-600" },
+  { type: "AUDIO_BUTTON", label: "Botón de Audio", description: "Reproduce audio asociado a un botón.", accent: "from-secondary to-primary" },
+  { type: "DYNAMIC_AUDIO", label: "Audio dinámico IA", description: "Texto con variables para TTS.", accent: "from-secondary to-tertiary" },
+  { type: "SCRIPT_TEXT", label: "Texto / Guion", description: "Texto para leer al aire.", accent: "from-primary to-secondary" },
+  { type: "PAUSE", label: "Pausa", description: "Esperar o pausar manualmente.", accent: "from-slate-500 to-slate-600" },
+  { type: "DECISION", label: "Decisión", description: "Ramificación con opciones.", accent: "from-secondary to-tertiary" },
+  { type: "END", label: "Fin", description: "Cierre del flujo.", accent: "from-emerald-500 to-emerald-600" },
 ];
+
+const ANNOTATION_PALETTE: NodePaletteItem[] = [
+  { type: "INSTRUCTION", label: "Nota operativa", description: "Anotación: no cuenta como paso ni bloquea el flujo.", accent: "from-amber-500 to-amber-600" },
+];
+
+const ELEVENLABS_OUTPUT_FORMAT_OPTIONS = [
+  "mp3_44100_128",
+  "mp3_44100_64",
+  "mp3_22050_32",
+  "wav_44100",
+  "wav_22050",
+  "pcm_44100",
+  "pcm_16000",
+  "ulaw_8000",
+];
+
+function isAnnotationNodeType(type: NarrativeNodeType) {
+  return type === "INSTRUCTION";
+}
+
+function isFlowNodeType(type: NarrativeNodeType) {
+  return !isAnnotationNodeType(type);
+}
+
+function normalizeDynamicAudioTemplate(template: string) {
+  return template
+    .replace(/<\s*([A-Za-z][A-Za-z0-9_-]*)\s*>/g, "{{$1}}")
+    .replace(/{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g, "{{$1}}");
+}
+
+function extractDynamicAudioVariables(template: string) {
+  const variables = new Set<string>();
+  const pattern = /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(template))) {
+    variables.add(match[1]);
+  }
+
+  return Array.from(variables);
+}
+
+function buildDynamicAudioPreview(template: string, variables: string[]) {
+  const sampleValues = [
+    "Carlos",
+    "María",
+    "Bogotá",
+    "ciento veinticuatro",
+    "tu nombre",
+    "tu ciudad",
+  ];
+  const replacements = new Map(
+    variables.map((variable, index) => [variable, sampleValues[index % sampleValues.length]]),
+  );
+
+  return normalizeDynamicAudioTemplate(template).replace(
+    /{{\s*([A-Za-z][A-Za-z0-9_-]*)\s*}}/g,
+    (_match, variable: string) => replacements.get(variable) ?? variable,
+  );
+}
+
+function isInvalidDynamicAudioTemplate(template: string) {
+  const stripped = template.replace(/{{\s*[A-Za-z][A-Za-z0-9_-]*\s*}}/g, "");
+  return stripped.includes("{") || stripped.includes("}") || /<\s*[^<>]+\s*>/.test(template);
+}
+
+function getNodeType(node?: Pick<Node<FlowNodeData>, "type" | "data"> | null) {
+  return (node?.data?.nodeType ?? node?.type) as NarrativeNodeType | undefined;
+}
+
+function isAnnotationNode(node?: Pick<Node<FlowNodeData>, "type" | "data"> | null) {
+  const type = getNodeType(node);
+  return type ? isAnnotationNodeType(type) : false;
+}
+
+function isAnnotationEdge(edge: Pick<Edge, "source" | "target">, nodeById: Map<string, Node<FlowNodeData>>) {
+  return isAnnotationNode(nodeById.get(edge.source)) || isAnnotationNode(nodeById.get(edge.target));
+}
+
+function getExecutionEdges(nodes: Node<FlowNodeData>[], edges: Edge[]) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+  const directFlowEdges = edges.filter((edge) => !isAnnotationEdge(edge, nodeById));
+  const virtualBypassEdges = nodes
+    .filter((node) => isAnnotationNode(node))
+    .flatMap((node) => {
+      const incoming = edges.filter((edge) => {
+        const sourceType = getNodeType(nodeById.get(edge.source));
+        return edge.target === node.id && Boolean(sourceType && isFlowNodeType(sourceType));
+      });
+      const outgoing = edges.filter((edge) => {
+        const targetType = getNodeType(nodeById.get(edge.target));
+        return edge.source === node.id && Boolean(targetType && isFlowNodeType(targetType));
+      });
+      return incoming.flatMap((input) =>
+        outgoing.map((output) => ({
+          id: `annotation-bypass:${input.id}:${output.id}`,
+          source: input.source,
+          target: output.target,
+          label: input.label,
+        } as Edge)),
+      );
+    });
+  return [...directFlowEdges, ...virtualBypassEdges];
+}
 
 const DEFAULT_NODE_DATA: Record<NarrativeNodeType, Record<string, unknown>> = {
   START: { label: "Inicio" },
@@ -105,6 +223,24 @@ const DEFAULT_NODE_DATA: Record<NarrativeNodeType, Record<string, unknown>> = {
     audioButtonId: "",
     operatorNotes: "",
     required: true,
+  },
+  DYNAMIC_AUDIO: {
+    title: "Audio dinámico IA",
+    label: "Audio dinámico IA",
+    template: "Bienvenido, {{nombre}}. Respira profundo y permite que este momento te reciba con calma.",
+    variables: ["nombre"],
+    voiceId: "",
+    modelId: "eleven_flash_v2_5",
+    outputFormat: "mp3_44100_128",
+    stability: 0.6,
+    similarityBoost: 0.75,
+    style: 0.2,
+    speed: 1,
+    speakerBoost: true,
+    description: "",
+    required: true,
+    allowReplay: true,
+    operatorNotes: "",
   },
   SCRIPT_TEXT: {
     title: "Guion",
@@ -173,16 +309,21 @@ function autoLayout(nodes: Node<FlowNodeData>[], edges: Edge[]) {
   g.setGraph({ rankdir: "TB", ranksep: 100, nodesep: 50 });
   g.setDefaultEdgeLabel(() => ({}));
 
-  nodes.forEach((node) => {
+  const flowNodes = nodes.filter((node) => !isAnnotationNode(node));
+  const annotationNodes = nodes.filter((node) => isAnnotationNode(node));
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+  const flowEdges = getExecutionEdges(nodes, edges);
+
+  flowNodes.forEach((node) => {
     g.setNode(node.id, { width: 240, height: 100 });
   });
-  edges.forEach((edge) => {
+  flowEdges.forEach((edge) => {
     g.setEdge(edge.source, edge.target);
   });
 
   dagre.layout(g);
 
-  return nodes.map((node) => {
+  const positionedFlowNodes = flowNodes.map((node) => {
     const pos = g.node(node.id);
     return {
       ...node,
@@ -192,6 +333,24 @@ function autoLayout(nodes: Node<FlowNodeData>[], edges: Edge[]) {
       },
     };
   });
+  const positionedById = new Map(positionedFlowNodes.map((node) => [node.id, node] as const));
+  const positionedAnnotations = annotationNodes.map((node, index) => {
+    const connectedFlowEdge = edges.find((edge) => {
+      if (edge.source === node.id) return !isAnnotationNode(nodeById.get(edge.target));
+      if (edge.target === node.id) return !isAnnotationNode(nodeById.get(edge.source));
+      return false;
+    });
+    const anchorId = connectedFlowEdge?.source === node.id ? connectedFlowEdge.target : connectedFlowEdge?.source;
+    const anchor = anchorId ? positionedById.get(anchorId) : null;
+    return {
+      ...node,
+      position: anchor
+        ? { x: anchor.position.x + 320, y: anchor.position.y + 24 }
+        : { x: 420, y: 120 + index * 190 },
+    };
+  });
+
+  return [...positionedFlowNodes, ...positionedAnnotations];
 }
 
 function nodeSummary(node: Node<FlowNodeData>) {
@@ -199,6 +358,13 @@ function nodeSummary(node: Node<FlowNodeData>) {
   const data = node.data ?? { nodeType };
   if (nodeType === "AUDIO") return data.audioAssetId ? `Audio: ${String(data.audioAssetId)}` : "Audio sin asignar";
   if (nodeType === "AUDIO_BUTTON") return data.audioButtonId ? `Botón: ${String(data.audioButtonId)}` : "Botón sin asignar";
+  if (nodeType === "DYNAMIC_AUDIO") {
+    const template = String(data.template ?? "").trim();
+    const variables = extractDynamicAudioVariables(template);
+    return template
+      ? `${template.slice(0, 80)}${template.length > 80 ? "…" : ""}${variables.length ? ` · ${variables.length} variable(s)` : ""}`
+      : "Audio dinámico sin plantilla";
+  }
   if (nodeType === "SCRIPT_TEXT") return data.body ? String(data.body).slice(0, 80) : "Sin texto";
   if (nodeType === "INSTRUCTION") return data.instruction ? String(data.instruction).slice(0, 80) : "Sin instrucción";
   if (nodeType === "PAUSE") return getPauseMode(data) === "timer" ? `Temporizada${data.durationSeconds ? ` · ${data.durationSeconds}s` : ""}` : "Pausa manual";
@@ -209,24 +375,24 @@ function nodeSummary(node: Node<FlowNodeData>) {
 function badgeClassName(tone: BuilderBadge["tone"]) {
   switch (tone) {
     case "valid":
-      return "border-emerald-300 bg-emerald-500/12 text-emerald-700 dark:border-emerald-900/40 dark:text-emerald-300";
+      return "success-surface";
     case "warning":
-      return "border-amber-300 bg-amber-500/12 text-amber-700 dark:border-amber-900/40 dark:text-amber-300";
+      return "warning-surface-strong";
     case "error":
-      return "border-red-300 bg-red-500/12 text-red-700 dark:border-red-900/40 dark:text-red-300";
+      return "danger-surface";
     default:
-      return "border-slate-300 bg-slate-500/12 text-slate-700 dark:border-slate-700/40 dark:text-slate-300";
+      return "border-outline-variant bg-surface-container text-on-surface-variant";
   }
 }
 
 function statusDotClassName(status: FlowNodeData["builderStatus"]) {
   switch (status) {
     case "valid":
-      return "bg-emerald-500";
+      return "bg-[color:var(--success-icon)]";
     case "warning":
-      return "bg-amber-500";
+      return "bg-[color:var(--warning-icon)]";
     case "error":
-      return "bg-red-500";
+      return "bg-[color:var(--danger-icon)]";
     default:
       return "bg-slate-400";
   }
@@ -284,6 +450,16 @@ function normalizeBuilderNodeData(
     ...(data ?? {}),
   } as FlowNodeData;
 
+  if (nodeType === "DYNAMIC_AUDIO") {
+    const template = normalizeDynamicAudioTemplate(String(baseData.template ?? ""));
+    const variables = extractDynamicAudioVariables(template);
+    return {
+      ...baseData,
+      template,
+      variables,
+    };
+  }
+
   if (nodeType === "DECISION") {
     return {
       ...baseData,
@@ -300,6 +476,16 @@ function serializeNodeData(nodeType: NarrativeNodeType, data: FlowNodeData) {
   delete persistedData.builderStatus;
   delete persistedData.builderStatusLabel;
   delete persistedData.builderBadges;
+
+  if (nodeType === "DYNAMIC_AUDIO") {
+    const template = normalizeDynamicAudioTemplate(String(persistedData.template ?? ""));
+    const variables = extractDynamicAudioVariables(template);
+    return {
+      ...persistedData,
+      template,
+      variables,
+    };
+  }
 
   if (nodeType === "DECISION") {
     return {
@@ -374,24 +560,58 @@ function toCollectionItems<T>(value: ApiCollection<T>) {
   return value.data ?? value.items ?? [];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toVoiceItems(value: unknown) {
+  if (Array.isArray(value)) return value as ElevenLabsVoiceOption[];
+  if (isRecord(value) && Array.isArray(value.voices)) {
+    return value.voices as ElevenLabsVoiceOption[];
+  }
+  if (isRecord(value) && Array.isArray(value.data)) {
+    return value.data as ElevenLabsVoiceOption[];
+  }
+  if (isRecord(value) && Array.isArray(value.items)) {
+    return value.items as ElevenLabsVoiceOption[];
+  }
+  return [];
+}
+
+function toModelItems(value: unknown) {
+  if (Array.isArray(value)) return value as ElevenLabsModelOption[];
+  if (isRecord(value) && Array.isArray(value.models)) {
+    return value.models as ElevenLabsModelOption[];
+  }
+  if (isRecord(value) && Array.isArray(value.data)) {
+    return value.data as ElevenLabsModelOption[];
+  }
+  if (isRecord(value) && Array.isArray(value.items)) {
+    return value.items as ElevenLabsModelOption[];
+  }
+  return [];
+}
+
 function nodeClassName(nodeType: NarrativeNodeType) {
   switch (nodeType) {
     case "START":
-      return "border-emerald-300 bg-emerald-500/15 text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-500/15 dark:text-emerald-100";
+      return "border-[color:var(--success-border)] bg-[color:var(--success-bg)] text-[color:var(--success-text)]";
     case "AUDIO":
-      return "border-violet-300 bg-violet-500/15 text-violet-950 dark:border-violet-900/60 dark:bg-violet-500/15 dark:text-violet-100";
+      return "border-primary/25 bg-primary-container text-on-primary-container";
     case "AUDIO_BUTTON":
-      return "border-indigo-300 bg-indigo-500/15 text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-500/15 dark:text-indigo-100";
+      return "border-secondary/25 bg-secondary-container text-on-secondary-container";
+    case "DYNAMIC_AUDIO":
+      return "border-tertiary/25 bg-tertiary-container text-on-tertiary-container";
     case "SCRIPT_TEXT":
-      return "border-sky-300 bg-sky-500/15 text-sky-950 dark:border-sky-900/60 dark:bg-sky-500/15 dark:text-sky-100";
+      return "border-outline-variant bg-surface-container-high text-on-surface";
     case "INSTRUCTION":
-      return "border-amber-300 bg-amber-500/15 text-amber-950 dark:border-amber-900/60 dark:bg-amber-500/15 dark:text-amber-100";
+      return "warning-surface-strong";
     case "PAUSE":
-      return "border-slate-300 bg-slate-500/15 text-slate-950 dark:border-slate-700/60 dark:bg-slate-500/15 dark:text-slate-100";
+      return "border-outline-variant bg-surface-container text-on-surface-variant";
     case "DECISION":
-      return "border-pink-300 bg-pink-500/15 text-pink-950 dark:border-pink-900/60 dark:bg-pink-500/15 dark:text-pink-100";
+      return "border-secondary/25 bg-secondary-container text-on-secondary-container";
     case "END":
-      return "border-red-300 bg-red-500/15 text-red-950 dark:border-red-900/60 dark:bg-red-500/15 dark:text-red-100";
+      return "success-surface";
     default:
       return "border-outline-variant bg-surface text-on-surface";
   }
@@ -409,6 +629,44 @@ function NarrativeFlowNode({ data, selected, type }: NodeProps) {
     flowData.builderSummary ?? nodeSummary({ data: flowData, type: nodeType } as Node<FlowNodeData>);
   const badges = flowData.builderBadges ?? [];
 
+  if (nodeType === "INSTRUCTION") {
+    return (
+      <div
+        className={`relative min-w-[260px] max-w-[320px] rotate-[-0.6deg] rounded-bl-[34px] rounded-br-xl rounded-tl-xl rounded-tr-[34px] border-2 warning-surface-strong px-4 py-4 shadow-elevation-2 ${
+          selected ? "ring-2 ring-[color:var(--warning-icon)] ring-offset-2 ring-offset-surface" : ""
+        }`}
+      >
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="!h-3 !w-3 !border-2 !border-surface !bg-[color:var(--warning-icon)]"
+        />
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!h-3 !w-3 !border-2 !border-surface !bg-[color:var(--warning-icon)]"
+        />
+        <div className="flex items-start gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-[color:var(--warning-bg-strong)] text-xs font-black uppercase tracking-[0.2em] text-[color:var(--warning-text)]">
+            NT
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[color:var(--warning-text)]">Instrucción</p>
+              <span className="rounded-full border border-[color:var(--warning-border)] bg-[color:var(--warning-bg-strong)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--warning-text)]">
+                Nota
+              </span>
+              <span className={`h-2 w-2 rounded-full ${statusDotClassName(flowData.builderStatus)}`} />
+            </div>
+            <p className="mt-2 line-clamp-4 text-sm font-semibold leading-relaxed text-[color:var(--warning-text)]">{summary}</p>
+            <p className="mt-3 text-[11px] font-semibold text-[color:var(--warning-text-muted)]">No cuenta como paso ni bloquea publicación.</p>
+          </div>
+        </div>
+        <span className="absolute bottom-3 right-3 h-7 w-7 rounded-br-lg border-b-2 border-r-2 border-[color:var(--warning-border)]" />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`min-w-[240px] rounded-3xl border px-4 py-3 shadow-elevation-1 ${nodeClassName(nodeType)} ${
@@ -424,7 +682,7 @@ function NarrativeFlowNode({ data, selected, type }: NodeProps) {
       )}
 
       <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-black/10 text-xs font-black uppercase tracking-[0.2em]">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-surface-container-highest text-xs font-black uppercase tracking-[0.2em] text-on-surface">
           {nodeType.slice(0, 2)}
         </div>
         <div className="min-w-0">
@@ -479,7 +737,7 @@ function BooleanPill({
       onClick={() => onChange(!value)}
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
         value
-          ? "border-emerald-300 bg-emerald-500/15 text-emerald-700 dark:border-emerald-900/50 dark:text-emerald-300"
+          ? "success-surface"
           : "border-outline-variant bg-surface text-on-surface-variant"
       }`}
     >
@@ -499,7 +757,7 @@ function ModalSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-outline-variant bg-surface px-4 py-4">
+    <section className="rounded-3xl border border-outline-variant bg-surface-container px-4 py-4">
       <div className="mb-3">
         <p className="text-sm font-semibold text-on-surface">{title}</p>
         {description ? (
@@ -623,6 +881,8 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [isValidationPanelOpen, setIsValidationPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -633,6 +893,8 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
   });
   const [audios, setAudios] = useState<{ id: string; name: string }[]>([]);
   const [buttons, setButtons] = useState<{ id: string; label: string; category?: { name: string } }[]>([]);
+  const [voices, setVoices] = useState<ElevenLabsVoiceOption[]>([]);
+  const [models, setModels] = useState<ElevenLabsModelOption[]>([]);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
 
   const audioMap = useMemo(
@@ -659,6 +921,30 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     () => nodes.filter((node) => selectedNodeIds.includes(node.id)),
     [nodes, selectedNodeIds],
   );
+  const selectedEdges = useMemo(
+    () => edges.filter((edge) => selectedEdgeIds.includes(edge.id)),
+    [edges, selectedEdgeIds],
+  );
+  const selectedEdge = useMemo(
+    () => edges.find((edge) => edge.id === selectedEdgeId) ?? null,
+    [edges, selectedEdgeId],
+  );
+  const nodeLookup = useMemo(
+    () => new Map(nodes.map((node) => [node.id, node])),
+    [nodes],
+  );
+  const selectedEdgeDetails = useMemo(() => {
+    if (!selectedEdge) return null;
+
+    const sourceNode = nodeLookup.get(selectedEdge.source);
+    const targetNode = nodeLookup.get(selectedEdge.target);
+
+    return {
+      label: String(selectedEdge.label ?? "").trim() || "Conexión sin etiqueta",
+      sourceLabel: sourceNode ? getNodeDisplayName(sourceNode) : selectedEdge.source,
+      targetLabel: targetNode ? getNodeDisplayName(targetNode) : selectedEdge.target,
+    };
+  }, [nodeLookup, selectedEdge]);
   const filteredNodes = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return [];
@@ -737,6 +1023,25 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     return { incoming, outgoing };
   }, [edges, nodes]);
 
+  const executionEdges = useMemo(() => getExecutionEdges(nodes, edges), [edges, nodes]);
+
+  const executionGraphMetrics = useMemo(() => {
+    const incoming = new Map<string, number>();
+    const outgoing = new Map<string, number>();
+
+    for (const node of nodes) {
+      incoming.set(node.id, 0);
+      outgoing.set(node.id, 0);
+    }
+
+    for (const edge of executionEdges) {
+      incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+      outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
+    }
+
+    return { incoming, outgoing };
+  }, [executionEdges, nodes]);
+
   const localValidationIssues = useMemo<BuilderValidationIssue[]>(() => {
     const issues: BuilderValidationIssue[] = [];
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -766,8 +1071,12 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     for (const node of nodes) {
       const nodeType = (node.data?.nodeType ?? node.type) as NarrativeNodeType;
       const nodeLabel = getNodeDisplayName(node);
-      const incomingCount = graphMetrics.incoming.get(node.id) ?? 0;
-      const outgoingCount = graphMetrics.outgoing.get(node.id) ?? 0;
+      const incomingCount = isAnnotationNodeType(nodeType)
+        ? graphMetrics.incoming.get(node.id) ?? 0
+        : executionGraphMetrics.incoming.get(node.id) ?? 0;
+      const outgoingCount = isAnnotationNodeType(nodeType)
+        ? graphMetrics.outgoing.get(node.id) ?? 0
+        : executionGraphMetrics.outgoing.get(node.id) ?? 0;
 
       if (nodeType === "START") {
         if (incomingCount > 0) {
@@ -871,6 +1180,73 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         }
       }
 
+      if (nodeType === "DYNAMIC_AUDIO") {
+        const template = normalizeDynamicAudioTemplate(String(node.data?.template ?? "")).trim();
+        const variables = extractDynamicAudioVariables(template);
+        const voiceId = String(node.data?.voiceId ?? "").trim();
+        const modelId = String(node.data?.modelId ?? "").trim();
+
+        if (!template) {
+          issues.push({
+            id: `dynamic-audio-empty-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" no tiene plantilla de texto.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-template",
+            source: "local",
+          });
+        }
+
+        if (isInvalidDynamicAudioTemplate(String(node.data?.template ?? ""))) {
+          issues.push({
+            id: `dynamic-audio-invalid-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" usa variables mal formadas. Usa {{variable}}.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-placeholder",
+            source: "local",
+          });
+        }
+
+        if (variables.length === 0 && template) {
+          issues.push({
+            id: `dynamic-audio-variables-${node.id}`,
+            level: "error",
+            message: `El nodo "${nodeLabel}" necesita al menos una variable con el formato {{variable}}.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-variables",
+            source: "local",
+          });
+        }
+
+        if (!voiceId) {
+          issues.push({
+            id: `dynamic-audio-voice-${node.id}`,
+            level: "warning",
+            message: `El nodo "${nodeLabel}" no tiene voz de ElevenLabs seleccionada.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-voice",
+            source: "local",
+          });
+        }
+
+        if (!modelId) {
+          issues.push({
+            id: `dynamic-audio-model-${node.id}`,
+            level: "warning",
+            message: `El nodo "${nodeLabel}" no tiene modelo de ElevenLabs seleccionado.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "dynamic-audio-model",
+            source: "local",
+          });
+        }
+      }
+
       if (nodeType === "SCRIPT_TEXT") {
         const body = String(node.data?.body ?? "").trim();
         if (!body) {
@@ -909,6 +1285,17 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
             source: "local",
           });
         }
+        if ((graphMetrics.incoming.get(node.id) ?? 0) > 0 && (graphMetrics.outgoing.get(node.id) ?? 0) > 0) {
+          issues.push({
+            id: `instruction-bypass-${node.id}`,
+            level: "warning",
+            message: `La instrucción "${nodeLabel}" se tratará como nota; la ejecución hará bypass de esta anotación.`,
+            nodeId: node.id,
+            nodeLabel,
+            issueType: "instruction-bypass",
+            source: "local",
+          });
+        }
       }
 
       if (nodeType === "PAUSE") {
@@ -940,7 +1327,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
       if (nodeType === "DECISION") {
         const question = String(node.data?.question ?? "").trim();
         const options = normalizeDecisionOptions(node.data?.options);
-        const outgoingEdges = findDecisionOutgoingEdges(node.id, edges);
+        const outgoingEdges = findDecisionOutgoingEdges(node.id, executionEdges);
         const labels = options.map((option) => option.label.toLowerCase());
         const emptyLabels = options.filter((option) => !option.label.trim());
         const routeCoverage = decisionRouteCoverage(options, outgoingEdges);
@@ -1061,7 +1448,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         visited.add(nodeId);
         visiting.add(nodeId);
 
-        for (const edge of edges.filter((item) => item.source === nodeId)) {
+        for (const edge of executionEdges.filter((item) => item.source === nodeId)) {
           walk(edge.target);
         }
 
@@ -1085,7 +1472,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
         });
       }
 
-      for (const node of nodes) {
+      for (const node of nodes.filter((item) => isFlowNodeType((item.data?.nodeType ?? item.type) as NarrativeNodeType))) {
         if (!visited.has(node.id)) {
           issues.push({
             id: `graph-unreachable-${node.id}`,
@@ -1101,7 +1488,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     }
 
     return issues;
-  }, [audioMap, buttonMap, edges, graphMetrics.incoming, graphMetrics.outgoing, nodes]);
+  }, [audioMap, buttonMap, executionEdges, executionGraphMetrics.incoming, executionGraphMetrics.outgoing, graphMetrics.incoming, graphMetrics.outgoing, nodes]);
 
   const backendValidationIssues = useMemo(() => {
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
@@ -1174,7 +1561,7 @@ export function NarrativeBuilderCanvas({ narrativeId }: BuilderProps) {
     setMessage(null);
 
 try {
-        const [result, audiosRes, buttonsRes] = await Promise.all([
+        const [result, audiosRes, buttonsRes, voicesRes, modelsRes] = await Promise.all([
           api<NarrativeBuilderState>(`/narratives/${narrativeId}/builder`),
           api<ApiCollection<AudioAssetOption>>("/audio-assets").catch(
             () => [] as AudioAssetOption[],
@@ -1182,6 +1569,8 @@ try {
           api<ApiCollection<AudioButtonOption>>("/audio-buttons").catch(
             () => [] as AudioButtonOption[],
           ),
+          api<unknown>("/integrations/elevenlabs/voices").catch(() => []),
+          api<unknown>("/integrations/elevenlabs/models").catch(() => []),
         ]);
 
         setBuilder(result);
@@ -1192,6 +1581,8 @@ try {
           })),
         );
         setButtons(toCollectionItems(buttonsRes));
+        setVoices(toVoiceItems(voicesRes));
+        setModels(toModelItems(modelsRes));
 
         const graph = graphFromVersions(result.draftVersion ?? result.publishedVersion);
 
@@ -1215,13 +1606,19 @@ try {
       setValidation(result.validation);
       setSelectedNodeIds(graph.nodes[0]?.id ? [graph.nodes[0].id] : []);
       setSelectedNodeId(graph.nodes[0]?.id ?? null);
+      setSelectedEdgeIds([]);
+      setSelectedEdgeId(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo cargar la narrativa.");
       setBuilder(null);
       setNodes([]);
       setEdges([]);
+      setVoices([]);
+      setModels([]);
       setSelectedNodeIds([]);
       setSelectedNodeId(null);
+      setSelectedEdgeIds([]);
+      setSelectedEdgeId(null);
       setEditingNodeId(null);
     } finally {
       setLoading(false);
@@ -1242,8 +1639,12 @@ try {
     () =>
       nodes.map((node) => {
         const nodeType = (node.data?.nodeType ?? node.type) as NarrativeNodeType;
-        const outgoingCount = graphMetrics.outgoing.get(node.id) ?? 0;
-        const incomingCount = graphMetrics.incoming.get(node.id) ?? 0;
+        const outgoingCount = isAnnotationNodeType(nodeType)
+          ? graphMetrics.outgoing.get(node.id) ?? 0
+          : executionGraphMetrics.outgoing.get(node.id) ?? 0;
+        const incomingCount = isAnnotationNodeType(nodeType)
+          ? graphMetrics.incoming.get(node.id) ?? 0
+          : executionGraphMetrics.incoming.get(node.id) ?? 0;
         const badges: BuilderBadge[] = [];
         let summary = nodeSummary(node);
         let status: FlowNodeData["builderStatus"] = "valid";
@@ -1310,6 +1711,33 @@ try {
             }
             break;
           }
+          case "DYNAMIC_AUDIO": {
+            const template = normalizeDynamicAudioTemplate(String(node.data?.template ?? "")).trim();
+            const variables = extractDynamicAudioVariables(template);
+            const voice = String(node.data?.voiceId ?? "").trim();
+            const model = String(node.data?.modelId ?? "").trim();
+            summary = template
+              ? `${template.slice(0, 90)}${template.length > 90 ? "…" : ""}`
+              : "Define la plantilla del audio dinámico";
+            badges.push({
+              label: `${variables.length} variable${variables.length === 1 ? "" : "s"}`,
+              tone: "info",
+            });
+            if (!template) {
+              markError("Sin plantilla");
+            } else if (variables.length === 0) {
+              markError("Sin variables");
+            } else {
+              badges.push({ label: "Variables detectadas", tone: "valid" });
+            }
+            if (!voice) {
+              markWarning("Sin voz");
+            }
+            if (!model) {
+              markWarning("Sin modelo");
+            }
+            break;
+          }
           case "SCRIPT_TEXT": {
             const body = String(node.data?.body ?? "").trim();
             summary = body ? body.slice(0, 90) : "Escribe el texto que debe seguir el operador";
@@ -1352,7 +1780,7 @@ try {
           case "DECISION": {
             const question = String(node.data?.question ?? "").trim();
             const options = normalizeDecisionOptions(node.data?.options);
-            const routeCoverage = decisionRouteCoverage(options, findDecisionOutgoingEdges(node.id, edges));
+            const routeCoverage = decisionRouteCoverage(options, findDecisionOutgoingEdges(node.id, executionEdges));
             summary = question
               ? `${question} · ${options.length} opción${options.length === 1 ? "" : "es"} · ${routeCoverage.matchedOptionIds.size}/${options.length} rutas`
               : "Define la pregunta y sus rutas";
@@ -1392,8 +1820,37 @@ try {
           } as FlowNodeData,
         };
       }),
-    [audioMap, buttonMap, edges, graphMetrics.incoming, graphMetrics.outgoing, nodes],
+    [audioMap, buttonMap, executionEdges, executionGraphMetrics.incoming, executionGraphMetrics.outgoing, graphMetrics.incoming, graphMetrics.outgoing, nodes],
   );
+
+  const displayEdges = useMemo(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+    return edges.map((edge) => {
+      if (!isAnnotationEdge(edge, nodeById)) return edge;
+      return {
+        ...edge,
+        type: "straight",
+        animated: false,
+        label: edge.label ?? "Nota",
+        style: {
+          ...(edge.style ?? {}),
+          stroke: "rgba(245, 158, 11, 0.75)",
+          strokeWidth: 1.8,
+          strokeDasharray: "6 6",
+        },
+        labelStyle: {
+          ...(edge.labelStyle ?? {}),
+          fill: "rgb(251, 191, 36)",
+          fontWeight: 700,
+        },
+        labelBgStyle: {
+          fill: "rgba(42, 29, 13, 0.92)",
+          stroke: "rgba(245, 158, 11, 0.28)",
+          strokeWidth: 1,
+        },
+      };
+    });
+  }, [edges, nodes]);
 
   function addNode(type: NarrativeNodeType) {
     const id = makeNodeId(type);
@@ -1415,6 +1872,8 @@ try {
     setNodes((current) => [...current, node]);
     setSelectedNodeIds([id]);
     setSelectedNodeId(id);
+    setSelectedEdgeIds([]);
+    setSelectedEdgeId(null);
   }
 
   function saveNodePatch(nodeId: string, patch: Record<string, unknown>) {
@@ -1482,13 +1941,18 @@ try {
     const label = nodeIds.length === 1 ? "este nodo" : `estos ${nodeIds.length} nodos`;
     const affectedEdges = edges.filter(
       (edge) => nodeIds.includes(edge.source) || nodeIds.includes(edge.target),
-    ).length;
-    const warning = affectedEdges > 0 ? ` Esto también eliminará ${affectedEdges} conexión(es).` : "";
+    );
+    const affectedEdgeIds = new Set(affectedEdges.map((edge) => edge.id));
+    const affectedEdgeCount = affectedEdges.length;
+    const warning = affectedEdgeCount > 0 ? ` Esto también eliminará ${affectedEdgeCount} conexión(es).` : "";
     if (window.confirm(`¿Seguro que deseas eliminar ${label}?${warning}`)) {
       setNodes((current) => current.filter((node) => !nodeIds.includes(node.id)));
       setEdges((current) =>
         current.filter((edge) => !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)),
       );
+      const nextSelectedEdgeIds = selectedEdgeIds.filter((id) => !affectedEdgeIds.has(id));
+      setSelectedEdgeIds(nextSelectedEdgeIds);
+      setSelectedEdgeId(nextSelectedEdgeIds[0] ?? null);
       if (selectedNodeId && nodeIds.includes(selectedNodeId)) {
         setSelectedNodeId(null);
       }
@@ -1501,6 +1965,36 @@ try {
 
   function removeNode(nodeId: string) {
     removeNodes([nodeId]);
+  }
+
+  function removeEdges(edgeIds: string[]) {
+    if (edgeIds.length === 0) return;
+
+    const edgeSet = new Set(edgeIds);
+    const affectedEdges = edges.filter((edge) => edgeSet.has(edge.id));
+    if (affectedEdges.length === 0) return;
+
+    const label = affectedEdges.length === 1 ? "esta conexión" : `estas ${affectedEdges.length} conexiones`;
+    const preview = affectedEdges
+      .slice(0, 3)
+      .map((edge) => {
+        const sourceNode = nodeLookup.get(edge.source);
+        const targetNode = nodeLookup.get(edge.target);
+        const sourceLabel = sourceNode ? getNodeDisplayName(sourceNode) : edge.source;
+        const targetLabel = targetNode ? getNodeDisplayName(targetNode) : edge.target;
+        const edgeLabel = String(edge.label ?? "").trim() || "Sin etiqueta";
+        return `${edgeLabel} (${sourceLabel} → ${targetLabel})`;
+      })
+      .join(", ");
+    const overflow = affectedEdges.length > 3 ? ` y ${affectedEdges.length - 3} más` : "";
+    const warning = preview ? `\n\nSe borrarán: ${preview}${overflow}.` : "";
+
+    if (window.confirm(`¿Seguro que deseas eliminar ${label}?${warning}`)) {
+      setEdges((current) => current.filter((edge) => !edgeSet.has(edge.id)));
+      const nextSelectedEdgeIds = selectedEdgeIds.filter((id) => !edgeSet.has(id));
+      setSelectedEdgeIds(nextSelectedEdgeIds);
+      setSelectedEdgeId(nextSelectedEdgeIds[0] ?? null);
+    }
   }
 
   function duplicateNode(nodeId: string) {
@@ -1527,6 +2021,8 @@ try {
     setNodes((current) => [...current, duplicatedNode]);
     setSelectedNodeIds([nextId]);
     setSelectedNodeId(nextId);
+    setSelectedEdgeIds([]);
+    setSelectedEdgeId(null);
     setMessage("Nodo duplicado.");
   }
 
@@ -1536,11 +2032,13 @@ try {
 
   const onConnect = useCallback((connection: Connection) => {
     const sourceNode = nodes.find((node) => node.id === connection.source);
-    let defaultLabel = "Siguiente";
+    const targetNode = nodes.find((node) => node.id === connection.target);
+    const annotationConnection = isAnnotationNode(sourceNode) || isAnnotationNode(targetNode);
+    let defaultLabel = annotationConnection ? "Nota" : "Siguiente";
 
-    if (sourceNode?.data?.nodeType === "DECISION") {
+    if (!annotationConnection && sourceNode?.data?.nodeType === "DECISION") {
       const decisionOptions = normalizeDecisionOptions(sourceNode.data?.options);
-      const outgoingEdges = findDecisionOutgoingEdges(sourceNode.id, edges);
+      const outgoingEdges = findDecisionOutgoingEdges(sourceNode.id, executionEdges);
       const routeCoverage = decisionRouteCoverage(decisionOptions, outgoingEdges);
       defaultLabel =
         routeCoverage.missingOptions[0]?.label ??
@@ -1556,12 +2054,12 @@ try {
           ...connection,
           id: `edge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           label: label || defaultLabel,
-          type: "smoothstep",
+          type: annotationConnection ? "straight" : "smoothstep",
         },
         current,
       ),
     );
-  }, [edges, nodes]);
+  }, [executionEdges, nodes]);
 
   async function saveGraph() {
     setSaving(true);
@@ -1712,6 +2210,8 @@ try {
     );
     setSelectedNodeId(graph.nodes[0]?.id ?? null);
     setSelectedNodeIds(graph.nodes[0]?.id ? [graph.nodes[0].id] : []);
+    setSelectedEdgeIds([]);
+    setSelectedEdgeId(null);
     setMessage("Se copió la versión publicada al borrador local.");
   }
 
@@ -1721,6 +2221,8 @@ try {
 
     setSelectedNodeIds([nodeId]);
     setSelectedNodeId(nodeId);
+    setSelectedEdgeIds([]);
+    setSelectedEdgeId(null);
 
     if (options?.openEditor) {
       setEditingNodeId(nodeId);
@@ -1756,6 +2258,24 @@ try {
     editingNode?.data?.nodeType === "DECISION"
       ? decisionRouteCoverage(editingDecisionOptions, editingDecisionRoutes)
       : null;
+  const editingDynamicAudioTemplate =
+    editingNode?.data?.nodeType === "DYNAMIC_AUDIO"
+      ? normalizeDynamicAudioTemplate(String(editingNode.data.template ?? ""))
+      : "";
+  const editingDynamicAudioVariables = editingDynamicAudioTemplate
+    ? extractDynamicAudioVariables(editingDynamicAudioTemplate)
+    : [];
+  const editingDynamicAudioPreview = editingDynamicAudioTemplate
+    ? buildDynamicAudioPreview(editingDynamicAudioTemplate, editingDynamicAudioVariables)
+    : "";
+  const selectedDynamicVoice = useMemo(
+    () => voices.find((voice) => voice.voiceId === String(editingNode?.data?.voiceId ?? "")) ?? null,
+    [editingNode?.data?.voiceId, voices],
+  );
+  const selectedDynamicModel = useMemo(
+    () => models.find((model) => model.modelId === String(editingNode?.data?.modelId ?? "")) ?? null,
+    [editingNode?.data?.modelId, models],
+  );
 
   const modalPanel = editingNode ? (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
@@ -1950,6 +2470,266 @@ try {
             </>
           )}
 
+          {editingNode.data?.nodeType === "DYNAMIC_AUDIO" && (
+            <>
+              <ModalSection
+                title="Plantilla y variables"
+                description="Escribe el texto con placeholders usando el formato {{variable}}."
+              >
+                <label className="grid gap-1.5">
+                  <FieldLabel>Título / etiqueta</FieldLabel>
+                  <input
+                    value={String(editingNode.data.title ?? editingNode.data.label ?? "")}
+                    onChange={(event) =>
+                      saveNodePatch(editingNode.id, {
+                        title: event.target.value,
+                        label: event.target.value,
+                      })
+                    }
+                    className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <FieldLabel>Texto plantilla</FieldLabel>
+                  <textarea
+                    value={String(editingNode.data.template ?? "")}
+                    onChange={(event) => {
+                      const template = normalizeDynamicAudioTemplate(event.target.value);
+                      saveNodePatch(editingNode.id, {
+                        template,
+                        variables: extractDynamicAudioVariables(template),
+                      });
+                    }}
+                    placeholder="Bienvenido, {{nombre}}. Respira profundo..."
+                    className="min-h-32 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+                <div className="rounded-2xl border border-outline-variant bg-surface-container px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">
+                        Variables detectadas
+                      </p>
+                      <p className="mt-1 text-sm text-on-surface-variant">
+                        El builder normaliza los placeholders a{" "}
+                        <span className="font-semibold text-on-surface">{"{{variable}}"}</span>.
+                      </p>
+                    </div>
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${badgeClassName(editingDynamicAudioVariables.length > 0 ? "valid" : "warning")}`}>
+                      {editingDynamicAudioVariables.length > 0 ? `${editingDynamicAudioVariables.length} variable(s)` : "Sin variables"}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {editingDynamicAudioVariables.length > 0 ? (
+                      editingDynamicAudioVariables.map((variable) => (
+                        <span
+                          key={variable}
+                          className="inline-flex rounded-full border border-tertiary/25 bg-tertiary-container px-3 py-1 text-xs font-semibold text-on-tertiary-container"
+                        >
+                          {variable}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-sm text-on-surface-variant">
+                        Agrega al menos una variable con el formato{" "}
+                        <span className="font-semibold text-on-surface">{"{{nombre}}"}</span>.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-outline-variant bg-surface-container px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">
+                    Vista previa
+                  </p>
+                  <p className="mt-3 whitespace-pre-wrap rounded-2xl border border-outline-variant bg-surface px-4 py-4 text-sm leading-7 text-on-surface">
+                    {editingDynamicAudioPreview || "La vista previa aparecerá cuando el texto contenga variables válidas."}
+                  </p>
+                </div>
+              </ModalSection>
+
+              <ModalSection
+                title="Configuración ElevenLabs"
+                description="Define la voz y el modelo que generarán el audio dinámico."
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Voice ID</FieldLabel>
+                    {voices.length > 0 ? (
+                      <select
+                        value={String(editingNode.data.voiceId ?? "")}
+                        onChange={(event) => saveNodePatch(editingNode.id, { voiceId: event.target.value })}
+                        className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                      >
+                        <option value="">Selecciona una voz...</option>
+                        {voices.map((voice) => (
+                          <option key={voice.voiceId} value={voice.voiceId}>
+                            {voice.name}
+                            {voice.category ? ` · ${voice.category}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={String(editingNode.data.voiceId ?? "")}
+                        onChange={(event) => saveNodePatch(editingNode.id, { voiceId: event.target.value })}
+                        placeholder="voice_id"
+                        className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                      />
+                    )}
+                    <p className="text-xs text-on-surface-variant">
+                      {voices.length > 0
+                        ? "La lista se sincroniza desde ElevenLabs."
+                        : "No hay voces sincronizadas. Puedes escribir el Voice ID manualmente."}
+                    </p>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Model ID</FieldLabel>
+                    {models.length > 0 ? (
+                      <select
+                        value={String(editingNode.data.modelId ?? "")}
+                        onChange={(event) => saveNodePatch(editingNode.id, { modelId: event.target.value })}
+                        className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                      >
+                        <option value="">Selecciona un modelo...</option>
+                        {models.map((model) => (
+                          <option key={model.modelId} value={model.modelId}>
+                            {model.name}
+                            {model.languages?.length ? ` · ${model.languages.join(", ")}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={String(editingNode.data.modelId ?? "")}
+                        onChange={(event) => saveNodePatch(editingNode.id, { modelId: event.target.value })}
+                        placeholder="model_id"
+                        className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                      />
+                    )}
+                    <p className="text-xs text-on-surface-variant">
+                      {models.length > 0
+                        ? "La lista se sincroniza desde ElevenLabs."
+                        : "No hay modelos sincronizados. Puedes escribir el Model ID manualmente."}
+                    </p>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Output format</FieldLabel>
+                    <select
+                      value={String(editingNode.data.outputFormat ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { outputFormat: event.target.value })}
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    >
+                      <option value="">Selecciona un formato...</option>
+                      {ELEVENLABS_OUTPUT_FORMAT_OPTIONS.map((format) => (
+                        <option key={format} value={format}>
+                          {format}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {ELEVENLABS_OUTPUT_FORMAT_OPTIONS.map((format) => {
+                        const isSelected = String(editingNode.data.outputFormat ?? "") === format;
+                        return (
+                          <span
+                            key={format}
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                              isSelected
+                              ? "border-secondary/25 bg-secondary-container text-on-secondary-container"
+                              : "border-outline-variant bg-surface-container text-on-surface-variant"
+                            }`}
+                          >
+                            {format}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Stability</FieldLabel>
+                    <input
+                      value={String(editingNode.data.stability ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { stability: event.target.value })}
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Similarity boost</FieldLabel>
+                    <input
+                      value={String(editingNode.data.similarityBoost ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { similarityBoost: event.target.value })}
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Style</FieldLabel>
+                    <input
+                      value={String(editingNode.data.style ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { style: event.target.value })}
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>Speed</FieldLabel>
+                    <input
+                      value={String(editingNode.data.speed ?? "")}
+                      onChange={(event) => saveNodePatch(editingNode.id, { speed: event.target.value })}
+                      type="number"
+                      min="0.5"
+                      max="2"
+                      step="0.01"
+                      className="h-10 rounded-2xl border border-outline-variant bg-surface px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                </div>
+                {selectedDynamicVoice ? (
+                  <div className="rounded-2xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+                    <p className="font-semibold text-on-surface">{selectedDynamicVoice.name}</p>
+                    <p className="mt-1">Voice ID: {selectedDynamicVoice.voiceId}</p>
+                    <p className="mt-1">Categoría: {selectedDynamicVoice.category ?? "Sin categoría"}</p>
+                  </div>
+                ) : null}
+                {selectedDynamicModel ? (
+                  <div className="rounded-2xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+                    <p className="font-semibold text-on-surface">{selectedDynamicModel.name}</p>
+                    <p className="mt-1">Model ID: {selectedDynamicModel.modelId}</p>
+                    <p className="mt-1">{selectedDynamicModel.languages?.length ? `Idiomas: ${selectedDynamicModel.languages.join(", ")}` : "Sin idiomas declarados"}</p>
+                  </div>
+                ) : null}
+                <BooleanPill
+                  value={Boolean(editingNode.data.speakerBoost)}
+                  onChange={(value) => saveNodePatch(editingNode.id, { speakerBoost: value })}
+                  label="Speaker boost"
+                />
+              </ModalSection>
+
+              <ModalSection
+                title="Notas internas"
+                description="Observaciones del nodo y guía para la ejecución futura."
+              >
+                <label className="grid gap-1.5">
+                  <FieldLabel>Notas para operador</FieldLabel>
+                  <textarea
+                    value={String(editingNode.data.operatorNotes ?? "")}
+                    onChange={(event) => saveNodePatch(editingNode.id, { operatorNotes: event.target.value })}
+                    className="min-h-20 rounded-2xl border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                  />
+                </label>
+              </ModalSection>
+            </>
+          )}
+
           {editingNode.data?.nodeType === "SCRIPT_TEXT" && (
             <>
               <ModalSection
@@ -1995,9 +2775,13 @@ try {
 
           {editingNode.data?.nodeType === "INSTRUCTION" && (
             <>
+              <div className="warning-surface-strong rounded-2xl px-4 py-3 text-sm">
+                Las instrucciones funcionan como notas operativas. No cuentan como pasos del flujo, pueden estar desconectadas y no bloquean la ejecución.
+              </div>
+
               <ModalSection
-                title="Contenido"
-                description="Instrucción operativa que el operador debe seguir."
+                title="Nota operativa"
+                description="Recordatorio o ayuda contextual para el operador. Se muestra como anotación en el player."
               >
                 <label className="grid gap-1.5">
                   <FieldLabel>Instrucción</FieldLabel>
@@ -2011,7 +2795,7 @@ try {
 
               <ModalSection
                 title="Notas para admin"
-                description="Observaciones internas para revisar o mantener este paso."
+                description="Observaciones internas para revisar o mantener esta anotación."
               >
                 <label className="grid gap-1.5">
                   <FieldLabel>Notas internas</FieldLabel>
@@ -2151,7 +2935,7 @@ try {
                                       options.filter((item) => item.id !== option.id),
                                     )
                                   }
-                                  className="rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+                                  className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors"
                                 >
                                   Eliminar
                                 </button>
@@ -2238,7 +3022,7 @@ try {
             description="Resumen de issues detectados para este nodo dentro del builder."
           >
             {editingNodeIssues.length === 0 ? (
-              <p className="text-sm text-emerald-700 dark:text-emerald-300">
+              <p className="text-sm text-[color:var(--success-text-muted)] dark:text-emerald-300">
                 Este nodo no tiene observaciones activas.
               </p>
             ) : (
@@ -2274,7 +3058,7 @@ try {
               removeNode(editingNode.id);
               setEditingNodeId(null);
             }}
-            className="inline-flex items-center gap-2 rounded-2xl border border-red-300 bg-red-50/50 px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
+            className="danger-surface inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-colors"
           >
             Eliminar nodo
           </button>
@@ -2300,32 +3084,55 @@ if (loading) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col lg:grid lg:gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-x-hidden lg:grid lg:gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
       {/* Palette */}
-      <aside className="space-y-3 rounded-2xl border border-outline-variant bg-surface-container p-3 shadow-elevation-1 max-h-[300px] lg:max-h-none overflow-y-auto">
+      <aside className="max-h-[42vh] space-y-3 overflow-y-auto rounded-2xl border border-outline-variant bg-surface-container p-3 shadow-elevation-1 sm:max-h-[300px] lg:max-h-none">
         <div>
           <h2 className="text-sm font-semibold tracking-tight text-on-surface uppercase tracking-[0.1em]">
             Nodos
           </h2>
         </div>
 
-        <div className="space-y-1.5">
-          {NODE_PALETTE.map((item) => (
-            <button
-              key={item.type}
-              type="button"
-              onClick={() => addNode(item.type)}
-              className="group flex w-full items-center gap-2.5 rounded-xl border border-outline-variant bg-surface px-2.5 py-2 text-left transition-colors hover:border-primary"
-            >
-              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.accent} text-white shadow-sm`}>
-                <Plus className="h-3.5 w-3.5" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-semibold text-on-surface">{item.label}</span>
-                <span className="block text-[10px] leading-tight text-on-surface-variant truncate">{item.description}</span>
-              </span>
-            </button>
-          ))}
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant">Pasos del flujo</p>
+            {NODE_PALETTE.map((item) => (
+              <button
+                key={item.type}
+                type="button"
+                onClick={() => addNode(item.type)}
+                className="group flex w-full items-center gap-2.5 rounded-xl border border-outline-variant bg-surface px-2.5 py-2 text-left transition-colors hover:border-primary"
+              >
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.accent} text-white shadow-sm`}>
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold text-on-surface">{item.label}</span>
+                  <span className="block text-[10px] leading-tight text-on-surface-variant truncate">{item.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--warning-text-muted)]">Anotaciones</p>
+            {ANNOTATION_PALETTE.map((item) => (
+              <button
+                key={item.type}
+                type="button"
+                onClick={() => addNode(item.type)}
+                className="group flex w-full items-center gap-2.5 rounded-xl border border-amber-300/35 bg-[color:var(--warning-bg)] px-2.5 py-2 text-left transition-colors hover:border-amber-300/60"
+              >
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.accent} text-white shadow-sm`}>
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold text-on-surface">{item.label}</span>
+                  <span className="block text-[10px] leading-tight text-on-surface-variant">{item.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="rounded-xl border border-outline-variant bg-surface px-3 py-2 mt-4">
@@ -2401,77 +3208,135 @@ if (loading) {
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-on-surface-variant">
             Selección
           </p>
-          {selectedNodes.length > 0 ? (
-            <div className="mt-2 space-y-2">
-              <div>
-                <p className="text-sm font-semibold text-on-surface">
-                  {selectedNodes.length === 1
-                    ? String(selectedNode?.data?.title ?? selectedNode?.data?.label ?? selectedNode?.id)
-                    : `${selectedNodes.length} nodos seleccionados`}
-                </p>
-                <p className="text-xs text-on-surface-variant">
-                  {selectedNodes.length === 1
-                    ? String(selectedNode?.data?.nodeType ?? selectedNode?.type)
-                    : "Selección múltiple"}
-                </p>
-              </div>
-              {selectedNodes.length === 1 ? (
-                <p className="text-xs leading-relaxed text-on-surface-variant">
-                  {selectedNode ? nodeSummary(selectedNode) : ""}
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-xs leading-relaxed text-on-surface-variant">
-                    Puedes mover los nodos seleccionados juntos o eliminarlos en bloque.
-                  </p>
-                  <ul className="max-h-24 overflow-y-auto text-xs text-on-surface-variant">
-                    {selectedNodes.slice(0, 8).map((node) => (
-                      <li key={node.id}>
-                        • {String(node.data?.title ?? node.data?.label ?? node.id)}
-                      </li>
-                    ))}
-                    {selectedNodes.length > 8 ? <li>• ...</li> : null}
-                  </ul>
+          {selectedNodes.length > 0 || selectedEdges.length > 0 ? (
+            <div className="mt-2 space-y-4">
+              {selectedNodes.length > 0 ? (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">
+                      {selectedNodes.length === 1
+                        ? String(selectedNode?.data?.title ?? selectedNode?.data?.label ?? selectedNode?.id)
+                        : `${selectedNodes.length} nodos seleccionados`}
+                    </p>
+                    <p className="text-xs text-on-surface-variant">
+                      {selectedNodes.length === 1
+                        ? String(selectedNode?.data?.nodeType ?? selectedNode?.type)
+                        : "Selección múltiple"}
+                    </p>
+                  </div>
+                  {selectedNodes.length === 1 ? (
+                    <p className="text-xs leading-relaxed text-on-surface-variant">
+                      {selectedNode ? nodeSummary(selectedNode) : ""}
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-xs leading-relaxed text-on-surface-variant">
+                        Puedes mover los nodos seleccionados juntos o eliminarlos en bloque.
+                      </p>
+                      <ul className="max-h-24 overflow-y-auto text-xs text-on-surface-variant">
+                        {selectedNodes.slice(0, 8).map((node) => (
+                          <li key={node.id}>
+                            • {String(node.data?.title ?? node.data?.label ?? node.id)}
+                          </li>
+                        ))}
+                        {selectedNodes.length > 8 ? <li>• ...</li> : null}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {selectedNodes.length === 1 ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => focusNode(selectedNode?.id ?? "")}
+                          className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        >
+                          Centrar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingNodeId(selectedNode?.id ?? null)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => selectedNode && duplicateNode(selectedNode.id)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                        >
+                          Duplicar
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => removeNodes(selectedNodeIds)}
+                      className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors"
+                    >
+                      Eliminar selección
+                    </button>
+                  </div>
                 </div>
-              )}
-              <div className="flex flex-wrap gap-2 pt-1">
-                {selectedNodes.length === 1 ? (
-                  <>
+              ) : null}
+
+              {selectedEdges.length > 0 ? (
+                <div className={`space-y-2 ${selectedNodes.length > 0 ? "border-t border-outline-variant pt-4" : ""}`}>
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">
+                      {selectedEdges.length === 1
+                        ? selectedEdgeDetails?.label ?? "Conexión sin etiqueta"
+                        : `${selectedEdges.length} conexiones seleccionadas`}
+                    </p>
+                    <p className="text-xs text-on-surface-variant">
+                      {selectedEdges.length === 1 && selectedEdgeDetails
+                        ? `${selectedEdgeDetails.sourceLabel} → ${selectedEdgeDetails.targetLabel}`
+                        : "Selección de líneas"}
+                    </p>
+                  </div>
+                  {selectedEdges.length === 1 ? (
+                    <p className="text-xs leading-relaxed text-on-surface-variant">
+                      Selecciona la línea y pulsa <code>Backspace</code> o <code>Delete</code>, o elimínala
+                      con el botón inferior.
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-xs leading-relaxed text-on-surface-variant">
+                        Puedes eliminar varias líneas a la vez.
+                      </p>
+                      <ul className="max-h-24 overflow-y-auto text-xs text-on-surface-variant">
+                        {selectedEdges.slice(0, 8).map((edge) => {
+                          const sourceNode = nodeLookup.get(edge.source);
+                          const targetNode = nodeLookup.get(edge.target);
+                          const sourceLabel = sourceNode ? getNodeDisplayName(sourceNode) : edge.source;
+                          const targetLabel = targetNode ? getNodeDisplayName(targetNode) : edge.target;
+                          const edgeLabel = String(edge.label ?? "").trim() || "Sin etiqueta";
+                          return (
+                            <li key={edge.id}>
+                              • {edgeLabel} ({sourceLabel} → {targetLabel})
+                            </li>
+                          );
+                        })}
+                        {selectedEdges.length > 8 ? <li>• ...</li> : null}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => focusNode(selectedNode?.id ?? "")}
-                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+                      onClick={() => removeEdges(selectedEdgeIds)}
+                      className="danger-surface inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors"
                     >
-                      Centrar
+                      {selectedEdges.length === 1 ? "Eliminar conexión" : "Eliminar conexiones"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingNodeId(selectedNode?.id ?? null)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => selectedNode && duplicateNode(selectedNode.id)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-                    >
-                      Duplicar
-                    </button>
-                  </>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => removeNodes(selectedNodeIds)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-400 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300"
-                >
-                  Eliminar selección
-                </button>
-              </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
-              Haz clic sobre un nodo del lienzo para seleccionarlo y ver sus detalles.
+              Haz clic sobre un nodo o una línea del lienzo para seleccionarlos y ver sus detalles.
+              Las líneas también se pueden borrar con <code>Backspace</code> o <code>Delete</code>.
             </p>
           )}
         </div>
@@ -2520,12 +3385,12 @@ if (loading) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => void saveGraph()}
               disabled={saving}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70 sm:w-auto"
             >
               <Save className="h-3.5 w-3.5" />
               {saving ? "..." : "Guardar"}
@@ -2534,7 +3399,7 @@ if (loading) {
               type="button"
               onClick={() => void validateGraph()}
               disabled={working}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-70 sm:w-auto"
             >
               <WandSparkles className="h-3.5 w-3.5" />
               Validar
@@ -2542,7 +3407,7 @@ if (loading) {
             <button
               type="button"
               onClick={() => autoLayoutNodes()}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
               title="Auto organizar nodos"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -2551,7 +3416,7 @@ if (loading) {
             <button
               type="button"
               onClick={duplicateFromPublished}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary sm:w-auto"
             >
               <CopyPlus className="h-3.5 w-3.5" />
               Copiar pub.
@@ -2560,7 +3425,7 @@ if (loading) {
               type="button"
               onClick={() => void publishGraph()}
               disabled={working}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-semibold text-on-primary transition-transform hover:scale-[1.02] disabled:opacity-70"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-semibold text-on-primary transition-transform hover:scale-[1.02] disabled:opacity-70 sm:w-auto"
             >
               <FileDown className="h-3.5 w-3.5" />
               Publicar
@@ -2577,7 +3442,7 @@ if (loading) {
         <div className="flex-1 min-h-0 w-full">
           <ReactFlow
             nodes={flowNodes}
-            edges={edges}
+            edges={displayEdges}
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -2588,20 +3453,34 @@ if (loading) {
               setSelectedNodeId(node.id);
               setEditingNodeId(node.id);
             }}
-            onSelectionChange={({ nodes: selectedFlowNodes }) => {
+            onSelectionChange={({ nodes: selectedFlowNodes, edges: selectedFlowEdges }) => {
               const ids = selectedFlowNodes.map((node) => node.id);
+              const edgeIds = selectedFlowEdges.map((edge) => edge.id);
               setSelectedNodeIds((current) => (sameStringSet(current, ids) ? current : ids));
               setSelectedNodeId((current) => (current === ids[0] ? current : ids[0] ?? null));
+              setSelectedEdgeIds((current) => (sameStringSet(current, edgeIds) ? current : edgeIds));
+              setSelectedEdgeId((current) => (current === edgeIds[0] ? current : edgeIds[0] ?? null));
             }}
             onPaneClick={() => {
               setSelectedNodeIds((current) => (current.length === 0 ? current : []));
               setSelectedNodeId((current) => (current === null ? current : null));
+              setSelectedEdgeIds((current) => (current.length === 0 ? current : []));
+              setSelectedEdgeId((current) => (current === null ? current : null));
               setEditingNodeId(null);
+            }}
+            onDelete={({ nodes: deletedNodes, edges: deletedEdges }) => {
+              if (deletedNodes.length === 0 && deletedEdges.length === 0) return;
+              setSelectedNodeIds([]);
+              setSelectedNodeId(null);
+              setSelectedEdgeIds([]);
+              setSelectedEdgeId(null);
             }}
             fitView
             selectionOnDrag
             selectionMode={SelectionMode.Partial}
             panOnDrag={false}
+            edgesFocusable
+            deleteKeyCode={["Backspace", "Delete"]}
             defaultEdgeOptions={{
               type: "smoothstep",
               style: { strokeWidth: 2 },
@@ -2629,7 +3508,7 @@ if (loading) {
 
         {isValidationPanelOpen ? (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 flex justify-end">
-            <div className="pointer-events-auto w-full max-w-5xl rounded-[28px] border border-outline-variant bg-surface/95 p-4 shadow-elevation-3 backdrop-blur-sm">
+            <div className="pointer-events-auto w-full max-w-5xl rounded-[28px] border border-outline-variant bg-surface/95 p-3 shadow-elevation-3 backdrop-blur-sm sm:p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
@@ -2659,7 +3538,7 @@ if (loading) {
                 </div>
               </div>
 
-              <div className="mt-4 max-h-[65vh] overflow-y-auto pr-1">
+              <div className="mt-4 max-h-[58vh] overflow-y-auto pr-1 sm:max-h-[65vh]">
                 <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
                   <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
@@ -2667,12 +3546,12 @@ if (loading) {
                     </p>
                     <div className="mt-2 space-y-2 text-sm">
                       {effectiveValidation.valid ? (
-                        <p className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-300">
+                        <p className="inline-flex items-center gap-2 text-[color:var(--success-text-muted)] dark:text-emerald-300">
                           <CheckCircle2 className="h-4 w-4" />
                           La narrativa está lista para publicar.
                         </p>
                       ) : (
-                        <p className="inline-flex items-center gap-2 text-amber-600 dark:text-amber-300">
+                        <p className="inline-flex items-center gap-2 text-[color:var(--warning-text-muted)] dark:text-amber-300">
                           <AlertCircle className="h-4 w-4" />
                           Hay observaciones que conviene resolver antes de publicar.
                         </p>

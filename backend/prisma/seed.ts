@@ -14,6 +14,19 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
+function slugifyOrganization(name: string, fallback: string) {
+  const base = name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+
+  const suffix = fallback.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 12);
+  return `${base || 'organization'}-${suffix}`.replace(/-+$/g, '');
+}
+
 async function main() {
   const seedPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin123*';
   const passwordHash = await bcrypt.hash(seedPassword, 12);
@@ -57,21 +70,43 @@ async function main() {
 
   const organization = await prisma.organization.upsert({
     where: { id: 'demo-organization' },
-    update: { name: 'Routlis Demo Organization', status: 'ACTIVE' },
+    update: {
+      name: 'Routlis Demo Organization',
+      slug: slugifyOrganization('Routlis Demo Organization', 'demo-org'),
+      status: 'ACTIVE',
+      isPlatformInternal: false,
+      maxUsers: 5,
+      maxStorageBytes: BigInt(1073741824),
+    },
     create: {
       id: 'demo-organization',
       name: 'Routlis Demo Organization',
+      slug: slugifyOrganization('Routlis Demo Organization', 'demo-org'),
       status: 'ACTIVE',
+      isPlatformInternal: false,
+      maxUsers: 5,
+      maxStorageBytes: BigInt(1073741824),
     },
   });
 
   await prisma.organization.upsert({
     where: { id: 'demo-organization-2' },
-    update: { name: 'Routlis Sandbox Organization', status: 'ACTIVE' },
+    update: {
+      name: 'Routlis Sandbox Organization',
+      slug: slugifyOrganization('Routlis Sandbox Organization', 'demo-org-2'),
+      status: 'ACTIVE',
+      isPlatformInternal: false,
+      maxUsers: 5,
+      maxStorageBytes: BigInt(1073741824),
+    },
     create: {
       id: 'demo-organization-2',
       name: 'Routlis Sandbox Organization',
+      slug: slugifyOrganization('Routlis Sandbox Organization', 'demo-org-2'),
       status: 'ACTIVE',
+      isPlatformInternal: false,
+      maxUsers: 5,
+      maxStorageBytes: BigInt(1073741824),
     },
   });
 

@@ -1,12 +1,12 @@
-# Narrativas MVP - Etapa 2 frontend
+# Llamadas MVP - Etapa 2 frontend
 
 Estado actual:
-- Se añadió la experiencia administrativa de Narrativas.
+- Se añadió la experiencia administrativa de Llamadas.
 - Ya existen:
-  - listado de narrativas en `/admin/narratives`
+  - listado de llamadas en `/admin/narratives`
   - creación en `/admin/narratives/new`
   - builder visual en `/admin/narratives/[id]/builder`
-- El sidebar de Routlis ya muestra Narrativas dentro del panel de control.
+- El sidebar de Routlis ya muestra Llamadas dentro del panel de control.
 - El build del frontend pasa correctamente.
 
 Pendientes siguientes:

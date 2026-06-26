@@ -7,11 +7,15 @@ datasource db {
 }
 
 model Organization {
-  id        String   @id @default(uuid())
-  name      String
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  name               String
+  slug               String   @unique
+  status             String   @default("ACTIVE")
+  isPlatformInternal Boolean  @default(false)
+  maxUsers           Int      @default(5)
+  maxStorageBytes    BigInt   @default(1073741824)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   members              OrganizationMember[]
   audioAssets          AudioAsset[]
@@ -19,9 +23,21 @@ model Organization {
   audioButtons         AudioButton[]
   playbackEvents       PlaybackEvent[]
   boardPreferences     UserBoardPreference[]
+  narrativePreferences UserNarrativePreference[]
+  audioGenerationPreferences UserAudioGenerationPreference[]
   audioButtonFavorites AudioButtonFavorite[]
   narratives           Narrative[]
   narrativeRuns        NarrativeRun[]
+  sessions             UserSession[]
+  elevenLabsIntegrationSetting ElevenLabsIntegrationSetting?
+  audioGenerationJobs   AudioGenerationJob[]
+  maintenanceBackupSetting MaintenanceBackupSetting?
+  maintenanceBackups    MaintenanceBackup[]
+  systemAuditEvents     SystemAuditEvent[]
+  accessPolicies        AccessPolicy[]
+  mailDeliveryLogs      MailDeliveryLog[]
+  organizationInvites   OrganizationInvite[]
+  mailQueueItems        MailQueueItem[]
 }
 
 model User {
@@ -37,11 +53,51 @@ model User {
   createdAudios              AudioAsset[]
   playbackEvents             PlaybackEvent[]
   boardPreferences           UserBoardPreference[]
+  narrativePreferences       UserNarrativePreference[]
+  audioGenerationPreferences  UserAudioGenerationPreference[]
   audioButtonFavorites       AudioButtonFavorite[]
+  audioGenerationJobsCreated AudioGenerationJob[]
   narrativesCreated          Narrative[]           @relation("NarrativeCreatedBy")
   narrativesUpdated          Narrative[]           @relation("NarrativeUpdatedBy")
   narrativeVersionsPublished NarrativeVersion[]    @relation("NarrativeVersionPublishedBy")
   narrativeRunsStarted       NarrativeRun[]        @relation("NarrativeRunStartedBy")
+  sessions                   UserSession[]
+  maintenanceBackupsCreated  MaintenanceBackup[]   @relation("MaintenanceBackupsCreatedBy")
+  systemAuditEventsCreated    SystemAuditEvent[]    @relation("SystemAuditEventsCreatedBy")
+  accessPolicies              AccessPolicy[]
+  passwordResetTokens         PasswordResetToken[]
+  organizationInvitesCreated  OrganizationInvite[] @relation("OrganizationInvitesCreatedBy")
+  organizationInvitesAccepted OrganizationInvite[] @relation("OrganizationInvitesAcceptedBy")
+  mailDeliveryLogs            MailDeliveryLog[]
+  systemMailSettingsUpdated   SystemMailSettings[] @relation("SystemMailSettingsUpdatedBy")
+  mailTemplatesUpdated        MailTemplate[]       @relation("MailTemplatesUpdatedBy")
+  mailEventsUpdated           MailEvent[]           @relation("MailEventsUpdatedBy")
+  mailQueueCreated            MailQueueItem[]       @relation("MailQueueCreatedBy")
+  mailQueueItems              MailQueueItem[]
+  platformBrandingUpdated     PlatformBrandingSetting[] @relation("PlatformBrandingUpdatedBy")
+}
+
+model UserSession {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  status         String   @default("ACTIVE")
+  sessionId      String   @unique
+  ipAddress      String?
+  userAgent      String?
+  deviceLabel    String?
+  isActive       Boolean  @default(true)
+  lastSeenAt     DateTime @default(now())
+  revokedAt      DateTime?
+  revokedReason  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([userId, isActive])
 }
 
 model OrganizationMember {
@@ -91,6 +147,27 @@ model RolePermission {
   @@unique([roleId, permissionId])
 }
 
+model AccessPolicy {
+  id             String   @id @default(uuid())
+  moduleKey      String
+  organizationId String?
+  userId         String?
+  roleName       String?
+  allowed        Boolean  @default(true)
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([moduleKey])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([roleName])
+  @@unique([moduleKey, organizationId, userId, roleName])
+}
+
 model AudioCategory {
   id             String   @id @default(uuid())
   organizationId String
@@ -119,6 +196,18 @@ model AudioAsset {
   storageKey      String
   publicUrl       String?
   transcript      String?
+  sourceType      String   @default("UPLOAD")
+  lifecycleStatus String   @default("PERSISTED")
+  expiresAt       DateTime?
+  generatedText   String?
+  generatedVoiceId String?
+  generatedVoiceName String?
+  generatedModelId String?
+  generatedOutputFormat String?
+  generatedSettingsJson Json?
+  importMetadata Json?
+  generationJobId String?  @unique
+  autoCreatedButtonId String?
   createdById     String
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
@@ -126,10 +215,13 @@ model AudioAsset {
 
   organization Organization    @relation(fields: [organizationId], references: [id])
   createdBy    User            @relation(fields: [createdById], references: [id])
+  generationJob AudioGenerationJob?
   buttons      AudioButton[]
   events       PlaybackEvent[]
 
   @@index([organizationId, isActive])
+  @@index([organizationId, sourceType, createdAt])
+  @@index([organizationId, lifecycleStatus, expiresAt])
 }
 
 model AudioButton {
@@ -154,11 +246,50 @@ model AudioButton {
   organization Organization          @relation(fields: [organizationId], references: [id])
   category     AudioCategory         @relation(fields: [categoryId], references: [id])
   audioAsset   AudioAsset            @relation(fields: [audioAssetId], references: [id])
+  audioGenerationJobs AudioGenerationJob[]
   events       PlaybackEvent[]
   favorites    AudioButtonFavorite[]
 
   @@index([organizationId, isActive])
   @@index([categoryId, sortOrder])
+}
+
+model AudioGenerationJob {
+  id             String   @id @default(uuid())
+  organizationId String
+  createdById    String
+  provider       String   @default("elevenlabs")
+  status         String   @default("QUEUED")
+  inputText      String
+  normalizedText String
+  voiceId        String
+  voiceName      String?
+  modelId        String
+  outputFormat   String
+  stability      Float    @default(0.5)
+  similarityBoost Float   @default(0.75)
+  style          Float    @default(0)
+  speed          Float    @default(1)
+  speakerBoost   Boolean  @default(true)
+  requestHash    String
+  audioAssetId   String?  @unique
+  audioButtonId  String?  @unique
+  errorCode      String?
+  errorMessage   String?
+  attemptCount   Int      @default(0)
+  lastAttemptAt  DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    User         @relation(fields: [createdById], references: [id])
+  audioAsset   AudioAsset?  @relation(fields: [audioAssetId], references: [id], onDelete: SetNull)
+  audioButton  AudioButton? @relation(fields: [audioButtonId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, requestHash])
+  @@index([organizationId, createdById, createdAt])
 }
 
 model UserBoardPreference {
@@ -176,6 +307,76 @@ model UserBoardPreference {
 
   @@unique([organizationId, userId])
   @@index([organizationId, userId])
+}
+
+model UserNarrativePreference {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  playerDistance String   @default("max")
+  playerViewMode String   @default("simple")
+  playerViewportX Float    @default(0)
+  playerViewportY Float    @default(0)
+  playerViewportZoom Float @default(0.8)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, userId])
+}
+
+model UserAudioGenerationPreference {
+  id                String   @id @default(uuid())
+  organizationId    String
+  userId            String
+  composerText      String   @default("")
+  composerVoiceId   String   @default("")
+  composerModelId   String   @default("")
+  composerOutputFormat String @default("mp3_44100_128")
+  composerStability Float    @default(0.5)
+  composerSimilarityBoost Float @default(0.75)
+  composerStyle     Float    @default(0)
+  composerSpeed     Float    @default(1)
+  composerSpeakerBoost Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, userId])
+}
+
+model ElevenLabsIntegrationSetting {
+  id                String   @id @default(uuid())
+  organizationId    String   @unique
+  isActive          Boolean  @default(true)
+  apiKeyEncrypted   String?
+  apiKeyIv          String?
+  apiKeyAuthTag     String?
+  apiKeyLast4       String?
+  baseUrl           String   @default("https://api.elevenlabs.io")
+  defaultVoiceId    String?
+  defaultModelId    String   @default("eleven_multilingual_v2")
+  defaultOutputFormat String @default("mp3_44100_128")
+  stability         Float    @default(0.5)
+  similarityBoost   Float    @default(0.75)
+  style             Float    @default(0)
+  speed             Float    @default(1)
+  speakerBoost      Boolean  @default(true)
+  connectionStatus  String   @default("NOT_CONFIGURED")
+  lastTestAt        DateTime?
+  lastTestMessage   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 model AudioButtonFavorite {
@@ -290,6 +491,242 @@ model NarrativeRunEvent {
 
   @@index([narrativeRunId, createdAt])
   @@index([nodeId, createdAt])
+}
+
+model MaintenanceBackupSetting {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  isEnabled      Boolean  @default(false)
+  includeDatabase Boolean @default(true)
+  includeStorage Boolean @default(true)
+  scheduleMode   String   @default("MANUAL")
+  everyHours     Int      @default(24)
+  retentionDays  Int      @default(7)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceBackup {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  createdById          String?
+  source               String   @default("MANUAL")
+  status               String   @default("COMPLETED")
+  label                String?
+  includeDatabase      Boolean  @default(true)
+  includeStorage       Boolean  @default(true)
+  backupDirectoryKey   String
+  archiveFileName      String
+  databaseDumpFileName String?
+  storageArchiveFileName String?
+  sizeBytes            Int      @default(0)
+  expiresAt            DateTime?
+  startedAt            DateTime @default(now())
+  completedAt          DateTime?
+  errorMessage         String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("MaintenanceBackupsCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status, createdAt])
+}
+
+model AccessSettings {
+  id                    String   @id @default("singleton")
+  roleDefaults          Json
+  organizationOverrides Json
+  organizationRoleDefaults Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id              String   @id @default(uuid())
+  userId          String
+  tokenHash       String   @unique
+  expiresAt       DateTime
+  usedAt          DateTime?
+  requestIp       String?
+  requestUserAgent String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model OrganizationInvite {
+  id              String   @id @default(uuid())
+  organizationId  String
+  invitedByUserId  String?
+  acceptedByUserId String?
+  email           String
+  inviteeName     String?
+  role            String
+  tokenHash       String   @unique
+  status          String   @default("PENDING")
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User?        @relation("OrganizationInvitesCreatedBy", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  acceptedBy   User?        @relation("OrganizationInvitesAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model MailDeliveryLog {
+  id               String   @id @default(uuid())
+  organizationId   String?
+  userId           String?
+  type             String
+  to               String
+  subject          String
+  status           String
+  providerMessageId String?
+  errorCode        String?
+  errorMessage     String?
+  contextJson      Json?
+  createdAt        DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model SystemMailSettings {
+  id                    String   @id @default("singleton")
+  provider              String   @default("smtp")
+  enabled               Boolean  @default(false)
+  fromName              String
+  fromEmail             String
+  replyTo               String?
+  smtpHost              String?
+  smtpPort              Int?
+  smtpSecure            Boolean  @default(false)
+  smtpUser              String?
+  smtpPasswordEncrypted String?
+  smtpPasswordIv        String?
+  smtpPasswordAuthTag   String?
+  smtpPasswordLast4     String?
+  lastTestAt            DateTime?
+  lastTestMessage       String?
+  updatedByUserId       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  updatedBy User? @relation("SystemMailSettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+model MailTemplate {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  name            String
+  description     String?
+  subject         String
+  htmlBody        String
+  textBody        String?
+  isActive        Boolean  @default(true)
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedBy User? @relation("MailTemplatesUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([key])
+}
+
+model MailEvent {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  name            String
+  description     String?
+  isEnabled       Boolean  @default(true)
+  templateKey     String?
+  channels        Json?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedBy User? @relation("MailEventsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([key])
+}
+
+model MailQueueItem {
+  id               String   @id @default(uuid())
+  organizationId   String?
+  userId           String?
+  eventKey         String?
+  templateKey      String?
+  to               String
+  subject          String
+  status           String   @default("PENDING")
+  attempts         Int      @default(0)
+  lastError        String?
+  scheduledAt      DateTime?
+  processedAt      DateTime?
+  createdByUserId   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("MailQueueCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([organizationId, createdAt])
+}
+
+model PlatformBrandingSetting {
+  id                String   @id
+  platformName      String   @default("Routlis")
+  tagline           String?  
+  logoFileName      String?
+  logoMimeType      String?
+  logoStorageKey    String?
+  faviconFileName   String?
+  faviconMimeType   String?
+  faviconStorageKey String?
+  primaryColor      String?
+  secondaryColor    String?
+  updatedById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  updatedBy User? @relation("PlatformBrandingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+model SystemAuditEvent {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String?
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation("SystemAuditEventsCreatedBy", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, action, createdAt])
 }
 
 enum NarrativeStatus {

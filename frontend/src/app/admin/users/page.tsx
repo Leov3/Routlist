@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, CheckCircle, Pencil, Plus, Search, XCircle } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { FormEvent, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { ArrowUpDown, CheckCircle, Pencil, Plus, Search, Trash2, XCircle } from "lucide-react";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { DataState } from "@/components/ui/DataState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
@@ -20,9 +20,24 @@ type UserRow = {
 
 type SortKey = "fullName" | "email" | "role" | "status";
 type StatusFilter = "all" | "active" | "disabled";
+type OrganizationInvite = {
+  id: string;
+  email: string;
+  inviteeName?: string | null;
+  role: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+  invitedBy?: { id: string; fullName: string; email: string } | null;
+  acceptedBy?: { id: string; fullName: string; email: string } | null;
+};
 
 export default function UsersPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [currentOrganization, setCurrentOrganization] = useState<{
+    name: string;
+    maxUsers?: number | null;
+  } | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -40,6 +55,12 @@ export default function UsersPage() {
     password: "",
     role: "OPERATOR",
   });
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteeName, setInviteeName] = useState("");
+  const [inviteRole, setInviteRole] = useState("OPERATOR");
+  const [invites, setInvites] = useState<OrganizationInvite[]>([]);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState("");
 
   async function load() {
     try {
@@ -49,8 +70,23 @@ export default function UsersPage() {
       ]);
       setCurrentUser(me);
       setUsers(userRows);
+      setCurrentOrganization(null);
+      if (me.role === "OWNER" || me.role === "ADMIN") {
+        const organization = await api<{ name: string; maxUsers?: number | null }>("/organizations/current").catch(
+          () => null,
+        );
+        setCurrentOrganization(organization);
+      }
+      if (me.role !== "OPERATOR") {
+        const data = await api<OrganizationInvite[]>(`/organizations/${me.organizationId}/invites`);
+        setInvites(data.filter((invite) => invite.status === "PENDING"));
+      } else {
+        setInvites([]);
+      }
     } catch {
       setUsers([]);
+      setInvites([]);
+      setCurrentOrganization(null);
     }
   }
 
@@ -62,6 +98,13 @@ export default function UsersPage() {
     currentUser?.role === "OWNER"
       ? ["OWNER", "ADMIN", "SUPERVISOR", "OPERATOR"]
       : ["SUPERVISOR", "OPERATOR"];
+
+  const canSeeQuota = currentUser?.role === "OWNER" || currentUser?.role === "ADMIN";
+  const memberCount = users.length;
+  const userLimit = currentOrganization?.maxUsers ?? 0;
+  const quotaPercent = userLimit ? Math.min(100, Math.round((memberCount / userLimit) * 100)) : 0;
+  const quotaWarning = userLimit ? quotaPercent >= 80 && quotaPercent < 100 : false;
+  const quotaCritical = userLimit ? quotaPercent >= 100 : false;
 
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -136,10 +179,235 @@ export default function UsersPage() {
     await load();
   }
 
+  async function deleteUser(id: string, fullName: string) {
+    const confirmed = window.confirm(`Eliminar a ${fullName} de esta organización?`);
+    if (!confirmed) return;
+
+    await api(`/users/${id}`, {
+      method: "DELETE",
+    });
+    await load();
+  }
+
+  async function createInvite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!currentUser || currentUser.role === "OPERATOR") return;
+
+    setInviteLoading(true);
+    setInviteError("");
+    try {
+      await api(`/organizations/${currentUser.organizationId}/invites`, {
+        method: "POST",
+        body: JSON.stringify({
+          email: inviteEmail,
+          inviteeName,
+          role: inviteRole,
+        }),
+      });
+      setInviteEmail("");
+      setInviteeName("");
+      setInviteRole("OPERATOR");
+      await load();
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : "No se pudo crear la invitación.");
+    } finally {
+      setInviteLoading(false);
+    }
+  }
+
+  async function resendInvite(inviteId: string) {
+    if (!currentUser) return;
+    await api(`/organizations/${currentUser.organizationId}/invites/${inviteId}/resend`, {
+      method: "POST",
+    });
+    await load();
+  }
+
+  async function approveInvite(inviteId: string) {
+    if (!currentUser) return;
+    await api(`/organizations/${currentUser.organizationId}/invites/${inviteId}/approve`, {
+      method: "POST",
+    });
+    await load();
+  }
+
+  async function rejectInvite(inviteId: string) {
+    if (!currentUser) return;
+    await api(`/organizations/${currentUser.organizationId}/invites/${inviteId}/reject`, {
+      method: "POST",
+    });
+    await load();
+  }
+
   return (
-    <ProtectedPage requiredPermissions={["user:create"]}>
+    <AdminProtectedPage>
       <PageHeader title="Usuarios" description="Miembros, roles y permisos de acceso." />
-      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 md:grid-cols-[1fr_1fr_1fr_160px_auto]">
+      {canSeeQuota ? (
+        <div className="mb-5 rounded-xl border border-outline-variant bg-surface-container p-4">
+          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+            <div>
+              <p className="font-semibold text-on-surface">Cupo de usuarios</p>
+              <p className="text-on-surface-variant">
+                {currentOrganization
+                  ? `Organización activa: ${currentOrganization.name}`
+                  : currentUser
+                    ? `Organización activa: ${currentUser.organizationId}`
+                    : "Cargando organización..."}
+              </p>
+            </div>
+            <span
+              className={`text-xs font-semibold ${
+                quotaCritical ? "text-[color:var(--danger-text-muted)]" : quotaWarning ? "text-[color:var(--warning-text-muted)]" : "text-on-surface-variant"
+              }`}
+            >
+              {userLimit ? `${memberCount} / ${userLimit}` : `${memberCount} usuarios`}
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-surface-container-high">
+            <div
+              className={`h-2 rounded-full ${
+                quotaCritical ? "bg-[color:var(--danger-icon)]" : quotaWarning ? "bg-[color:var(--warning-icon)]" : "bg-primary"
+              }`}
+              style={{ width: `${userLimit ? quotaPercent : 0}%` }}
+            />
+          </div>
+          <p
+            className={`mt-2 text-xs ${
+              quotaCritical ? "text-[color:var(--danger-text-muted)]" : quotaWarning ? "text-[color:var(--warning-text-muted)]" : "text-on-surface-variant"
+            }`}
+          >
+            {quotaCritical ? "Cupo completo" : quotaWarning ? "Te estás acercando al límite" : "Capacidad disponible"}
+          </p>
+        </div>
+      ) : null}
+      {currentUser && currentUser.role !== "OPERATOR" ? (
+        <section className="mb-5 rounded-xl border border-outline-variant bg-surface-container p-4">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold">Invitaciones de la organización activa</h2>
+              <p className="text-sm text-on-surface-variant">
+                Desde aquí el administrador gestiona invitaciones, aprobaciones y rechazos de su tenant.
+              </p>
+            </div>
+            <span className="rounded-full border border-outline px-3 py-1 text-xs text-on-surface-variant">
+              {invites.length} total
+            </span>
+          </div>
+
+          <form onSubmit={createInvite} className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_180px_auto]">
+            <input
+              value={inviteEmail}
+              onChange={(event) => setInviteEmail(event.target.value)}
+              type="email"
+              placeholder="usuario@correo.com"
+              className="h-10 rounded-xl border border-outline px-3 text-sm"
+              required
+            />
+            <input
+              value={inviteeName}
+              onChange={(event) => setInviteeName(event.target.value)}
+              type="text"
+              placeholder="Nombre de la persona"
+              className="h-10 rounded-xl border border-outline px-3 text-sm"
+            />
+            <select
+              value={inviteRole}
+              onChange={(event) => setInviteRole(event.target.value)}
+              className="h-10 rounded-xl border border-outline px-3 text-sm"
+            >
+              <option value="ADMIN">ADMIN</option>
+              <option value="SUPERVISOR">SUPERVISOR</option>
+              <option value="OPERATOR">OPERATOR</option>
+            </select>
+            <button
+              type="submit"
+              disabled={inviteLoading}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary disabled:opacity-60"
+            >
+              <Plus className="h-4 w-4" />
+              {inviteLoading ? "Invitando..." : "Invitar"}
+            </button>
+          </form>
+          {inviteError ? <p className="mb-3 text-sm text-red-600">{inviteError}</p> : null}
+
+          {invites.length ? (
+            <>
+              <div className="space-y-3 md:hidden">
+                {invites.map((invite) => (
+                  <InviteCard
+                    key={invite.id}
+                    invite={invite}
+                    onResend={() => void resendInvite(invite.id)}
+                    onApprove={() => void approveInvite(invite.id)}
+                    onReject={() => void rejectInvite(invite.id)}
+                  />
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto rounded-xl border border-outline-variant md:block">
+                <table className="w-full min-w-[820px] text-left text-sm">
+                  <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
+                    <tr>
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Rol</th>
+                      <th className="px-4 py-3">Estado</th>
+                      <th className="px-4 py-3">Vence</th>
+                      <th className="px-4 py-3 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invites.map((invite) => (
+                      <tr key={invite.id} className="border-t border-outline-variant">
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{invite.email}</p>
+                          <p className="text-xs text-on-surface-variant">{invite.inviteeName ?? "Sin nombre de invitado"}</p>
+                          <p className="text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
+                        </td>
+                        <td className="px-4 py-3 text-on-surface-variant">{invite.role}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">{invite.status}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">
+                          {new Date(invite.expiresAt).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void resendInvite(invite.id)}
+                              className="rounded-xl border border-outline px-3 py-2 text-xs font-semibold"
+                            >
+                              Reenviar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void approveInvite(invite.id)}
+                              disabled={invite.status !== "PENDING"}
+                              className="rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                            >
+                              Aprobar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void rejectInvite(invite.id)}
+                              disabled={invite.status === "REJECTED"}
+                              className="danger-surface inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Rechazar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <DataState>No hay invitaciones en esta organización.</DataState>
+          )}
+        </section>
+      ) : null}
+
+      <form onSubmit={create} className="mb-5 grid gap-3 rounded-xl border border-outline-variant bg-surface-container p-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_160px_auto]">
         <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Nombre" className="h-10 rounded-xl border border-outline px-3 text-sm" required />
         <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" type="email" className="h-10 rounded-xl border border-outline px-3 text-sm" required />
         <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Contrasena" className="h-10 rounded-xl border border-outline px-3 text-sm" required />
@@ -167,8 +435,27 @@ export default function UsersPage() {
       </div>
 
       {filteredUsers.length ? (
-        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container">
-          <table className="w-full min-w-[980px] text-left text-sm">
+        <>
+          <div className="space-y-3 md:hidden">
+            {filteredUsers.map((user) => (
+              <UserCard
+                key={user.id}
+                user={user}
+                currentUserId={currentUser?.id ?? null}
+                editing={editingId === user.id}
+                editForm={editForm}
+                roleOptions={roleOptions}
+                onStartEdit={() => startEdit(user)}
+                onCancelEdit={() => setEditingId(null)}
+                onSave={() => void saveEdit(user.id)}
+                onSetActive={() => void setActive(user.id, (user.membershipStatus ?? user.status) !== "ACTIVE")}
+                onDelete={() => void deleteUser(user.id, user.fullName)}
+                onChangeEditForm={setEditForm}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-xl border border-outline-variant bg-surface-container md:block">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant">
               <tr>
                 <th className="px-4 py-3"><button onClick={() => sortBy("fullName")} className="inline-flex items-center gap-1"><ArrowUpDown className="h-3 w-3" />Nombre</button></th>
@@ -200,8 +487,25 @@ export default function UsersPage() {
                           </>
                         ) : (
                           <>
-                            <button onClick={() => startEdit(user)} className="rounded-xl border border-outline p-2" title="Editar"><Pencil className="h-4 w-4" /></button>
-                            <button disabled={isSelf} onClick={() => void setActive(user.id, status !== "ACTIVE")} className="rounded-xl border border-outline p-2 disabled:opacity-40" title={status === "ACTIVE" ? "Desactivar" : "Activar"}>{status === "ACTIVE" ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}</button>
+                            <button type="button" onClick={() => startEdit(user)} className="rounded-xl border border-outline p-2" title="Editar"><Pencil className="h-4 w-4" /></button>
+                            <button
+                              type="button"
+                              disabled={isSelf}
+                              onClick={() => void setActive(user.id, status !== "ACTIVE")}
+                              className="rounded-xl border border-outline p-2 disabled:opacity-40"
+                              title={status === "ACTIVE" ? "Desactivar" : "Activar"}
+                            >
+                              {status === "ACTIVE" ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isSelf}
+                              onClick={() => void deleteUser(user.id, user.fullName)}
+                              className="danger-surface inline-flex items-center justify-center rounded-xl p-2 disabled:opacity-40"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </>
                         )}
                       </div>
@@ -211,10 +515,190 @@ export default function UsersPage() {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       ) : (
         <DataState>No hay usuarios.</DataState>
       )}
-    </ProtectedPage>
+    </AdminProtectedPage>
+  );
+}
+
+function InviteCard({
+  invite,
+  onResend,
+  onApprove,
+  onReject,
+}: {
+  invite: OrganizationInvite;
+  onResend: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container-high p-4 shadow-elevation-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-on-surface">{invite.email}</p>
+          <p className="truncate text-xs text-on-surface-variant">{invite.inviteeName ?? "Sin nombre de invitado"}</p>
+          <p className="truncate text-xs text-on-surface-variant">{invite.invitedBy?.fullName ?? "Sistema"}</p>
+        </div>
+        <span className="rounded-full border border-outline-variant px-2.5 py-1 text-[10px] font-semibold text-on-surface-variant">
+          {invite.status}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+        <p>
+          <span className="font-semibold text-on-surface">Rol:</span> {invite.role}
+        </p>
+        <p>
+          <span className="font-semibold text-on-surface">Vence:</span> {new Date(invite.expiresAt).toLocaleString()}
+        </p>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button type="button" onClick={onResend} className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold sm:w-auto">
+          Reenviar
+        </button>
+        <button type="button" onClick={onApprove} disabled={invite.status !== "PENDING"} className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-50 sm:w-auto">
+          Aprobar
+        </button>
+        <button type="button" onClick={onReject} disabled={invite.status === "REJECTED"} className="danger-surface inline-flex w-full items-center justify-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50 sm:w-auto">
+          <Trash2 className="h-4 w-4" />
+          Rechazar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UserCard({
+  user,
+  currentUserId,
+  editing,
+  editForm,
+  roleOptions,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  onSetActive,
+  onDelete,
+  onChangeEditForm,
+}: {
+  user: UserRow;
+  currentUserId: string | null;
+  editing: boolean;
+  editForm: {
+    fullName: string;
+    email: string;
+    password: string;
+    role: string;
+  };
+  roleOptions: readonly string[];
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onSetActive: () => void;
+  onDelete: () => void;
+  onChangeEditForm: Dispatch<
+    SetStateAction<{
+      fullName: string;
+      email: string;
+      password: string;
+      role: string;
+    }>
+  >;
+}) {
+  const status = user.membershipStatus ?? user.status;
+  const isSelf = currentUserId === user.id;
+
+  return (
+    <div className="rounded-2xl border border-outline-variant bg-surface-container p-4 shadow-elevation-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold text-on-surface">{user.fullName}</p>
+          <p className="truncate text-sm text-on-surface-variant">{user.email}</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${status === "ACTIVE" ? "success-surface" : "bg-outline-variant/30 text-on-surface-variant"}`}>
+          {status === "ACTIVE" ? "Activo" : "Inactivo"}
+        </span>
+      </div>
+
+      {editing ? (
+        <div className="mt-4 grid gap-3">
+          <input
+            value={editForm.fullName}
+            onChange={(event) => onChangeEditForm((current) => ({ ...current, fullName: event.target.value }))}
+            className="h-10 rounded-xl border border-outline px-3 text-sm"
+          />
+          <input
+            value={editForm.email}
+            onChange={(event) => onChangeEditForm((current) => ({ ...current, email: event.target.value }))}
+            type="email"
+            className="h-10 rounded-xl border border-outline px-3 text-sm"
+          />
+          <select
+            value={editForm.role}
+            onChange={(event) => onChangeEditForm((current) => ({ ...current, role: event.target.value }))}
+            className="h-10 rounded-xl border border-outline px-3 text-sm"
+          >
+            {roleOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+          <input
+            value={editForm.password}
+            onChange={(event) => onChangeEditForm((current) => ({ ...current, password: event.target.value }))}
+            placeholder="Nueva contraseña"
+            className="h-10 rounded-xl border border-outline px-3 text-sm"
+          />
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+          <p>
+            <span className="font-semibold text-on-surface">Rol:</span> {user.role}
+          </p>
+          <p>
+            <span className="font-semibold text-on-surface">Estado:</span> {status === "ACTIVE" ? "Activo" : "Inactivo"}
+          </p>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        {editing ? (
+          <>
+            <button type="button" onClick={onSave} className="inline-flex w-full items-center justify-center rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-on-primary sm:w-auto">
+              Guardar
+            </button>
+            <button type="button" onClick={onCancelEdit} className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold sm:w-auto">
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={onStartEdit} className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold sm:w-auto">
+              Editar
+            </button>
+            <button
+              type="button"
+              disabled={isSelf}
+              onClick={onSetActive}
+              className="inline-flex w-full items-center justify-center rounded-xl border border-outline px-3 py-2 text-xs font-semibold disabled:opacity-40 sm:w-auto"
+            >
+              {status === "ACTIVE" ? "Desactivar" : "Activar"}
+            </button>
+            <button
+              type="button"
+              disabled={isSelf}
+              onClick={onDelete}
+              className="danger-surface inline-flex w-full items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-40 sm:w-auto"
+            >
+              Eliminar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

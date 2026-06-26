@@ -3,11 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { NarrativeRunEventType, NarrativeRunStatus, Prisma } from '@prisma/client';
+import {
+  NarrativeRunEventType,
+  NarrativeRunStatus,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
+import { ElevenLabsService } from '../integrations/elevenlabs/elevenlabs.service';
 import { CreateNarrativeRunDto } from './dto/create-narrative-run.dto';
 import { CreateRunEventDto } from './dto/create-run-event.dto';
+import { GenerateDynamicAudioDto } from './dto/generate-dynamic-audio.dto';
 import { UpdateCurrentNodeDto } from './dto/update-current-node.dto';
 import { validateNarrativeGraph } from '../narratives/narrative-graph';
 
@@ -19,7 +25,10 @@ type NarrativeRunRecord = Awaited<ReturnType<NarrativeRunsService['findOne']>>;
 
 @Injectable()
 export class NarrativeRunsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly elevenLabsService: ElevenLabsService,
+  ) {}
 
   async listActive(user: AuthenticatedUser) {
     return this.prisma.narrativeRun.findMany({
@@ -34,6 +43,12 @@ export class NarrativeRunsService {
             id: true,
             title: true,
             status: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         narrativeVersion: {
@@ -51,7 +66,11 @@ export class NarrativeRunsService {
     return this.getRunOrThrow(user, id);
   }
 
-  async create(user: AuthenticatedUser, narrativeId: string, dto: CreateNarrativeRunDto) {
+  async create(
+    user: AuthenticatedUser,
+    narrativeId: string,
+    dto: CreateNarrativeRunDto,
+  ) {
     const narrative = await this.prisma.narrative.findFirst({
       where: {
         id: narrativeId,
@@ -66,11 +85,19 @@ export class NarrativeRunsService {
       throw new NotFoundException('Narrative not found');
     }
 
-    if (narrative.status !== 'ACTIVE' || !narrative.publishedVersionId || !narrative.publishedVersion) {
-      throw new BadRequestException('Narrative must be published before it can run');
+    if (
+      narrative.status !== 'ACTIVE' ||
+      !narrative.publishedVersionId ||
+      !narrative.publishedVersion
+    ) {
+      throw new BadRequestException(
+        'Narrative must be published before it can run',
+      );
     }
 
-    const validation = validateNarrativeGraph(narrative.publishedVersion.graphJson);
+    const validation = validateNarrativeGraph(
+      narrative.publishedVersion.graphJson,
+    );
     if (!validation.valid) {
       throw new BadRequestException(validation.errors);
     }
@@ -99,7 +126,7 @@ export class NarrativeRunsService {
           eventType: NarrativeRunEventType.NODE_STARTED,
           payload: {
             startingNodeId: startNodeId,
-          } as Prisma.InputJsonValue,
+          },
         },
       });
 
@@ -114,7 +141,7 @@ export class NarrativeRunsService {
   ) {
     const run = await this.getRunOrThrow(user, id);
     this.assertRunning(run.status);
-    await this.assertNodeExists(run, dto.currentNodeId);
+    this.assertNodeExists(run, dto.currentNodeId);
 
     return this.prisma.narrativeRun.update({
       where: { id: run.id },
@@ -131,7 +158,7 @@ export class NarrativeRunsService {
   ) {
     const run = await this.getRunOrThrow(user, id);
     this.assertRunning(run.status);
-    await this.assertNodeExists(run, dto.nodeId);
+    this.assertNodeExists(run, dto.nodeId);
 
     return this.prisma.narrativeRunEvent.create({
       data: {
@@ -143,6 +170,17 @@ export class NarrativeRunsService {
           : {}),
       },
     });
+  }
+
+  async generateDynamicAudio(
+    user: AuthenticatedUser,
+    id: string,
+    dto: GenerateDynamicAudioDto,
+  ) {
+    const run = await this.getRunOrThrow(user, id);
+    this.assertRunning(run.status);
+
+    return this.elevenLabsService.generateTestAudio(user, dto);
   }
 
   async complete(user: AuthenticatedUser, id: string) {
@@ -200,6 +238,12 @@ export class NarrativeRunsService {
             title: true,
             description: true,
             status: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         narrativeVersion: {
@@ -229,10 +273,7 @@ export class NarrativeRunsService {
     }
   }
 
-  private async assertNodeExists(
-    run: NarrativeRunRecord,
-    nodeId: string,
-  ) {
+  private assertNodeExists(run: NarrativeRunRecord, nodeId: string) {
     const validation = validateNarrativeGraph(run.narrativeVersion.graphJson);
     if (!validation.valid) {
       throw new BadRequestException(validation.errors);
@@ -247,7 +288,9 @@ export class NarrativeRunsService {
       : false;
 
     if (!nodeExists) {
-      throw new BadRequestException(`Node ${nodeId} does not exist in this narrative`);
+      throw new BadRequestException(
+        `Node ${nodeId} does not exist in this narrative`,
+      );
     }
   }
 
@@ -279,7 +322,9 @@ export class NarrativeRunsService {
       : undefined;
 
     if (!startNode?.id) {
-      throw new BadRequestException('Published narrative does not contain a START node');
+      throw new BadRequestException(
+        'Published narrative does not contain a START node',
+      );
     }
 
     const firstEdge = Array.isArray(graph.edges)

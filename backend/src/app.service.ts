@@ -7,7 +7,8 @@ import { PrismaService } from './prisma/prisma.service';
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
@@ -66,27 +67,29 @@ export class AppService {
       this.storageBytes(),
     ]);
 
-    const categoriesWithButtonCounts = await this.prisma.audioCategory.findMany({
-      where: {
-        isActive: true,
-      },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: {
-        id: true,
-        name: true,
-        buttons: {
-          where: {
-            isActive: true,
-            audioAsset: {
+    const categoriesWithButtonCounts = await this.prisma.audioCategory.findMany(
+      {
+        where: {
+          isActive: true,
+        },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: {
+          id: true,
+          name: true,
+          buttons: {
+            where: {
               isActive: true,
+              audioAsset: {
+                isActive: true,
+              },
             },
-          },
-          select: {
-            id: true,
+            select: {
+              id: true,
+            },
           },
         },
       },
-    });
+    );
 
     return {
       activeAudios: activeAudioCount,
@@ -111,11 +114,11 @@ export class AppService {
       const localAudioPath =
         this.configService.get<string>('storage.localAudioPath') ??
         'storage/audio-assets';
+      const pathJoin = join;
 
       if (storageDriver === 'local' || !storageDriver) {
         const { stat } = await import('fs/promises');
-        const { join } = await import('path');
-        const path = join(process.cwd(), localAudioPath);
+        const path = pathJoin(process.cwd(), localAudioPath);
 
         try {
           const stats = await stat(path);
@@ -156,7 +159,7 @@ export class AppService {
     const backendRoot = process.cwd();
     const projectRoot = resolve(backendRoot, '..');
     const frontendRoot = resolve(projectRoot, 'frontend');
-    const audioPath = resolve(
+    const audioRootPath = resolve(
       backendRoot,
       this.configService.get<string>('storage.localAudioPath') ??
         '../storage/audio-assets',
@@ -176,6 +179,10 @@ export class AppService {
       documentsBytes,
       scriptsBytes,
       audioAssetsBytes,
+      audioPersistedBytes,
+      audioTemporaryBytes,
+      videoPersistedBytes,
+      videoTemporaryBytes,
       localDatabaseBytes,
     ] = await Promise.all([
       directorySize(resolve(backendRoot, 'src')),
@@ -184,7 +191,11 @@ export class AppService {
       directorySize(resolve(frontendRoot, '.next')),
       directorySize(resolve(projectRoot, 'documentos')),
       directorySize(resolve(projectRoot, 'scripts')),
-      directorySize(audioPath),
+      directorySize(audioRootPath),
+      directorySize(join(audioRootPath, 'audio', 'persisted')),
+      directorySize(join(audioRootPath, 'audio', 'temporary')),
+      directorySize(join(audioRootPath, 'video', 'persisted')),
+      directorySize(join(audioRootPath, 'video', 'temporary')),
       directorySize(localDatabasePath),
     ]);
 
@@ -202,7 +213,9 @@ export class AppService {
         totalBytes,
         usedBytes,
         freeBytes,
-        usedPercent: totalBytes ? Math.round((usedBytes / totalBytes) * 100) : 0,
+        usedPercent: totalBytes
+          ? Math.round((usedBytes / totalBytes) * 100)
+          : 0,
       },
       usage: {
         appBytes,
@@ -213,17 +226,77 @@ export class AppService {
         documentsBytes,
         scriptsBytes,
         audioAssetsBytes,
+        audioPersistedBytes,
+        audioTemporaryBytes,
+        videoPersistedBytes,
+        videoTemporaryBytes,
         localDatabaseBytes,
-        trackedBytes: appBytes + audioAssetsBytes + localDatabaseBytes,
+        trackedBytes:
+          appBytes +
+          audioAssetsBytes +
+          audioPersistedBytes +
+          audioTemporaryBytes +
+          videoPersistedBytes +
+          videoTemporaryBytes +
+          localDatabaseBytes,
       },
+      byKind: {
+        audio: {
+          persistedBytes: audioPersistedBytes,
+          temporaryBytes: audioTemporaryBytes,
+          totalBytes: audioPersistedBytes + audioTemporaryBytes,
+        },
+        video: {
+          persistedBytes: videoPersistedBytes,
+          temporaryBytes: videoTemporaryBytes,
+          totalBytes: videoPersistedBytes + videoTemporaryBytes,
+        },
+      },
+      byOrganization: await this.storageByOrganization(audioRootPath),
       paths: {
         projectRoot,
         backendRoot,
         frontendRoot,
-        audioPath,
+        audioPath: audioRootPath,
         localDatabasePath,
       },
     };
+  }
+
+  private async storageByOrganization(audioRootPath: string) {
+    try {
+      const { readdir } = await import('fs/promises');
+      const entries = await readdir(audioRootPath, { withFileTypes: true });
+      const organizations = entries.filter((entry) => entry.isDirectory());
+
+      return Promise.all(
+        organizations.map(async (organization) => {
+          const organizationPath = resolve(audioRootPath, organization.name);
+          return {
+            organizationId: organization.name,
+            bytes: await directorySize(organizationPath),
+            audio: {
+              persistedBytes: await directorySize(
+                join(organizationPath, 'audio', 'persisted'),
+              ),
+              temporaryBytes: await directorySize(
+                join(organizationPath, 'audio', 'temporary'),
+              ),
+            },
+            video: {
+              persistedBytes: await directorySize(
+                join(organizationPath, 'video', 'persisted'),
+              ),
+              temporaryBytes: await directorySize(
+                join(organizationPath, 'video', 'temporary'),
+              ),
+            },
+          };
+        }),
+      );
+    } catch {
+      return [];
+    }
   }
 }
 

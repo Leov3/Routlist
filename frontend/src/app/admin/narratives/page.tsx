@@ -2,25 +2,34 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, Sparkles } from "lucide-react";
-import { ProtectedPage } from "@/components/layout/ProtectedPage";
+import { AdminProtectedPage } from "@/components/layout/AdminProtectedPage";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api } from "@/lib/api";
 import { NarrativeCreateForm } from "@/components/narratives/NarrativeCreateForm";
 import { NarrativeList } from "@/components/narratives/NarrativeList";
+import type { AuthUser } from "@/types/routlis";
 import type { NarrativeListItem } from "@/types/narratives";
 
 export default function AdminNarrativesPage() {
+  const router = useRouter();
   const [narratives, setNarratives] = useState<NarrativeListItem[]>([]);
+  const [currentOrganizationId, setCurrentOrganizationId] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   async function load() {
     setLoading(true);
     try {
-      const result = await api<NarrativeListItem[]>("/narratives");
+      const [me, result] = await Promise.all([
+        api<{ user: AuthUser }>("/auth/me"),
+        api<NarrativeListItem[]>("/narratives"),
+      ]);
+      setCurrentOrganizationId(me.user.organizationId);
       setNarratives(result);
     } catch {
       setNarratives([]);
+      setCurrentOrganizationId("");
     } finally {
       setLoading(false);
     }
@@ -32,7 +41,7 @@ export default function AdminNarrativesPage() {
       body: JSON.stringify(values),
     });
     await load();
-    window.location.href = `/admin/narratives/${created.id}/builder`;
+    router.push(`/admin/narratives/${created.id}/builder`);
   }
 
   async function duplicateNarrative(id: string) {
@@ -45,26 +54,26 @@ export default function AdminNarrativesPage() {
   }, []);
 
   return (
-    <ProtectedPage requiredPermissions={["narratives:view"]}>
+    <AdminProtectedPage>
       <div className="space-y-6">
         <PageHeader
-          title="Narrativas"
+          title="Llamadas"
           description="Constructor visual de flujos operativos para la operación diaria."
           action={
             <Link
               href="/admin/narratives/new"
-              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary transition-transform hover:scale-[1.01]"
+              className="btn-surface-base btn-primary-surface flex h-11 w-full items-center justify-center rounded-2xl px-4 text-sm sm:w-auto"
             >
               <Plus className="h-4 w-4" />
-              Nueva narrativa
+              Nueva llamada
             </Link>
           }
         />
 
-        <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
           <NarrativeCreateForm onCreate={createNarrative} submitLabel="Crear y abrir builder" />
 
-          <div className="rounded-[28px] border border-outline-variant bg-surface-container p-5 shadow-elevation-1">
+          <div className="rounded-[28px] border border-outline-variant bg-surface-container p-4 shadow-elevation-1 sm:p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-tertiary text-on-tertiary">
@@ -75,7 +84,7 @@ export default function AdminNarrativesPage() {
                     Flujos disponibles
                   </h2>
                   <p className="text-sm text-on-surface-variant">
-                    {loading ? "Cargando narrativas..." : `${narratives.length} narrativas encontradas`}
+                    {loading ? "Cargando llamadas..." : `${narratives.length} llamadas encontradas`}
                   </p>
                 </div>
               </div>
@@ -86,10 +95,11 @@ export default function AdminNarrativesPage() {
               onRefresh={load}
               onDuplicate={duplicateNarrative}
               canCreate
+              currentOrganizationId={currentOrganizationId}
             />
           </div>
         </div>
       </div>
-    </ProtectedPage>
+    </AdminProtectedPage>
   );
 }

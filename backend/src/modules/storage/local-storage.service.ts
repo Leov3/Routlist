@@ -14,6 +14,7 @@ import {
   ALLOWED_IMAGE_MIME_TYPES,
   MAX_AUDIO_SIZE_BYTES,
   MAX_IMAGE_SIZE_BYTES,
+  StorageAssetKind,
   StoredFile,
   StoredImage,
 } from './storage.types';
@@ -26,6 +27,7 @@ export class LocalStorageService {
   async saveAudio(
     organizationId: string,
     file: Express.Multer.File,
+    kind: StorageAssetKind = 'audio-persisted',
   ): Promise<StoredFile> {
     if (!file) {
       throw new BadRequestException('Audio file is required');
@@ -42,9 +44,10 @@ export class LocalStorageService {
     const audioId = randomUUID();
     const extension = this.extensionFor(file);
     const fileName = `${audioId}${extension}`;
-    const storageKey = `${organizationId}/${fileName}`;
     const rootPath = this.configService.getOrThrow<string>('storage.localAudioPath');
-    const organizationPath = join(rootPath, organizationId);
+    const storageFolder = this.storageFolderFor(kind);
+    const organizationPath = join(rootPath, organizationId, storageFolder);
+    const storageKey = `${organizationId}/${storageFolder}/${fileName}`;
     const absolutePath = join(organizationPath, fileName);
 
     await mkdir(organizationPath, { recursive: true });
@@ -105,14 +108,18 @@ export class LocalStorageService {
 
   async getAudioPath(storageKey: string): Promise<string> {
     const rootPath = this.configService.getOrThrow<string>('storage.localAudioPath');
-    const absolutePath = join(rootPath, storageKey);
+    const candidates = this.audioCandidates(rootPath, storageKey);
 
-    try {
-      await stat(absolutePath);
-      return absolutePath;
-    } catch {
-      throw new NotFoundException('Audio file not found');
+    for (const absolutePath of candidates) {
+      try {
+        await stat(absolutePath);
+        return absolutePath;
+      } catch {
+        continue;
+      }
     }
+
+    throw new NotFoundException('Audio file not found');
   }
 
   async getButtonImagePath(storageKey: string): Promise<string> {
@@ -129,13 +136,47 @@ export class LocalStorageService {
 
   async deleteAudio(storageKey: string): Promise<void> {
     const rootPath = this.configService.getOrThrow<string>('storage.localAudioPath');
-    const absolutePath = join(rootPath, storageKey);
-
-    try {
-      await unlink(absolutePath);
-    } catch {
-      return;
+    for (const absolutePath of this.audioCandidates(rootPath, storageKey)) {
+      try {
+        await unlink(absolutePath);
+        return;
+      } catch {
+        continue;
+      }
     }
+  }
+
+  async saveVideo(
+    organizationId: string,
+    file: Express.Multer.File,
+    kind: StorageAssetKind = 'video-persisted',
+  ): Promise<StoredFile> {
+    return this.saveAudio(organizationId, file, kind);
+  }
+
+  private storageFolderFor(kind: StorageAssetKind) {
+    switch (kind) {
+      case 'audio-temporary':
+        return 'audio/temporary';
+      case 'audio-persisted':
+        return 'audio/persisted';
+      case 'video-temporary':
+        return 'video/temporary';
+      case 'video-persisted':
+        return 'video/persisted';
+    }
+  }
+
+  private audioCandidates(rootPath: string, storageKey: string) {
+    const normalizedKey = storageKey.replace(/^\/+/, '');
+    const trimmedRoot = rootPath.replace(/\/+$/, '');
+
+    return [
+      join(trimmedRoot, normalizedKey),
+      join(trimmedRoot, ...normalizedKey.split('/')),
+      join(trimmedRoot, 'audio-assets', normalizedKey),
+      join(trimmedRoot, 'audio-assets', ...normalizedKey.split('/')),
+    ];
   }
 
   async deleteButtonImage(storageKey: string): Promise<void> {

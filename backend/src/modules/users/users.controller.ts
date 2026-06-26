@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -48,5 +48,11 @@ export class UsersController {
   @Permissions('user:disable')
   disable(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.usersService.disable(user, id);
+  }
+
+  @Delete(':id')
+  @Permissions('user:disable')
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.usersService.remove(user, id);
   }
 }

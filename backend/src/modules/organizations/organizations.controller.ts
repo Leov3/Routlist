@@ -1,20 +1,41 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
+import { MailService } from '../mail/mail.service';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+class CreateInviteDto {
+  @ApiProperty()
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  inviteeName?: string;
+
+  @ApiProperty()
+  @IsString()
+  role!: string;
+}
 
 @ApiTags('organizations')
 @ApiCookieAuth('cookie')
 @Controller('organizations')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OrganizationsController {
-  constructor(private readonly organizationsService: OrganizationsService) {}
+  constructor(
+    private readonly organizationsService: OrganizationsService,
+    private readonly mailService: MailService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: AuthenticatedUser) {
@@ -22,7 +43,6 @@ export class OrganizationsController {
   }
 
   @Get('current')
-  @Permissions('organization:read')
   current(@CurrentUser() user: AuthenticatedUser) {
     return this.organizationsService.current(user);
   }
@@ -58,5 +78,71 @@ export class OrganizationsController {
     @Body() dto: UpdateOrganizationDto,
   ) {
     return this.organizationsService.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.organizationsService.remove(user, id);
+  }
+
+  @Get(':id/narrative-integrity')
+  narrativeIntegrity(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.organizationsService.narrativeIntegrity(user, id);
+  }
+
+  @Post(':id/invites')
+  @Permissions('user:create')
+  createInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateInviteDto,
+  ) {
+    return this.mailService.createInvite(user, id, dto);
+  }
+
+  @Get(':id/invites')
+  @Permissions('user:create')
+  listInvites(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.mailService.listOrganizationInvites(user, id);
+  }
+
+  @Post(':id/invites/:inviteId/resend')
+  @Permissions('user:create')
+  resendInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('inviteId') inviteId: string,
+  ) {
+    return this.mailService.resendInvite(user, id, inviteId);
+  }
+
+  @Post(':id/invites/:inviteId/approve')
+  @Permissions('user:update')
+  approveInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('inviteId') inviteId: string,
+  ) {
+    return this.mailService.approveInvite(user, id, inviteId);
+  }
+
+  @Post(':id/invites/:inviteId/revoke')
+  @Permissions('user:create')
+  revokeInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('inviteId') inviteId: string,
+  ) {
+    return this.mailService.revokeInvite(user, id, inviteId);
+  }
+
+  @Post(':id/invites/:inviteId/reject')
+  @Permissions('user:create')
+  rejectInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('inviteId') inviteId: string,
+  ) {
+    return this.mailService.rejectInvite(user, id, inviteId);
   }
 }

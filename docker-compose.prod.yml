@@ -27,17 +27,19 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-routlis}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-routlis}?schema=public
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY}
       COOKIE_NAME: ${COOKIE_NAME:-routlis_token}
       COOKIE_SECURE: "true"
       FRONTEND_URL: https://${FRONTEND_HOST}
       CORS_ORIGINS: https://${FRONTEND_HOST}
       STORAGE_DRIVER: local
-      LOCAL_STORAGE_PATH: /var/www/routlis/storage
-      LOCAL_AUDIO_PATH: /var/www/routlis/storage/audio-assets
+      LOCAL_STORAGE_PATH: /app/storage
+      LOCAL_AUDIO_PATH: /app/storage/audio-assets
+      LOCAL_BACKUP_PATH: /app/storage/backups
       PUBLIC_AUDIO_BASE_URL: https://${API_HOST}/files/audio-assets
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
     volumes:
-      - routlis_storage:/var/www/routlis/storage
+      - routlis_storage:/app/storage
     depends_on:
       postgres:
         condition: service_healthy

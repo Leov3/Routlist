@@ -85,10 +85,11 @@ export function AudioPlayerBar({
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const active = !!label;
+  const active = isPlaying || !!label;
 
   return (
     <div
+      data-audio-player-bar
       className={`fixed bottom-5 left-[calc(var(--routlis-sidebar-width)+20px)] right-5 z-50 overflow-hidden rounded-[26px] border border-outline-variant backdrop-blur-xl transition-all duration-300 ${
         active
           ? "shadow-[0_24px_70px_rgba(0,0,0,.36)]"

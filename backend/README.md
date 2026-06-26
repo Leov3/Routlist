@@ -13,6 +13,7 @@ API principal de Routlis V1 AudioBoard construida con NestJS.
 - Streaming protegido de audio.
 - Playback events e historial.
 - Storage local protegido.
+- Integraciones por organización, incluyendo ElevenLabs para configuración segura de TTS.
 
 ## Requisitos
 
@@ -55,6 +56,18 @@ npm run build
 - El storage y los archivos de audio siguen separados por organización.
 - El storage no expone contenido sin control de acceso.
 - `GET /health/storage` solo responde para `OWNER`.
+- Las integraciones externas se guardan por organización y usan secretos cifrados en backend.
+
+## Integraciones
+
+- `GET /integrations/elevenlabs/settings`
+- `PATCH /integrations/elevenlabs/settings`
+- `POST /integrations/elevenlabs/test`
+- `GET /integrations/elevenlabs/voices`
+- `POST /integrations/elevenlabs/generate-test`
+- `DELETE /integrations/elevenlabs/settings`
+
+La clave de cifrado de integraciones se define con `INTEGRATION_ENCRYPTION_KEY`.
 
 ## Endpoints relevantes para multitenancy
 

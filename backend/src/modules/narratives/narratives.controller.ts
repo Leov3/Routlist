@@ -9,12 +9,12 @@ import {
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AccessModule } from '../../common/decorators/access-module.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import type { AuthenticatedUser } from '../../shared/types/authenticated-user';
 import { CreateNarrativeDto } from './dto/create-narrative.dto';
-import { PublishNarrativeDto } from './dto/publish-narrative.dto';
 import { SaveNarrativeGraphDto } from './dto/save-narrative-graph.dto';
 import { UpdateNarrativeDto } from './dto/update-narrative.dto';
 import { ValidateNarrativeDto } from './dto/validate-narrative.dto';
@@ -25,6 +25,7 @@ import { NarrativesService } from './narratives.service';
 @ApiTags('narratives')
 @ApiCookieAuth('cookie')
 @Controller('narratives')
+@AccessModule('admin.narratives')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class NarrativesController {
   constructor(
@@ -39,7 +40,7 @@ export class NarrativesController {
   }
 
   @Get('active')
-  @Permissions('narratives:view')
+  @Permissions('narratives:run')
   active(@CurrentUser() user: AuthenticatedUser) {
     return this.narrativesService.active(user);
   }
@@ -109,12 +110,8 @@ export class NarrativesController {
 
   @Post(':id/publish')
   @Permissions('narratives:publish')
-  publish(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Body() dto: PublishNarrativeDto,
-  ) {
-    return this.narrativesService.publish(user, id, dto);
+  publish(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.narrativesService.publish(user, id);
   }
 
   @Post(':id/runs')

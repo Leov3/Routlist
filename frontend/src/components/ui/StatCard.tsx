@@ -12,7 +12,11 @@ const accentMap = {
   primary:   { bg: "bg-primary/10",   icon: "text-primary",   ring: "ring-primary/20" },
   secondary: { bg: "bg-secondary/10", icon: "text-secondary",  ring: "ring-secondary/20" },
   tertiary:  { bg: "bg-tertiary/10",  icon: "text-tertiary",   ring: "ring-tertiary/20" },
-  success:   { bg: "bg-emerald-500/10", icon: "text-emerald-400", ring: "ring-emerald-500/20" },
+  success:   {
+    bg: "bg-[color:var(--success-bg)]",
+    icon: "text-[color:var(--success-icon)]",
+    ring: "ring-[color:var(--success-border)]",
+  },
 };
 
 export function StatCard({ label, value, sub, icon, accent = "primary" }: StatCardProps) {

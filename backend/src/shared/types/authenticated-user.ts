@@ -5,4 +5,5 @@ export type AuthenticatedUser = {
   organizationId: string;
   role: string;
   permissions: string[];
+  sessionId: string;
 };
