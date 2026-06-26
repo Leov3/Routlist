@@ -52,8 +52,8 @@ export function AudioBoard() {
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const playback = useAudioPlayback(volume);
   const saveTimerRef = useRef<number | null>(null);
-  const simpleListRef = useRef<HTMLDivElement>(null);
-  const simpleListStyle = useBoardListHeight(simpleListRef);
+  const simplePanelRef = useRef<HTMLElement>(null);
+  const simplePanelStyle = useBoardListHeight(simplePanelRef);
 
   useEffect(() => {
     setHeaderSlot(document.getElementById("board-header-slot"));
@@ -304,7 +304,11 @@ export function AudioBoard() {
         : null}
 
       {viewMode === "simple" ? (
-        <section className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-4 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)] sm:p-5">
+        <section
+          ref={simplePanelRef}
+          style={simplePanelStyle}
+          className="grid min-h-0 flex-1 overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-4 shadow-[0_0_0_1px_rgba(124,58,237,.08),0_28px_60px_rgba(0,0,0,.12)] [grid-template-rows:auto_minmax(0,1fr)] sm:p-5"
+        >
           <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center">
             <AudioSearch
               value={sideA.search}
@@ -331,11 +335,7 @@ export function AudioBoard() {
             />
           </div>
 
-          <div
-            ref={simpleListRef}
-            style={simpleListStyle}
-            className="min-h-0 flex-1 overflow-y-auto pr-1 pb-1 overscroll-contain"
-          >
+          <div className="min-h-0 overflow-y-auto pr-1 pb-1 overscroll-contain">
             {simpleVisibleButtons.length ? (
               <div className={`grid min-h-0 gap-3 ${gridClass}`}>
                 {simpleVisibleButtons.map((button) => (

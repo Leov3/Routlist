@@ -45,8 +45,8 @@ export function BoardSidePanel({
   onSideChange: (next: BoardSideState) => void;
   density: BoardDensity;
 }) {
-  const listRef = useRef<HTMLDivElement>(null);
-  const listStyle = useBoardListHeight(listRef);
+  const panelRef = useRef<HTMLElement>(null);
+  const panelStyle = useBoardListHeight(panelRef);
   const filteredButtons = useMemo(
     () =>
       filterBoardButtons({
@@ -81,7 +81,9 @@ export function BoardSidePanel({
 
   return (
     <section
-      className={`flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 ${toneClasses.panel}`}
+      ref={panelRef}
+      style={panelStyle}
+      className={`grid min-h-0 flex-1 overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 [grid-template-rows:auto_auto_auto_minmax(0,1fr)] ${toneClasses.panel}`}
     >
       <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
@@ -135,11 +137,7 @@ export function BoardSidePanel({
         onQuickFilterChange={updateQuickFilter}
       />
 
-      <div
-        ref={listRef}
-        style={listStyle}
-        className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1 pb-1 overscroll-contain"
-      >
+      <div className="mt-5 min-h-0 overflow-y-auto pr-1 pb-1 overscroll-contain">
         <div
           className={`grid min-h-0 gap-3 ${
             density === "compact"
