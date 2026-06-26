@@ -94,7 +94,6 @@ type NodePaletteItem = {
 
 const NODE_PALETTE: NodePaletteItem[] = [
   { type: "START", label: "Inicio", description: "Punto de arranque único.", accent: "from-emerald-500 to-emerald-600" },
-  { type: "AUDIO", label: "Audio", description: "Reproduce un audio existente.", accent: "from-primary to-secondary" },
   { type: "AUDIO_BUTTON", label: "Botón de Audio", description: "Reproduce audio asociado a un botón.", accent: "from-secondary to-primary" },
   { type: "DYNAMIC_AUDIO", label: "Audio dinámico IA", description: "Texto con variables para TTS.", accent: "from-secondary to-tertiary" },
   { type: "SCRIPT_TEXT", label: "Texto / Guion", description: "Texto para leer al aire.", accent: "from-primary to-secondary" },

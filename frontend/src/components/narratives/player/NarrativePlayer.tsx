@@ -26,7 +26,6 @@ import {
   Square,
   StopCircle,
   TriangleAlert,
-  Route,
   WandSparkles,
 } from "lucide-react";
 import { api, apiUrl } from "@/lib/api";
@@ -361,7 +360,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   const [pauseRemainingSeconds, setPauseRemainingSeconds] = useState<number | null>(null);
   const [playbackProgress, setPlaybackProgress] = useState({ current: 0, duration: 0 });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ isOpen: false, x: 0, y: 0, nodeId: null });
-  const [showBottomDock, setShowBottomDock] = useState(false);
   const [showActivityDock] = useState(false);
   const [distancePresetId, setDistancePresetId] = useState<string>("max");
   const [playerViewMode, setPlayerViewMode] = useState<BoardViewMode>("simple");
@@ -1659,26 +1657,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
               >
                 Volver
               </button>
-              <div className="flex w-full min-w-[200px] max-w-[280px] shrink-0 items-center gap-2 rounded-full border border-outline-variant bg-surface px-3 py-2 lg:ml-2">
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
-                  Cerca
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={PLAYER_DISTANCE_PRESETS.length - 1}
-                  step={1}
-                  value={PLAYER_DISTANCE_PRESETS.findIndex((preset) => preset.id === distancePreset.id)}
-                  onChange={(event) => {
-                    const nextPreset = PLAYER_DISTANCE_PRESETS[Number(event.target.value)];
-                    if (nextPreset) setDistancePresetId(nextPreset.id);
-                  }}
-                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-surface-variant/30 accent-primary"
-                />
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
-                  Máximo
-                </span>
-              </div>
             </div>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -2188,81 +2166,8 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           </section>
 
           <section className="rounded-[24px] border border-outline-variant bg-surface-container px-4 py-3 shadow-elevation-1">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary-container px-3 py-1 font-semibold text-on-primary-container">
-                    <span className="h-2 w-2 rounded-full bg-primary" />
-                    Actual
-                  </span>
-                  <span className="success-surface inline-flex items-center gap-2 rounded-full px-3 py-1 font-semibold">
-                    <span className="h-2 w-2 rounded-full bg-[color:var(--success-icon)]" />
-                    Completado
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-high px-3 py-1 font-semibold text-on-surface-variant">
-                    <span className="h-2 w-2 rounded-full bg-slate-400" />
-                    Pendiente
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-secondary/25 bg-secondary-container px-3 py-1 font-semibold text-on-secondary-container">
-                    <Route className="h-3.5 w-3.5" />
-                    Ruta tomada
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-outline-variant bg-surface px-3 py-1 text-xs font-semibold text-on-surface-variant">
-                    Seleccionado: {actionNode ? nodeLabel(actionNode) : "Ninguno"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowBottomDock((value) => !value)}
-                    className="rounded-full border border-outline-variant bg-surface px-3 py-1 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-                  >
-                    {showBottomDock ? "Ocultar panel" : "Abrir panel"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Estado operacional</p>
-                    <p className="mt-1 text-sm font-semibold text-on-surface">
-                      Actual: {nodeLabel(currentNode)} · Última acción: {eventLog[0]?.eventType ?? "Sin eventos"}
-                    </p>
-                  </div>
-                  <p className="text-xs text-on-surface-variant">
-                    Ruta: {orderedNodes.slice(0, 3).map((node) => nodeLabel(node)).join(" → ")}
-                    {orderedNodes.length > 3 ? " ..." : ""}
-                  </p>
-                </div>
-              </div>
-
-              {showBottomDock ? (
-                <div className="space-y-3">
-                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)]">
-                    <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Estado operacional</p>
-                      <p className="mt-2 text-sm font-semibold text-on-surface">
-                        Actual: {nodeLabel(currentNode)} · Última acción: {eventLog[0]?.eventType ?? "Sin eventos"}
-                      </p>
-                      <p className="mt-1 text-xs text-on-surface-variant">
-                        Ruta: {orderedNodes.slice(0, 3).map((node) => nodeLabel(node)).join(" → ")}
-                        {orderedNodes.length > 3 ? " ..." : ""}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Resumen</p>
-                      <div className="mt-2 grid gap-1 text-xs text-on-surface-variant">
-                        <p>Versión: <span className="font-semibold text-on-surface">v{run.narrativeVersion.versionNumber}</span></p>
-                        <p>Estado: <span className="font-semibold text-on-surface">{run.status}</span></p>
-                        <p>Eventos: <span className="font-semibold text-on-surface">{run.events?.length ?? 0}</span></p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {showActivityDock ? (
-                    <div className="grid gap-3 lg:grid-cols-2">
+            {showActivityDock ? (
+              <div className="grid gap-3 lg:grid-cols-2">
                       <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-3">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">Actividad reciente</p>
                         <div className="mt-3 max-h-[220px] space-y-2 overflow-y-auto pr-2">
@@ -2296,14 +2201,11 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                           })}
                         </div>
                       </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </section>
         </div>
-        </div>
+      </div>
         {isDualView ? (
           <aside className="min-w-0 w-full lg:sticky lg:top-4 lg:self-start">
             <NarrativeAudioLibraryPanel />
