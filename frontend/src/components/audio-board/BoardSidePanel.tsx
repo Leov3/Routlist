@@ -80,7 +80,7 @@ export function BoardSidePanel({
     <section
       className={`flex h-full flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 ${toneClasses.panel}`}
       style={{
-        minHeight: "clamp(560px, calc(100dvh - 12rem), 980px)",
+        minHeight: 0,
       }}
     >
       <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

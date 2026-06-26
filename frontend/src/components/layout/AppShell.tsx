@@ -683,8 +683,10 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
         </header>
 
         {/* Scrollable content */}
-        <main className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-          <div className={`flex-1 ${density === "compact" ? "p-3 sm:p-4 lg:p-6" : "p-3 sm:p-5 lg:p-8"}`}>{children}</div>
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+          <div className={`flex min-h-0 flex-1 flex-col ${density === "compact" ? "p-3 sm:p-4 lg:p-6" : "p-3 sm:p-5 lg:p-8"}`}>
+            {children}
+          </div>
         </main>
       </div>
 
