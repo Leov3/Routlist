@@ -1499,15 +1499,15 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         }}
         className="hidden"
       />
-      <div className={isDualView ? "grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(360px,.75fr)]" : "flex min-h-0 flex-1 flex-col gap-4"}>
+      <div className={isDualView ? "grid min-h-0 flex-1 items-stretch gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(360px,.75fr)]" : "flex min-h-0 flex-1 flex-col gap-4"}>
         {message ? (
           <div className="fixed left-4 right-4 top-4 z-40 mx-auto max-w-3xl rounded-2xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface shadow-elevation-2 lg:left-auto lg:right-6 lg:top-6 lg:mx-0">
             {message}
           </div>
         ) : null}
 
-        <div className={isDualView ? "flex min-h-0 flex-col gap-4" : "flex min-h-0 flex-1 flex-col gap-4"}>
-          <section className="flex min-h-[calc(100dvh-12rem)] flex-1 flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1 lg:min-h-[calc(100dvh-11rem)]">
+        <div className={isDualView ? "flex min-h-0 flex-col gap-4 self-stretch" : "flex min-h-0 flex-1 flex-col gap-4"}>
+          <section className="flex h-full min-h-[calc(100dvh-12rem)] flex-1 flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1 lg:min-h-[calc(100dvh-11rem)]">
             <div className="relative h-full min-h-[520px] flex-1 overflow-hidden rounded-[24px] border border-outline-variant bg-surface-container">
               <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-primary/20 bg-surface-container-high/85 px-2.5 py-1 text-[11px] font-semibold text-primary backdrop-blur">
@@ -1960,7 +1960,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
           </section>
         </div>
         {isDualView ? (
-          <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+          <aside className="min-w-0 self-stretch lg:sticky lg:top-4 lg:self-start">
             <NarrativeAudioLibraryPanel />
           </aside>
         ) : null}

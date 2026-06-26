@@ -78,7 +78,7 @@ export function BoardSidePanel({
 
   return (
     <section
-      className={`flex min-h-[calc(100dvh-12rem)] flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 lg:min-h-[calc(100dvh-11rem)] xl:min-h-[calc(100dvh-10rem)] ${toneClasses.panel}`}
+      className={`flex h-full min-h-[calc(100dvh-12rem)] flex-1 flex-col overflow-hidden rounded-[28px] border border-outline-variant bg-surface-container-high p-5 lg:min-h-[calc(100dvh-11rem)] xl:min-h-[calc(100dvh-10rem)] ${toneClasses.panel}`}
     >
       <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
