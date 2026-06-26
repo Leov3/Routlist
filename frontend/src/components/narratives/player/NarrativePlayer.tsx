@@ -928,6 +928,11 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
   }, [runId]);
 
   useEffect(() => {
+    hasFitViewRef.current = false;
+    setCanvasViewport({ x: 0, y: 0, zoom: 0.8 });
+  }, [playerViewMode, runId]);
+
+  useEffect(() => {
     let cancelled = false;
     setPreferencesReady(false);
 
@@ -1529,6 +1534,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 </span>
               </div>
               <ReactFlow
+                key={`${runId}-${playerViewMode}`}
                 nodes={flowNodes}
                 edges={flowEdges}
                 nodeTypes={playerNodeTypes}
@@ -1583,7 +1589,7 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
                 }}
                 fitView={false}
                 fitViewOptions={{ padding: 0.2, minZoom: 0.2, maxZoom: 2 }}
-                defaultViewport={canvasViewport}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
                 minZoom={0.2}
                 maxZoom={2}
                 proOptions={{ hideAttribution: true }}
