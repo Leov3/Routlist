@@ -18,13 +18,11 @@ import "@xyflow/react/dist/style.css";
 import {
   ArrowRight,
   Copy,
-  Crosshair,
   CheckCircle2,
   Lock,
   Play,
   Pause,
   Square,
-  StopCircle,
   TriangleAlert,
   WandSparkles,
 } from "lucide-react";
@@ -823,25 +821,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     });
   }, [completedIds, edges, nodes, run?.currentNodeId, selectedDecisionTargets]);
 
-  const resolveNodeCenter = useCallback((node: NodeMeta, index = 0) => {
-    const layoutPosition = layoutPositions.get(node.id);
-    const position = layoutPosition ? { x: layoutPosition.x, y: layoutPosition.y } : { x: index * PLAYER_LAYOUT_GAP.x, y: index * PLAYER_LAYOUT_GAP.y };
-    const size = getPlayerNodeSize(node);
-    return {
-      x: position.x + size.width / 2,
-      y: position.y + size.height / 2,
-    };
-  }, [layoutPositions]);
-
-  const centerCurrentNode = useCallback(() => {
-    if (!reactFlowRef.current || !currentNode) return;
-    const position = resolveNodeCenter(currentNode);
-    reactFlowRef.current.setCenter(position.x + 150, position.y + 90, {
-      zoom: Math.max(reactFlowRef.current.getZoom(), 0.8),
-      duration: 350,
-    });
-  }, [currentNode, resolveNodeCenter]);
-
   const load = useCallback(async () => {
     setLoading(true);
     setMessage(null);
@@ -1236,22 +1215,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
     }
   }
 
-  async function cancelRun() {
-    if (!run) return;
-    setWorking(true);
-    setMessage(null);
-    try {
-      await api(`/narrative-runs/${run.id}/cancel`, {
-        method: "POST",
-      });
-      await load();
-    } catch (error) {
-      setMessage(handleApiError(error, "No se pudo cancelar la ejecución."));
-    } finally {
-      setWorking(false);
-    }
-  }
-
   const audioAssetId = actionNode?.type === "AUDIO" 
     ? String(actionNode.data?.audioAssetId ?? "") 
     : actionNode?.type === "AUDIO_BUTTON" 
@@ -1555,72 +1518,6 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
             {message}
           </div>
         ) : null}
-
-        <div className="flex flex-wrap items-center gap-2 rounded-[22px] border border-outline-variant bg-surface-container px-4 py-3 shadow-elevation-1">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant">
-              Llamadas / {run.narrative.title}
-            </p>
-            <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-on-surface">
-              {run.narrative.title}
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => centerCurrentNode()}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-            >
-              <Crosshair className="h-3.5 w-3.5" />
-              Centrar
-            </button>
-            <button
-              type="button"
-              onClick={() => void cancelRun()}
-              disabled={working || run.status !== "RUNNING"}
-              className="danger-surface inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition-colors disabled:opacity-50"
-            >
-              <StopCircle className="h-3.5 w-3.5" />
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={() => void finishRun()}
-              disabled={working || run.status !== "RUNNING" || currentNode.type !== "END"}
-              className="success-surface inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition-colors disabled:opacity-50"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Finalizar
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push("/narratives")}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-outline-variant bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:border-primary"
-            >
-              Volver
-            </button>
-            <div className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface px-3 py-2">
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
-                Cerca
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={PLAYER_DISTANCE_PRESETS.length - 1}
-                step={1}
-                value={PLAYER_DISTANCE_PRESETS.findIndex((preset) => preset.id === distancePreset.id)}
-                onChange={(event) => {
-                  const nextPreset = PLAYER_DISTANCE_PRESETS[Number(event.target.value)];
-                  if (nextPreset) setDistancePresetId(nextPreset.id);
-                }}
-                className="h-2 w-40 cursor-pointer appearance-none rounded-full bg-surface-variant/30 accent-primary sm:w-48"
-              />
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
-                Máximo
-              </span>
-            </div>
-          </div>
-        </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           <section className="flex min-h-0 flex-1 flex-col rounded-[28px] border border-outline-variant bg-surface-container p-3 shadow-elevation-1">
