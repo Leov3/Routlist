@@ -28,6 +28,7 @@ const initialState: PlaybackState = {
 
 export function useAudioPlayback(masterVolume = 1) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const warmCacheRef = useRef(new Map<string, HTMLAudioElement>());
   const startedAtRef = useRef<number | null>(null);
   const eventIdRef = useRef<string | null>(null);
   const [state, setState] = useState<PlaybackState>(initialState);
@@ -71,6 +72,17 @@ export function useAudioPlayback(masterVolume = 1) {
     setState(initialState);
   }, [finalizeCurrentPlayback]);
 
+  const preloadButton = useCallback((button: BoardAudioButton) => {
+    if (warmCacheRef.current.has(button.audioUrl)) return;
+
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.crossOrigin = "use-credentials";
+    audio.src = mediaUrl(button.audioUrl);
+    audio.load();
+    warmCacheRef.current.set(button.audioUrl, audio);
+  }, []);
+
   const playButton = useCallback(
     async (button: BoardAudioButton, volume = 1) => {
       const previousAudio = audioRef.current;
@@ -91,12 +103,16 @@ export function useAudioPlayback(masterVolume = 1) {
         void finalizePlaybackEvent(previousEventId, previousStartedAt);
       }
 
-      const audio = new Audio();
+      const cachedAudio = warmCacheRef.current.get(button.audioUrl) ?? null;
+      const audio = cachedAudio ?? new Audio();
       audio.preload = "auto";
       audio.crossOrigin = "use-credentials";
       audio.volume = Math.max(0, Math.min(1, volume));
-      audio.src = mediaUrl(button.audioUrl);
+      if (!cachedAudio) {
+        audio.src = mediaUrl(button.audioUrl);
+      }
       audioRef.current = audio;
+      warmCacheRef.current.delete(button.audioUrl);
 
       audio.onended = () => {
         if (audioRef.current === audio) {
@@ -186,5 +202,5 @@ export function useAudioPlayback(masterVolume = 1) {
     setState((current) => ({ ...current, isPlaying: true, isPaused: false }));
   }, []);
 
-  return { state, playButton, stop, pause, resume };
+  return { state, playButton, preloadButton, stop, pause, resume };
 }

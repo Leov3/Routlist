@@ -160,6 +160,30 @@ export function AudioBoard() {
     [favoriteIds, flattenedButtons, recentIds, sideA],
   );
 
+  useEffect(() => {
+    const warmTargets = simpleVisibleButtons.slice(0, 6);
+    let cancelled = false;
+
+    const schedule = window.requestIdleCallback
+      ? window.requestIdleCallback(() => {
+          if (cancelled) return;
+          warmTargets.forEach((button) => playback.preloadButton(button));
+        })
+      : window.setTimeout(() => {
+          if (cancelled) return;
+          warmTargets.forEach((button) => playback.preloadButton(button));
+        }, 120);
+
+    return () => {
+      cancelled = true;
+      if (typeof schedule === "number") {
+        window.clearTimeout(schedule);
+      } else if ("cancelIdleCallback" in window) {
+        window.cancelIdleCallback(schedule);
+      }
+    };
+  }, [playback.preloadButton, simpleVisibleButtons]);
+
   const selectedButton = useMemo(
     () => flattenedButtons.find((button) => button.id === detailsButtonId) ?? null,
     [detailsButtonId, flattenedButtons],
@@ -345,6 +369,7 @@ export function AudioBoard() {
                     active={playback.state.activeButtonId === button.id}
                     isFavorite={favoriteIds.includes(button.id)}
                     density={density}
+                    onWarm={playback.preloadButton}
                     onPlay={(currentButton) => {
                       void playback
                         .playButton(currentButton, volume)
@@ -389,6 +414,7 @@ export function AudioBoard() {
                 })
                 .catch(() => undefined);
             }}
+            onWarm={playback.preloadButton}
             onToggleFavorite={(currentButton) => {
               void toggleFavorite(currentButton.id);
             }}
@@ -417,6 +443,7 @@ export function AudioBoard() {
                 })
                 .catch(() => undefined);
             }}
+            onWarm={playback.preloadButton}
             onToggleFavorite={(currentButton) => {
               void toggleFavorite(currentButton.id);
             }}

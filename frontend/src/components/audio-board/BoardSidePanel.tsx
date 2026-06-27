@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeftRight } from "lucide-react";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { AudioButton } from "./AudioButton";
 import { AudioSearch } from "./AudioSearch";
 import { BoardFilterChips } from "./BoardFilterChips";
@@ -21,6 +21,7 @@ export function BoardSidePanel({
   recentIds,
   activeButtonId,
   onPlay,
+  onWarm,
   onStop,
   onToggleFavorite,
   onOpenDetails,
@@ -38,6 +39,7 @@ export function BoardSidePanel({
   recentIds: string[];
   activeButtonId: string | null;
   onPlay: (button: BoardButton) => void;
+  onWarm?: (button: BoardButton) => void;
   onStop: () => void;
   onToggleFavorite: (button: BoardButton) => void;
   onOpenDetails: (button: BoardButton) => void;
@@ -78,6 +80,30 @@ export function BoardSidePanel({
       selectedCategoryId: next === "all" ? side.selectedCategoryId : "all",
     });
   }
+
+  useEffect(() => {
+    const warmTargets = filteredButtons.slice(0, 6);
+    let cancelled = false;
+
+    const schedule = window.requestIdleCallback
+      ? window.requestIdleCallback(() => {
+          if (cancelled) return;
+          warmTargets.forEach((button) => onWarm?.(button));
+        })
+      : window.setTimeout(() => {
+          if (cancelled) return;
+          warmTargets.forEach((button) => onWarm?.(button));
+        }, 120);
+
+    return () => {
+      cancelled = true;
+      if (typeof schedule === "number") {
+        window.clearTimeout(schedule);
+      } else if ("cancelIdleCallback" in window) {
+        window.cancelIdleCallback(schedule);
+      }
+    };
+  }, [filteredButtons, onWarm]);
 
   return (
     <section
@@ -156,6 +182,7 @@ export function BoardSidePanel({
                 isFavorite={favoriteIds.includes(button.id)}
                 density={density}
                 onPlay={onPlay}
+                onWarm={onWarm}
                 onStop={onStop}
                 onToggleFavorite={onToggleFavorite}
                 onOpenDetails={onOpenDetails}

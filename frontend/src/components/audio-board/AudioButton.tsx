@@ -10,6 +10,7 @@ export function AudioButton({
   isFavorite,
   density = "medium",
   onPlay,
+  onWarm,
   onStop,
   onToggleFavorite,
   onOpenDetails,
@@ -19,6 +20,7 @@ export function AudioButton({
   isFavorite: boolean;
   density?: BoardDensity;
   onPlay: (button: BoardAudioButton) => void;
+  onWarm?: (button: BoardAudioButton) => void;
   onStop?: () => void;
   onToggleFavorite: (button: BoardAudioButton) => void;
   onOpenDetails: (button: BoardAudioButton) => void;
@@ -42,6 +44,9 @@ export function AudioButton({
       role="button"
       tabIndex={0}
       onClick={() => (active ? onStop?.() : onPlay(button))}
+      onMouseEnter={() => onWarm?.(button)}
+      onFocusCapture={() => onWarm?.(button)}
+      onTouchStartCapture={() => onWarm?.(button)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
