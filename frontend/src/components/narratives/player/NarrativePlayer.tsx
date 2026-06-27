@@ -1133,27 +1133,21 @@ export function NarrativePlayer({ runId, onReloadRequest }: NarrativePlayerProps
         objectUrlRef.current = null;
       }
 
-      const response = await fetch(apiUrl(`/audio-assets/${audioAssetIdToPlay}/narrative-stream`), {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("No se pudo cargar el audio.");
-      }
-
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      objectUrlRef.current = objectUrl;
-
       if (!audioRef.current) {
-        URL.revokeObjectURL(objectUrl);
-        objectUrlRef.current = null;
         setMessage("No se pudo inicializar el reproductor de audio.");
         return;
       }
 
-      audioRef.current.src = objectUrl;
+      if (audioRef.current.src) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+
+      audioRef.current.crossOrigin = "use-credentials";
+      audioRef.current.preload = "auto";
+      audioRef.current.src = apiUrl(`/audio-assets/${audioAssetIdToPlay}/narrative-stream`);
       audioRef.current.volume = 1;
+      audioRef.current.load();
       await audioRef.current.play();
       setPlaybackState("playing");
 

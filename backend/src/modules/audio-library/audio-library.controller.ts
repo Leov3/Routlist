@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   Res,
   UploadedFile,
   UploadedFiles,
@@ -14,8 +15,9 @@ import {
 } from '@nestjs/common';
 import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { createReadStream } from 'fs';
+import { stat } from 'fs/promises';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AccessModule } from '../../common/decorators/access-module.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -33,6 +35,53 @@ import { UpdateAudioAssetDto } from './dto/update-audio-asset.dto';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AudioLibraryController {
   constructor(private readonly audioLibraryService: AudioLibraryService) {}
+
+  private async pipeAudio(
+    req: Request,
+    res: Response,
+    path: string,
+    mimeType: string,
+    fileName: string,
+  ) {
+    const fileStats = await stat(path);
+    const fileSize = fileStats.size;
+    const range = req.headers.range;
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Last-Modified', fileStats.mtime.toUTCString());
+
+    if (!range) {
+      res.setHeader('Content-Length', fileSize);
+      createReadStream(path).pipe(res);
+      return;
+    }
+
+    const [startRaw, endRaw] = range.replace(/bytes=/, '').split('-');
+    const start = Number.parseInt(startRaw, 10);
+    const end = endRaw ? Number.parseInt(endRaw, 10) : fileSize - 1;
+
+    if (
+      Number.isNaN(start) ||
+      Number.isNaN(end) ||
+      start < 0 ||
+      end >= fileSize ||
+      start > end
+    ) {
+      res.status(416);
+      res.setHeader('Content-Range', `bytes */${fileSize}`);
+      res.end();
+      return;
+    }
+
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+    res.setHeader('Content-Length', end - start + 1);
+    createReadStream(path, { start, end }).pipe(res);
+  }
 
   @Get()
   @Permissions('audio:read')
@@ -127,12 +176,11 @@ export class AudioLibraryController {
   async stream(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const { asset, path } = await this.audioLibraryService.streamPath(user, id);
-    res.setHeader('Content-Type', asset.mimeType);
-    res.setHeader('Content-Disposition', `inline; filename="${asset.fileName}"`);
-    createReadStream(path).pipe(res);
+    await this.pipeAudio(req, res, path, asset.mimeType, asset.fileName);
   }
 
   @Get(':id/narrative-stream')
@@ -140,12 +188,11 @@ export class AudioLibraryController {
   async narrativeStream(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const { asset, path } = await this.audioLibraryService.streamPath(user, id);
-    res.setHeader('Content-Type', asset.mimeType);
-    res.setHeader('Content-Disposition', `inline; filename="${asset.fileName}"`);
-    createReadStream(path).pipe(res);
+    await this.pipeAudio(req, res, path, asset.mimeType, asset.fileName);
   }
 
   @Get(':id/download')
